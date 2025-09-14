@@ -1,0 +1,52 @@
+# 临时文件
+tmp
+.env
+.DS_Store
+.history
+
+# Golang
+# `go test -c` 生成的二进制文件
+*.test
+# go coverage 工具
+*.out
+*.prof
+*.cgo1.go
+*.cgo2.c
+_cgo_defun.c
+_cgo_gotypes.go
+_cgo_export.*
+
+# 编译文件
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+__*
+profile.cov
+/go.sum
+
+# 文件夹
+.DS_Store?
+.AppleDouble
+_obj
+_test
+.vagrant
+releases
+vendor/
+/dist
+trace.out
+_testmain.go
+
+
+
+# IDE 和编辑器
+.idea/
+/go_build_*
+out/
+.vscode/
+.vscode/settings.json
+*.sublime*
+__debug_bin
+.project
