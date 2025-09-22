@@ -38,7 +38,7 @@ vendor/
 /dist
 trace.out
 _testmain.go
-
+CLAUDE.md
 
 
 # IDE 和编辑器
