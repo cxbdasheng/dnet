@@ -1,0 +1,1887 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>D-NET</title>
+
+    <link rel="stylesheet" href="/static/css/layui.css">
+    <link rel="stylesheet" href="/static/css/common.css">
+</head>
+<body>
+<div class="layui-layout layui-layout-admin" id="body">
+    <div class="layui-header header">
+        <div class="layui-container">
+            <div class="layui-logo layui-hide-xs layui-bg-black">
+                <a href="javascript:;">
+                    D-NET
+                </a>
+            </div>
+            <!-- 移动端显示 -->
+            <ul class="layui-nav">
+                <li class="layui-nav-item layui-show-xs-inline-block layui-hide-sm" lay-header-event="menuLeft">
+                    <i class="layui-icon layui-icon-spread-left"></i>
+                </li>
+            </ul>
+            <!-- 头部区域（可配合layui 已有的水平导航） -->
+            <div class="ws-header-menu">
+                <ul class="layui-nav layui-layout-left" lay-filter="nav-filter">
+                    <li class="layui-nav-item layui-hide-xs layui-this"><a href="javascript:;">DCDN</a></li>
+                    <li class="layui-nav-item layui-hide-xs"><a href="javascript:;">DDNS</a></li>
+                </ul>
+            </div>
+            <ul class="layui-nav  layui-layout-right" lay-bar="disabled">
+                <li class="layui-nav-item" lay-unselect>
+                    <a href="javascript:;" id="logs">
+                        <button type="button" class="layui-btn">日志</button>
+                    </a>
+                </li>
+                <li class="layui-nav-item" lay-unselect>
+                    <a href="javascript:;">
+                        <img src="/static/default.jpg" class="layui-nav-img">
+                    </a>
+                    <dl class="layui-nav-child">
+                        <dd><a href="javascript:;" id="webhook-config">Webhook</a></dd>
+                        <dd><a href="javascript:;" id="settings">系统设置</a></dd>
+                        <hr>
+                        <dd style="text-align: center;"><a href="./logout">退出</a></dd>
+                    </dl>
+                </li>
+            </ul>
+        </div>
+    </div>
+    <div class="layui-body">
+        <div class="layui-container">
+            <!-- 内容主体区域 -->
+            <div style="padding: 15px;">
+                <form class="layui-form">
+                    <div class="layui-card">
+                        <div class="layui-card-header">DCDN 设置</div>
+                        <div class="layui-card-body">
+                            <div class="layui-row layui-form-item">
+                                <label class="layui-form-label" for="dcdn_enable">是否开启：</label>
+                                <div class="layui-input-inline">
+                                    <input type="checkbox" id="dcdn_enable" name="dcdn_enable" lay-skin="switch"
+                                           lay-text="开启|关闭"
+                                           checked>
+                                </div>
+                                <div class="layui-form-mid layui-word-aux">
+                                    全局开关，关闭后 DCDN 将停用，所有配置失效。
+                                </div>
+                            </div>
+                            <hr/>
+                            <div class="layui-row layui-form-item">
+                                <label class="layui-form-label" for="config">配置：</label>
+                                <div class="layui-input-inline">
+                                    <select id="config" lay-search="{fuzzy: false}" lay-creatable=""
+                                            lay-verify="required"
+                                            lay-filter="config-select-filter" name="config">
+                                        <option value="1">1</option>
+                                    </select>
+                                </div>
+                                <div class="layui-input-inline" style="width: 205px;">
+                                    <button type="button" class="layui-btn" id="config-add">
+                                        <i class="layui-icon layui-icon-add-1"></i>
+                                    </button>
+                                    <button type="button" class="layui-btn" id="config-rename">
+                                        <i class="layui-icon layui-icon-edit"></i>
+                                    </button>
+                                    <button type="button" class="layui-btn" id="config-remove">
+                                        <i class="layui-icon layui-icon-delete"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="layui-row layui-form-item">
+                                <label class="layui-form-label" for="domain">域名：</label>
+                                <div class="layui-input-block">
+                                    <input type="text" id="domain" name="domain" lay-verify="domain" autocomplete="off"
+                                           placeholder="请输域名" class="layui-input">
+                                    <!--                                    <tip>填写自己部署网站的名称。</tip>-->
+                                </div>
+                            </div>
+                            <div class="layui-row layui-form-item">
+                                <div class="layui-input-block">
+                                    <button type="submit" class="layui-btn" lay-submit lay-filter="save">立即提交
+                                    </button>
+                                    <button type="reset" class="layui-btn layui-btn-primary">重置</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="layui-card">
+                        <div class="layui-card-header">CDN 服务商</div>
+                        <div class="layui-card-body">
+                            <div class="layui-row layui-form-item">
+                                <label class="layui-form-label"></label>
+                                <div class="layui-input-block" id="service-radio-container">
+                                    <!-- CDN提供商单选按钮将通过JavaScript动态生成 -->
+                                </div>
+                                <tip class="tip" id="service-help-link"><a href="">创建 AccessKey</a></tip>
+                            </div>
+
+                            <div class="layui-row layui-form-item">
+                                <label class="layui-form-label" for="access_key" id="access-key-label">AccessKey
+                                    ID：</label>
+                                <div class="layui-input-block">
+                                    <input type="text" id="access_key" name="access_key" lay-verify="title"
+                                           autocomplete="off"
+                                           placeholder="请输入AccessKey ID" class="layui-input">
+                                </div>
+                            </div>
+
+                            <div class="layui-row layui-form-item">
+                                <label class="layui-form-label" for="access_secret" id="access-secret-label">AccessKey
+                                    Secret：</label>
+                                <div class="layui-input-block">
+                                    <input type="text" id="access_secret" name="access_secret" lay-verify="title"
+                                           autocomplete="off"
+                                           placeholder="请输入AccessKey Secret" class="layui-input">
+                                </div>
+                            </div>
+                            <div class="layui-row layui-form-item">
+                                <label class="layui-form-label" for="cdn-type-select">类型：</label>
+                                <div class="layui-input-inline">
+                                    <select name="cdn_type" lay-filter="cdn-type-filter" id="cdn-type-select">
+                                        <option value="CDN">CDN</option>
+                                        <option value="DCDN">DCDN</option>
+                                    </select>
+                                </div>
+                                <div class="layui-form-mid layui-word-aux" id="type-help-text">类型请参考：</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="layui-card">
+                        <div class="layui-card-header">IPv4</div>
+                        <div class="layui-card-body">
+                            <div class="layui-row layui-form-item">
+                                <label class="layui-form-label" for="ipv4_enable">是否开启：</label>
+                                <div class="layui-input-block">
+                                    <input type="checkbox" id="ipv4_enable" name="ipv4_enable" lay-skin="switch"
+                                           lay-text="开启|关闭">
+                                </div>
+                            </div>
+                            <div class="layui-row layui-form-item">
+                                <label class="layui-form-label">获取 IP 方式：</label>
+                                <div class="layui-input-block">
+                                    <input type="radio" name="ipv4_type" value="url" title="通过接口获取"
+                                           checked>
+                                    <input type="radio" name="ipv4_type" value="interface" title="通过网卡获取">
+                                    <input type="radio" name="ipv4_type" value="command" title="通过命令获取">
+                                </div>
+                            </div>
+                            <div class="layui-row layui-form-item" id="ipv4-url-config">
+                                <label class="layui-form-label">接口地址：</label>
+                                <div class="layui-input-block">
+                                    <input type="text" name="ipv4_url_value" autocomplete="off" class="layui-input"
+                                           placeholder="请输入接口地址">
+                                </div>
+                            </div>
+
+                            <div class="layui-row layui-form-item" id="ipv4-interface-config" style="display: none;">
+                                <label class="layui-form-label">网卡选择：</label>
+                                <div class="layui-input-block">
+                                    <select name="ipv4_interface_select">
+                                        {{range .IPv4}}
+                                        <option value="{{.Name}}">
+                                            {{.Name}}{{.Address}}
+                                        </option>
+                                        {{end}}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="layui-row layui-form-item" id="ipv4-command-config" style="display: none;">
+                                <label class="layui-form-label">命令内容：</label>
+                                <div class="layui-input-block">
+                                    <input type="text" name="ipv4_command_value" autocomplete="off" class="layui-input"
+                                           placeholder="请输入命令内容">
+                                </div>
+                            </div>
+
+                            <div class="layui-row layui-form-item">
+                                <label class="layui-form-label" for="ipv4_weight">权重值：</label>
+                                <div class="layui-input-inline">
+                                    <input type="text" id="ipv4_weight" name="ipv4_weight" lay-affix="number" value="10"
+                                           step="1"
+                                           max="100" min="0" class="layui-input">
+                                    <tip>权重值在0-100之间，值越大优先级越高。</tip>
+                                </div>
+                            </div>
+                            <fieldset class="layui-elem-field layui-field-title">
+                                <legend>静态 IPv4 地址配置</legend>
+                            </fieldset>
+                            <div class="layui-row layui-form-item">
+                                <label class="layui-form-label"></label>
+                                <div class="layui-col-md4">
+                                    <div class="layui-input-group">
+                                        <div class="layui-input-prefix">
+                                            IPv4：
+                                        </div>
+                                        <input type="text" name="static_ipv4_value" lay-verify="ipv4" autocomplete="off"
+                                               class="layui-input">
+                                    </div>
+                                </div>
+                                <div class="layui-col-md4">
+                                    <div class="layui-input-group">
+                                        <div class="layui-input-prefix">
+                                            权重值：
+                                        </div>
+                                        <input type="text" name="static_ipv4_weight" lay-affix="number" value="10"
+                                               step="1"
+                                               max="100" min="0" class="layui-input">
+                                    </div>
+                                </div>
+                                <button type="button" class="layui-btn" id="static-ip4-add">
+                                    <i class="layui-icon layui-icon-add-1"></i>
+                                </button>
+                            </div>
+
+                        </div>
+                    </div>
+                    <div class="layui-card">
+                        <div class="layui-card-header">IPv6</div>
+                        <div class="layui-card-body">
+                            <div class="layui-row layui-form-item">
+                                <label class="layui-form-label" for="ipv6_enable">是否开启：</label>
+                                <div class="layui-input-block">
+                                    <input type="checkbox" id="ipv6_enable" name="ipv6_enable" lay-skin="switch"
+                                           lay-text="开启|关闭">
+                                </div>
+                            </div>
+                            <div class="layui-row layui-form-item">
+                                <label class="layui-form-label">获取 IP 方式：</label>
+                                <div class="layui-input-block">
+                                    <input type="radio" name="ipv6_type" value="url" title="通过接口获取"
+                                           checked>
+                                    <input type="radio" name="ipv6_type" value="interface" title="通过网卡获取">
+                                    <input type="radio" name="ipv6_type" value="command" title="通过命令获取">
+                                </div>
+                            </div>
+                            <div class="layui-row layui-form-item" id="ipv6-url-config">
+                                <label class="layui-form-label">接口地址：</label>
+                                <div class="layui-input-block">
+                                    <input type="text" name="ipv6_url_value" autocomplete="off" class="layui-input"
+                                           placeholder="请输入接口地址">
+                                </div>
+                            </div>
+
+                            <div class="layui-row layui-form-item" id="ipv6-interface-config" style="display: none;">
+                                <label class="layui-form-label">网卡选择：</label>
+                                <div class="layui-input-block">
+                                    <select name="ipv6_interface_select">
+                                        {{range .IPv6}}
+                                        <option value="{{.Name}}">
+                                            {{.Name}}{{.Address}}
+                                        </option>
+                                        {{end}}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="layui-row layui-form-item" id="ipv6-command-config" style="display: none;">
+                                <label class="layui-form-label">命令内容：</label>
+                                <div class="layui-input-block">
+                                    <input type="text" name="ipv6_command_value" autocomplete="off" class="layui-input"
+                                           placeholder="请输入命令内容">
+                                </div>
+                            </div>
+                            <div class="layui-row layui-form-item">
+                                <label class="layui-form-label" for="ipv6_weight">权重值：</label>
+                                <div class="layui-input-inline">
+                                    <input type="text" id="ipv6_weight" name="ipv6_weight" lay-affix="number" value="10"
+                                           step="1"
+                                           max="100" min="0" class="layui-input">
+                                    <tip>权重值在0-100之间，值越大优先级越高。</tip>
+                                </div>
+                            </div>
+                            <fieldset class="layui-elem-field layui-field-title">
+                                <legend>静态 IPv6 地址配置</legend>
+                            </fieldset>
+                            <div class="layui-row layui-form-item">
+                                <label class="layui-form-label"></label>
+                                <div class="layui-col-md4">
+                                    <div class="layui-input-group">
+                                        <div class="layui-input-prefix">
+                                            IPv6：
+                                        </div>
+                                        <input type="text" name="static_ipv6_value" lay-verify="ipv6" autocomplete="off"
+                                               class="layui-input">
+                                    </div>
+                                </div>
+                                <div class="layui-col-md4">
+                                    <div class="layui-input-group">
+                                        <div class="layui-input-prefix">
+                                            权重值：
+                                        </div>
+                                        <input type="text" name="static_ipv6_weight" lay-affix="number" value="10"
+                                               step="1"
+                                               max="100" min="0" class="layui-input">
+                                    </div>
+                                </div>
+                                <button type="button" class="layui-btn" id="static-ip6-add">
+                                    <i class="layui-icon layui-icon-add-1"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="layui-row layui-form-item">
+                        <div class="layui-input-block">
+                            <button type="submit" class="layui-btn" lay-submit lay-filter="save">立即提交
+                            </button>
+                            <button type="reset" class="layui-btn layui-btn-primary">重置</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="clear"></div>
+    <div class="layui-footer">
+        <div class="layui-container">
+            <div style="text-align: center; color: #666; width: 100%;">
+                <p style="margin: 0;">
+                    <!--                    D-NET v1.0.0 - 动态 NET 解析管理系统&nbsp;|&nbsp;-->
+                    D-NET {{.Version}} &nbsp;|&nbsp;
+                    <a href="https://github.com/cxbdasheng/dnet" target="_blank"
+                       style="color: #1e9fff; text-decoration: none;">GitHub</a>
+                    &nbsp;|&nbsp;
+                    <span>基于 MIT 开源协议</span>
+                    &nbsp;|&nbsp;
+                    <span>© 2025 D-NET </span>
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="ws-shade"></div>
+</div>
+<script src="/static/layui.js"></script>
+<script src="/static/cdn.js"></script>
+<script>
+    // 获取第一个CDN提供商作为默认值
+    const firstCDNProvider = Object.keys(CDN_PROVIDERS)[0] || "aliyun";
+    // 获取第一个CDN提供商的第一个类型作为默认值
+    const firstCDNType = (CDN_PROVIDERS[firstCDNProvider] && CDN_PROVIDERS[firstCDNProvider].typeSelect && CDN_PROVIDERS[firstCDNProvider].typeSelect[0]) || "CDN";
+
+    const defaultConfig = {
+        "domain": "",
+        "service": firstCDNProvider,
+        "name": "",
+        "access_key": "",
+        "access_secret": "",
+        "cdn_type": firstCDNType,
+        "ipv4_enable": true,
+        "ipv4_type": "url",
+        "ipv4_url_value": "https://myip.ipip.net, https://ddns.oray.com/checkip, https://ip.3322.net, https://4.ipw.cn, https://v4.yinghualuo.cn/bejson",
+        "ipv4_interface_select": "",
+        "ipv4_command_value": "",
+        "ipv4_weight": 10,
+        "ipv6_enable": true,
+        "ipv6_type": "interface",
+        "ipv6_url_value": "https://speed.neu6.edu.cn/getIP.php, https://v6.ident.me, https://6.ipw.cn, https://v6.yinghualuo.cn/bejson",
+        "ipv6_interface_select": "",
+        "ipv6_command_value": "",
+        "ipv6_weight": 10,
+        "static_ipv4": [
+            {
+                "ip": "",
+                "weight": 10
+            }
+        ],
+        "static_ipv6": [
+            {
+                "ip": "",
+                "weight": 10
+            }
+        ]
+    };
+    // 配置数据存储
+    // var configData = {
+    //     dcdn_enable: true,
+    //     dcdn: []
+    // };
+    var configData = {{.DCDNConf}}
+    // 当前选中的配置
+    var currentSelectedConfig = null;
+    layui.use(['element', 'layer', 'util', 'form'], function () {
+        var element = layui.element;
+        var layer = layui.layer;
+        var util = layui.util;
+        var form = layui.form;
+        var $ = layui.$;
+
+        // 提交事件
+        form.on('submit(save)', function (data) {
+            // 检查IPv4和IPv6是否开启
+            var ipv4Enabled = $('input[name="ipv4_enable"]').is(':checked');
+            var ipv6Enabled = $('input[name="ipv6_enable"]').is(':checked');
+
+            // 手动触发所有表单项的校验
+            var isValid = true;
+            $('.layui-form').find('input[lay-verify], select[lay-verify], textarea[lay-verify]').each(function () {
+                var $this = $(this);
+                var fieldName = $this.attr('name');
+
+                // 如果IPv4未开启，跳过IPv4相关字段验证
+                if (!ipv4Enabled && fieldName && fieldName.indexOf('ipv4') !== -1) {
+                    return true;
+                }
+
+                // 如果IPv6未开启，跳过IPv6相关字段验证
+                if (!ipv6Enabled && fieldName && fieldName.indexOf('ipv6') !== -1) {
+                    return true;
+                }
+
+                var verifyType = $this.attr('lay-verify');
+                if (verifyType) {
+                    var value = $this.val();
+                    var verifyRules = verifyType.split('|');
+
+                    for (var i = 0; i < verifyRules.length; i++) {
+                        var rule = verifyRules[i];
+                        if (form.config.verify[rule]) {
+                            var result = form.config.verify[rule](value, this);
+                            if (result) {
+                                layer.msg(result);
+                                $this.focus();
+                                isValid = false;
+                                return false;
+                            }
+                        }
+                    }
+                }
+                if (!isValid) return false;
+            });
+
+            if (!isValid) {
+                return false;
+            }
+
+            // 保存当前配置数据
+            saveCurrentConfig();
+
+            // 保存 dcdn_enable 到 configData 中（使用key方式）
+            configData.dcdn_enable = $('input[name="dcdn_enable"]').is(':checked');
+            $.ajax({
+                type: 'POST',
+                url: '/home',
+                contentType: 'application/json',
+                data: JSON.stringify(configData),
+                success: function (response) {
+                    var res = JSON.parse(response)
+                    if (res.status){
+                        layer.msg(res.msg, {
+                            icon: 1,
+                            time: 1000
+                        });
+                    }else {
+                        layer.msg(res.msg, {
+                            icon: 2,
+                            time: 1000
+                        });
+                    }
+                },
+                error: function (xhr, status, error) {
+                    layer.msg(error, {
+                        icon: 2,
+                        time: 2000
+                    });
+                }
+            });
+            // // 显示填写结果，仅作演示用
+            // layer.alert(JSON.stringify(configData), {
+            //     title: '当前填写的字段值'
+            // });
+            return false; // 阻止默认 form 跳转
+        });
+
+        //头部事件
+        util.event('lay-header-event', {
+            menuLeft: function (othis) { // 左侧菜单事件
+                $('#body').toggleClass('ws-nav-show');
+                // 切换图标
+                var icon = $(othis).find('i');
+                if ($('#body').hasClass('ws-nav-show')) {
+                    icon.removeClass('layui-icon-spread-left').addClass('layui-icon-close');
+                } else {
+                    icon.removeClass('layui-icon-close').addClass('layui-icon-spread-left');
+                }
+            }
+        });
+
+        // 点击遮罩层关闭侧边菜单
+        $('.ws-shade').on('click', function () {
+            $('#body').removeClass('ws-nav-show');
+            // 恢复图标状态
+            $('[lay-header-event="menuLeft"] i').removeClass('layui-icon-close').addClass('layui-icon-spread-left');
+        });
+
+        // 辅助函数：根据配置ID查找配置索引
+        function findConfigIndex(configId) {
+            for (var i = 0; i < configData.dcdn.length; i++) {
+                if (configData.dcdn[i].id === configId) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        // 辅助函数：根据配置ID获取配置对象
+        function getConfigById(configId) {
+            var index = findConfigIndex(configId);
+            return index !== -1 ? configData.dcdn[index] : null;
+        }
+
+        // 保存指定配置数据
+        function saveCurrentConfig(configName) {
+            if (!configName) configName = $('select[name="config"]').val();
+            if (!configName) return;
+
+            // 获取现有配置，保留 name 字段（如果已存在）
+            var existingConfig = getConfigById(configName);
+            var customName = existingConfig && existingConfig.name ? existingConfig.name : '';
+
+            var configObj = {
+                id: configName,
+                name: customName, // 只保存自定义的 name，没有则为空字符串
+                domain: $('input[name="domain"]').val(),
+                service: $('input[name="service"]:checked').val(),
+                access_key: $('input[name="access_key"]').val(),
+                access_secret: $('input[name="access_secret"]').val(),
+                cdn_type: $('select[name="cdn_type"]').val(),
+                ipv4_enable: $('input[name="ipv4_enable"]').is(':checked'),
+                ipv4_type: $('input[name="ipv4_type"]:checked').val(),
+                ipv4_url_value: $('input[name="ipv4_url_value"]').val(),
+                ipv4_interface_select: $('select[name="ipv4_interface_select"]').val(),
+                ipv4_command_value: $('input[name="ipv4_command_value"]').val(),
+                ipv4_weight: $('input[name="ipv4_weight"]').val(),
+                ipv6_enable: $('input[name="ipv6_enable"]').is(':checked'),
+                ipv6_type: $('input[name="ipv6_type"]:checked').val(),
+                ipv6_url_value: $('input[name="ipv6_url_value"]').val(),
+                ipv6_interface_select: $('select[name="ipv6_interface_select"]').val(),
+                ipv6_command_value: $('input[name="ipv6_command_value"]').val(),
+                ipv6_weight: $('input[name="ipv6_weight"]').val(),
+                // 静态IP地址
+                static_ipv4: [],
+                static_ipv6: []
+            };
+
+            // 保存静态IPv4地址（同时匹配第一行和动态行）
+            $('input[name="static_ipv4_value"], input[name="static_ipv4_value[]"]').each(function (index) {
+                var ipValue = $(this).val();
+                var weightValue = $('input[name="static_ipv4_weight"], input[name="static_ipv4_weight[]"]').eq(index).val();
+                if (ipValue || weightValue) {
+                    configObj.static_ipv4.push({
+                        ip: ipValue,
+                        weight: weightValue
+                    });
+                }
+            });
+
+            // 保存静态IPv6地址（同时匹配第一行和动态行）
+            $('input[name="static_ipv6_value"], input[name="static_ipv6_value[]"]').each(function (index) {
+                var ipValue = $(this).val();
+                var weightValue = $('input[name="static_ipv6_weight"], input[name="static_ipv6_weight[]"]').eq(index).val();
+                if (ipValue || weightValue) {
+                    configObj.static_ipv6.push({
+                        ip: ipValue,
+                        weight: weightValue
+                    });
+                }
+            });
+
+            // 查找并更新或添加配置
+            var index = findConfigIndex(configName);
+            if (index !== -1) {
+                configData.dcdn[index] = configObj;
+            } else {
+                configData.dcdn.push(configObj);
+            }
+        }
+
+        // 加载配置数据
+        function loadConfig(configValue) {
+            var config = getConfigById(configValue);
+            if (!config) return;
+
+            var data = config;
+
+            // 恢复基本配置
+            $('input[name="domain"]').val(data.domain || '');
+            $('input[name="service"][value="' + (data.service || firstCDNProvider) + '"]').prop('checked', true);
+            $('input[name="access_key"]').val(data.access_key || '');
+            $('input[name="access_secret"]').val(data.access_secret || '');
+
+            // 更新下拉选项显示文本
+            var $select = $('select[name="config"]');
+            var $option = $select.find('option[value="' + configValue + '"]');
+            if (data.name) {
+                // 如果有自定义名称，显示自定义名称
+                $option.text(data.name);
+            } else if (data.domain) {
+                // 如果没有自定义名称但有域名，显示 "id - domain"
+                $option.text(configValue + ' - ' + data.domain);
+            } else {
+                // 如果都没有，只显示 id
+                $option.text(configValue);
+            }
+
+            // 先更新CDN提供商相关的表单字段，然后再设置cdn_type
+            updateFormBasedOnProvider(data.service || firstCDNProvider);
+
+            // 设置cdn_type，如果该值在当前提供商的选项中不存在，则使用第一个选项
+            var cdnTypeValue = data.cdn_type || '';
+            if (cdnTypeValue && $('#cdn-type-select option[value="' + cdnTypeValue + '"]').length > 0) {
+                $('select[name="cdn_type"]').val(cdnTypeValue);
+            } else {
+                // 如果保存的类型不存在，使用第一个可用选项
+                var firstOption = $('#cdn-type-select option:first').val();
+                $('select[name="cdn_type"]').val(firstOption || '');
+            }
+
+            // 恢复IP配置
+            setIPConfig('ipv4', data);
+            setIPConfig('ipv6', data);
+
+            // 清除现有的静态IP行
+            $('input[name="static_ipv4_value"]').val('');
+            $('input[name="static_ipv4_weight"]').val('10');
+            $('input[name="static_ipv6_value"]').val('');
+            $('input[name="static_ipv6_weight"]').val('10');
+            $('.static-ip4-remove').parent().remove();
+            $('.static-ip6-remove').parent().remove();
+
+            // 恢复静态IP地址
+            // 第一行从数组第一个元素取值
+            if (data.static_ipv4 && data.static_ipv4.length > 0) {
+                $('input[name="static_ipv4_value"]').val(data.static_ipv4[0].ip || '');
+                $('input[name="static_ipv4_weight"]').val(data.static_ipv4[0].weight || '10');
+            }
+            if (data.static_ipv6 && data.static_ipv6.length > 0) {
+                $('input[name="static_ipv6_value"]').val(data.static_ipv6[0].ip || '');
+                $('input[name="static_ipv6_weight"]').val(data.static_ipv6[0].weight || '10');
+            }
+            // 其余行从数组第二个元素开始恢复
+            restoreDynamicIPs('ipv4', data.static_ipv4 ? data.static_ipv4.slice(1) : []);
+            restoreDynamicIPs('ipv6', data.static_ipv6 ? data.static_ipv6.slice(1) : []);
+
+            // 重新渲染表单
+            form.render();
+        }
+
+        // IP配置设置辅助函数
+        function setIPConfig(ipType, config) {
+            if (ipType === 'ipv6') {
+                $('input[name="ipv6_enable"]').prop('checked', config['ipv6_enable'] || false);
+            } else if (ipType === 'ipv4') {
+                $('input[name="ipv4_enable"]').prop('checked', config['ipv4_enable'] || false);
+            } else {
+                $('input[name="' + ipType + '_enable"]').prop('checked', config[ipType + '_enable'] || false);
+            }
+            $('input[name="' + ipType + '_type"][value="' + (config[ipType + '_type'] || 'url') + '"]').prop('checked', true);
+
+            // 恢复不同类型的配置值
+            $('input[name="' + ipType + '_url_value"]').val(config[ipType + '_url_value'] || '');
+            var interfaceSelectValue = config[ipType + '_interface_select'];
+            if (!interfaceSelectValue) {
+                // 如果没有配置值，选择第一个选项
+                var firstOption = $('select[name="' + ipType + '_interface_select"] option:first').val();
+                interfaceSelectValue = firstOption;
+            }
+            $('select[name="' + ipType + '_interface_select"]').val(interfaceSelectValue);
+            $('input[name="' + ipType + '_command_value"]').val(config[ipType + '_command_value'] || '');
+
+            $('input[name="' + ipType + '_weight"]').val(config[ipType + '_weight'] || '10');
+
+            // 根据配置的类型显示对应的配置项
+            if (ipType === 'ipv4') {
+                toggleIPv4Config(config[ipType + '_type'] || 'url');
+            } else if (ipType === 'ipv6') {
+                toggleIPv6Config(config[ipType + '_type'] || 'url');
+            }
+        }
+
+        // 表单字段显示/隐藏辅助函数
+        function updateFormField(labelId, fieldName, labelText, fieldId) {
+            var $row = $('#' + labelId).parent();
+            if (labelText && labelText.trim()) {
+                $('#' + labelId).text(labelText);
+                var placeholder = '请输入' + labelText.replace('：', '');
+
+                if ($row.is(':hidden') || $row.find('input[name="' + fieldName + '"]').length === 0) {
+                    $row.find('.layui-input-block').html(
+                        '<input type="text" id="' + fieldId + '" name="' + fieldName + '" lay-verify="title" autocomplete="off" placeholder="' + placeholder + '" class="layui-input">'
+                    );
+                } else {
+                    $row.find('input[name="' + fieldName + '"]').attr('placeholder', placeholder);
+                }
+                $row.show();
+            } else {
+                $row.hide();
+            }
+        }
+
+        // 静态IP恢复辅助函数
+        function restoreDynamicIPs(ipType, dynamicData) {
+            if (dynamicData && dynamicData.length > 0) {
+                dynamicData.forEach(function (item) {
+                    if (item.ip || item.weight) {
+                        $('#static-ip' + (ipType === 'ipv4' ? '4' : '6') + '-add').click();
+                        var lastRow = $('.static-ip' + (ipType === 'ipv4' ? '4' : '6') + '-remove').last().parent();
+                        lastRow.find('input[name="static_' + ipType + '_value[]"]').val(item.ip || '');
+                        lastRow.find('input[name="static_' + ipType + '_weight[]"]').val(item.weight || '10');
+                    }
+                });
+            }
+        }
+
+        // 使用默认配置初始化表单字段
+        function clearFormFields() {
+            // 使用默认配置填充基本字段
+            $('input[name="domain"]').val(defaultConfig.domain || '');
+            $('input[name="service"][value="' + (defaultConfig.service || firstCDNProvider) + '"]').prop('checked', true);
+            $('input[name="access_key"]').val(defaultConfig.access_key || '');
+            $('input[name="access_secret"]').val(defaultConfig.access_secret || '');
+            $('select[name="cdn_type"]').val(defaultConfig.cdn_type || '');
+
+            // 使用默认配置填充IP配置
+            setIPConfig('ipv4', defaultConfig);
+            setIPConfig('ipv6', defaultConfig);
+
+            // 清除所有静态IP行
+            $('input[name="static_ipv4_value"]').val('');
+            $('input[name="static_ipv4_weight"]').val('10');
+            $('input[name="static_ipv6_value"]').val('');
+            $('input[name="static_ipv6_weight"]').val('10');
+            $('.static-ip4-remove').parent().remove();
+            $('.static-ip6-remove').parent().remove();
+
+            // 恢复默认配置中的静态IP地址
+            // 第一行从数组第一个元素取值
+            if (defaultConfig.static_ipv4 && defaultConfig.static_ipv4.length > 0) {
+                $('input[name="static_ipv4_value"]').val(defaultConfig.static_ipv4[0].ip || '');
+                $('input[name="static_ipv4_weight"]').val(defaultConfig.static_ipv4[0].weight || '10');
+            }
+            if (defaultConfig.static_ipv6 && defaultConfig.static_ipv6.length > 0) {
+                $('input[name="static_ipv6_value"]').val(defaultConfig.static_ipv6[0].ip || '');
+                $('input[name="static_ipv6_weight"]').val(defaultConfig.static_ipv6[0].weight || '10');
+            }
+            // 其余行从数组第二个元素开始恢复
+            restoreDynamicIPs('ipv4', defaultConfig.static_ipv4 ? defaultConfig.static_ipv4.slice(1) : []);
+            restoreDynamicIPs('ipv6', defaultConfig.static_ipv6 ? defaultConfig.static_ipv6.slice(1) : []);
+            // 将默认配置添加到 configData 中
+            var currentConfig = $('select[name="config"]').val();
+            if (currentConfig && !getConfigById(currentConfig)) {
+                var newConfig = JSON.parse(JSON.stringify(defaultConfig));
+                newConfig.id = currentConfig;
+                configData.dcdn.push(newConfig);
+            }
+
+            // 重新渲染表单
+            form.render();
+        }
+
+        // CDN提供商动态更新功能
+        function initCDNProviders() {
+            var container = $('#service-radio-container');
+            var radioHtml = '';
+            var isFirst = true;
+
+            // 生成单选按钮HTML
+            for (var providerId in CDN_PROVIDERS) {
+                if (CDN_PROVIDERS.hasOwnProperty(providerId)) {
+                    var provider = CDN_PROVIDERS[providerId];
+                    radioHtml += '<input type="radio" name="service" lay-filter="service" value="' + providerId + '" title="' + provider.name + '"';
+                    if (isFirst) {
+                        radioHtml += ' checked';
+                        isFirst = false;
+                    }
+                    radioHtml += '>';
+                }
+            }
+            // 插入HTML
+            container.html(radioHtml);
+            // 重新渲染表单
+            form.render('radio');
+            // 初始化表单标签和选项
+            updateFormBasedOnProvider($('input[name="service"]:checked').val());
+        }
+
+        // 根据选择的CDN提供商更新表单
+        function updateFormBasedOnProvider(providerId) {
+            if (!CDN_PROVIDERS[providerId]) return;
+
+            var provider = CDN_PROVIDERS[providerId];
+
+            // 更新AccessKey字段
+            updateFormField('access-key-label', 'access_key', provider.idLabel, 'access_key');
+            updateFormField('access-secret-label', 'access_secret', provider.secretLabel, 'access_secret');
+
+            // 更新类型选择下拉框
+            var typeSelect = $('#cdn-type-select');
+            typeSelect.empty();
+
+            if (provider.typeSelect && provider.typeSelect.length > 0) {
+                for (var i = 0; i < provider.typeSelect.length; i++) {
+                    var option = provider.typeSelect[i];
+                    typeSelect.append('<option value="' + option + '">' + option + '</option>');
+                }
+            } else {
+                typeSelect.append('<option value="CDN">CDN</option>');
+            }
+
+            // 更新帮助文本
+            if (provider.typeHelpHtml) {
+                $('#type-help-text').html('类型请参考：' + provider.typeHelpHtml);
+            } else {
+                $('#type-help-text').html('类型请参考：');
+            }
+
+            // 更新创建AccessKey链接
+            var $serviceHelpContainer = $('#service-help-link');
+            if (provider.idHelpHtml) {
+                $serviceHelpContainer.html(provider.idHelpHtml);
+            } else {
+                $serviceHelpContainer.html('<a href="">创建 AccessKey</a>');
+            }
+
+            // 重新渲染表单
+            form.render('select');
+        }
+
+        // 监听CDN提供商选择变化
+        form.on('radio(service)', function (data) {
+            updateFormBasedOnProvider(data.value);
+        });
+
+        // IPv4类型选择动态显示功能
+        function toggleIPv4Config(selectedType) {
+            // 隐藏所有配置项
+            $('#ipv4-url-config').hide();
+            $('#ipv4-interface-config').hide();
+            $('#ipv4-command-config').hide();
+
+            // 根据选择的类型显示对应的配置项
+            switch (selectedType) {
+                case 'url':
+                    $('#ipv4-url-config').show();
+                    break;
+                case 'interface':
+                    $('#ipv4-interface-config').show();
+                    break;
+                case 'command':
+                    $('#ipv4-command-config').show();
+                    break;
+            }
+
+            // 重新渲染表单
+            form.render();
+        }
+
+        // IPv6类型选择动态显示功能
+        function toggleIPv6Config(selectedType) {
+            // 隐藏所有配置项
+            $('#ipv6-url-config').hide();
+            $('#ipv6-interface-config').hide();
+            $('#ipv6-command-config').hide();
+
+            // 根据选择的类型显示对应的配置项
+            switch (selectedType) {
+                case 'url':
+                    $('#ipv6-url-config').show();
+                    break;
+                case 'interface':
+                    $('#ipv6-interface-config').show();
+                    break;
+                case 'command':
+                    $('#ipv6-command-config').show();
+                    break;
+            }
+
+            // 重新渲染表单
+            form.render();
+        }
+
+        // 监听IPv4类型选择变化
+        $('input[name="ipv4_type"]').on('change', function () {
+            toggleIPv4Config($(this).val());
+        });
+
+        // 监听IPv6类型选择变化
+        $('input[name="ipv6_type"]').on('change', function () {
+            toggleIPv6Config($(this).val());
+        });
+
+        // 初始化时显示默认选中的配置项
+        toggleIPv4Config($('input[name="ipv4_type"]:checked').val());
+        toggleIPv6Config($('input[name="ipv6_type"]:checked').val());
+
+        // 导航点击事件
+        element.on('nav(nav-filter)', function (elem) {
+            var navText = elem.text();
+
+            if (navText === 'DDNS') {
+                // 阻止默认选中
+                elem.removeClass('layui-this');
+
+                // 弹出确认框
+                layer.confirm('DDNS 功能正在开发中，敬请期待', {
+                    btn: ['确定', '取消'],
+                    title: '功能提示'
+                }, function (index) {
+                    // 确定切换
+                    $('.layui-nav[lay-filter="nav-filter"] .layui-nav-item').removeClass('layui-this');
+                    $('.layui-nav[lay-filter="nav-filter"] .layui-nav-item:first').addClass('layui-this');
+                    // layer.msg('已切换到 DDNS 模块');
+                    layer.close(index);
+                }, function (index) {
+                    // 取消切换，保持DCDN选中
+                    $('.layui-nav[lay-filter="nav-filter"] .layui-nav-item').removeClass('layui-this');
+                    $('.layui-nav[lay-filter="nav-filter"] .layui-nav-item:first').addClass('layui-this');
+                    layer.close(index);
+                });
+            } else {
+                // DCDN直接切换，无需确认
+                // layer.msg('已切换到 ' + navText + ' 模块');
+            }
+        });
+
+        // 自定义验证规则
+        form.verify({
+            // 域名验证
+            domain: function (value, elem) {
+                if (!value) {
+                    return '域名不能为空';
+                }
+
+                // 域名长度检查
+                if (value.length < 3 || value.length > 253) {
+                    return '域名长度必须在3-253个字符之间';
+                }
+
+                // 域名格式检查（基本规则）
+                var domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/;
+                if (!domainRegex.test(value)) {
+                    return '请输入正确的域名格式，例如：example.com';
+                }
+
+                // 检查是否包含至少一个点（顶级域名）
+                if (value.indexOf('.') === -1) {
+                    return '域名必须包含顶级域名';
+                }
+
+                // 检查标签长度（每个部分不能超过63个字符）
+                var labels = value.split('.');
+                for (var i = 0; i < labels.length; i++) {
+                    if (labels[i].length > 63) {
+                        return '域名的每个部分不能超过63个字符';
+                    }
+                }
+            },
+            // IPv4 验证
+            ipv4: function (value, elem) {
+                if (!value) {
+                    return;
+                    // return 'IPv4 地址不能为空';
+                }
+
+                var ipv4Regex = /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+                if (!ipv4Regex.test(value)) {
+                    return '请输入正确的 IPv4 地址格式，例如：192.168.1.1';
+                }
+            },
+            // 权重验证
+            weight: function (value, elem) {
+                if (value && (isNaN(value) || parseInt(value) < 1 || parseInt(value) > 100)) {
+                    return '权重必须是1-100之间的数字';
+                }
+            },
+            // AccessKey验证
+            access_key: function (value, elem) {
+                if (!value) {
+                    return 'AccessKey不能为空';
+                }
+                if (value.length < 6) {
+                    return 'AccessKey长度不能少于6位';
+                }
+            },
+            // AccessSecret验证
+            access_secret: function (value, elem) {
+                if (!value) {
+                    return 'AccessSecret不能为空';
+                }
+                if (value.length < 10) {
+                    return 'AccessSecret长度不能少于10位';
+                }
+            },
+            // IPv6 验证
+            ipv6: function (value, elem) {
+                if (!value) {
+                    return;
+                    // return 'IPv6 地址不能为空';
+                }
+
+                // IPv6 完整格式检查
+                var ipv6FullRegex = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
+                // IPv6 压缩格式检查
+                var ipv6CompressedRegex = /^(([0-9a-fA-F]{1,4}:){1,7}:|:((:[0-9a-fA-F]{1,4}){1,7}|:))$/;
+                // IPv6 混合格式检查（包含 ::）
+                var ipv6MixedRegex = /^((([0-9a-fA-F]{1,4}:){1,6}:)|(::))([0-9a-fA-F]{1,4}:){0,5}[0-9a-fA-F]{1,4}$|^::$/;
+
+                if (!ipv6FullRegex.test(value) && !ipv6CompressedRegex.test(value) && !ipv6MixedRegex.test(value)) {
+                    // 简化的 IPv6 验证
+                    var simpleIpv6Regex = /^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}$|^::$/;
+                    if (!simpleIpv6Regex.test(value)) {
+                        return '请输入正确的 IPv6 地址格式，例如：2001:db8::1 或 ::1';
+                    }
+                }
+            }
+        });
+
+        // 域名输入监听
+        $('input[name="domain"]').on('blur', function () {
+            var domainValue = $(this).val().trim();
+            var $select = $('select[name="config"]');
+            var currentValue = $select.val();
+
+            // 检查当前配置是否存在 name 字段（已被重命名）
+            var currentConfig = getConfigById(currentValue);
+            var hasCustomName = currentConfig && currentConfig.name;
+
+
+            if (hasCustomName) {
+                // 如果配置已被重命名，则不更新显示
+                return;
+            }
+
+            if (domainValue) {
+                // 验证域名格式
+                var domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/;
+                if (domainRegex.test(domainValue) && domainValue.indexOf('.') !== -1) {
+                    // 域名格式正确，更新当前选中的配置项显示
+                    var newDisplayText = currentValue + ' - ' + domainValue;
+                    $select.find('option[value="' + currentValue + '"]').text(newDisplayText);
+
+                    // 重新渲染select
+                    form.render('select');
+                } else {
+                    // 域名格式错误
+                    layer.msg('域名格式不正确，请输入正确格式，例如：a.example.com', {
+                        icon: 2,
+                        time: 3000,
+                        shade: 0.1
+                    });
+                }
+            } else {
+                // 域名为空时，恢复显示为纯序号（仅当未重命名时）
+                $select.find('option[value="' + currentValue + '"]').text(currentValue);
+                form.render('select');
+            }
+        });
+
+        // 初始化配置下拉选项和数据
+        function initConfigData() {
+            var $select = $('select[name="config"]');
+
+            // 如果 configData.dcdn 中有数据，初始化下拉选项
+            if (configData.dcdn && configData.dcdn.length > 0) {
+                // 清空现有选项
+                $select.empty();
+
+                // 根据 configData.dcdn 创建选项
+                for (var i = 0; i < configData.dcdn.length; i++) {
+                    var config = configData.dcdn[i];
+                    var optionText = config.id;
+
+                    // 根据 name 字段决定显示文本
+                    if (config.name) {
+                        optionText = config.name;
+                    } else if (config.domain) {
+                        optionText = config.id + ' - ' + config.domain;
+                    }
+
+                    var isSelected = i === 0 ? ' selected' : '';
+                    $select.append('<option value="' + config.id + '"' + isSelected + '>' + optionText + '</option>');
+                }
+
+                // 重新渲染下拉框
+                form.render('select');
+
+                // 加载第一个配置的数据
+                var firstConfigId = configData.dcdn[0].id;
+                currentSelectedConfig = firstConfigId;
+                loadConfig(firstConfigId);
+            } else {
+                // 没有数据时，使用默认配置
+                currentSelectedConfig = $select.val();
+                clearFormFields();
+            }
+        }
+
+        // 初始化CDN提供商选择
+        initCDNProviders();
+
+        // 配置项切换监听，用于同步域名显示
+        form.on('select(config-select-filter)', function (data) {
+            if (data.elem.name === 'config') {
+                // 保存切换前的配置数据
+                if (currentSelectedConfig) {
+                    saveCurrentConfig(currentSelectedConfig);
+                }
+
+                // 更新当前选中的配置
+                currentSelectedConfig = data.value;
+
+                // 加载新选择的配置数据，如果没有保存的数据则清空表单
+                if (getConfigById(data.value)) {
+                    loadConfig(data.value);
+                } else {
+                    clearFormFields();
+                }
+            }
+        });
+
+        // 静态 IPv4 配置
+        $('#static-ip4-add').on('click', function () {
+            // 创建新的一行
+            var newRow = $('<div class="layui-row layui-form-item">' +
+                '<label class="layui-form-label"></label>' +
+                '<div class="layui-col-md4">' +
+                '<div class="layui-input-group">' +
+                '<div class="layui-input-prefix">IPv4：</div>' +
+                '<input type="text" name="static_ipv4_value[]" lay-verify="ipv4" autocomplete="off" class="layui-input">' +
+                '</div>' +
+                '</div>' +
+                '<div class="layui-col-md4">' +
+                '<div class="layui-input-group">' +
+                '<div class="layui-input-prefix">权重值：</div>' +
+                '<input type="text" name="static_ipv4_weight[]" lay-affix="number" value="10" step="1" max="100" min="0" class="layui-input">' +
+                '</div>' +
+                '</div>' +
+                '<button type="button" class="layui-btn layui-btn-danger static-ip4-remove">' +
+                '<i class="layui-icon layui-icon-delete"></i>' +
+                '</button>' +
+                '</div>');
+
+            // 找到最后一个动态添加的行，插入到最后
+            var lastRow = $(this).parent().parent().find('.static-ip4-remove').last().parent();
+            if (lastRow.length > 0) {
+                // 如果存在动态行，插入到最后一个动态行之后
+                lastRow.after(newRow);
+            } else {
+                // 如果不存在动态行，插入到按钮行之后
+                $(this).parent().after(newRow);
+            }
+
+            // 重新渲染表单
+            form.render();
+
+            return false;
+        });
+
+        // 删除静态 IPv4 行（事件委托）
+        $(document).on('click', '.static-ip4-remove', function () {
+            $(this).parent().remove();
+        });
+
+        // 静态 IPv6 配置
+        $('#static-ip6-add').on('click', function () {
+            // 创建新的一行
+            var newRow = $('<div class="layui-row layui-form-item">' +
+                '<label class="layui-form-label"></label>' +
+                '<div class="layui-col-md4">' +
+                '<div class="layui-input-group">' +
+                '<div class="layui-input-prefix">IPv6：</div>' +
+                '<input type="text" name="static_ipv6_value[]" lay-verify="ipv6" autocomplete="off" class="layui-input">' +
+                '</div>' +
+                '</div>' +
+                '<div class="layui-col-md4">' +
+                '<div class="layui-input-group">' +
+                '<div class="layui-input-prefix">权重值：</div>' +
+                '<input type="text" name="static_ipv6_weight[]" lay-affix="number" value="10" step="1" max="100" min="0" class="layui-input">' +
+                '</div>' +
+                '</div>' +
+                '<button type="button" class="layui-btn layui-btn-danger static-ip6-remove">' +
+                '<i class="layui-icon layui-icon-delete"></i>' +
+                '</button>' +
+                '</div>');
+
+            // 找到最后一个动态添加的行，插入到最后
+            var lastRow = $(this).parent().parent().find('.static-ip6-remove').last().parent();
+            if (lastRow.length > 0) {
+                // 如果存在动态行，插入到最后一个动态行之后
+                lastRow.after(newRow);
+            } else {
+                // 如果不存在动态行，插入到按钮行之后
+                $(this).parent().after(newRow);
+            }
+
+            // 重新渲染表单
+            form.render();
+
+            return false;
+        });
+
+        // 删除静态 IPv6 行（事件委托）
+        $(document).on('click', '.static-ip6-remove', function () {
+            $(this).parent().remove();
+        });
+
+        // 新增配置
+        $('#config-add').on('click', function () {
+            // 使用 Layui 方式进行表单校验
+            var isValid = true;
+
+            // 检查IPv4和IPv6是否开启
+            var ipv4Enabled = $('input[name="ipv4_enable"]').is(':checked');
+            var ipv6Enabled = $('input[name="ipv6_enable"]').is(':checked');
+
+            // 手动触发所有表单项的校验
+            $('.layui-form').find('input[lay-verify], select[lay-verify], textarea[lay-verify]').each(function () {
+                var $this = $(this);
+                var fieldName = $this.attr('name');
+
+                // 如果IPv4未开启，跳过IPv4相关字段验证
+                if (!ipv4Enabled && fieldName && fieldName.indexOf('ipv4') !== -1) {
+                    return true; // 跳过当前字段，继续下一个
+                }
+
+                // 如果IPv6未开启，跳过IPv6相关字段验证
+                if (!ipv6Enabled && fieldName && fieldName.indexOf('ipv6') !== -1) {
+                    return true; // 跳过当前字段，继续下一个
+                }
+
+                var verifyType = $this.attr('lay-verify');
+                if (verifyType) {
+                    var value = $this.val();
+                    var verifyRules = verifyType.split('|');
+
+                    for (var i = 0; i < verifyRules.length; i++) {
+                        var rule = verifyRules[i];
+                        if (form.config.verify[rule]) {
+                            var result = form.config.verify[rule](value, this);
+                            if (result) {
+                                layer.msg(result);
+                                $this.focus();
+                                isValid = false;
+                                return false; // 跳出循环
+                            }
+                        }
+                    }
+                }
+                if (!isValid) return false; // 跳出each循环
+            });
+
+            if (!isValid) {
+                return false;
+            }
+
+            // 检查当前是否已输入域名
+            var domainValue = $('input[name="domain"]').val().trim();
+
+            if (!domainValue) {
+                layer.msg('请先输入域名后再添加新配置', {
+                    icon: 0,
+                    time: 2000,
+                    shade: 0.1
+                });
+                $('input[name="domain"]').focus();
+                return false;
+            }
+
+            // 验证域名格式
+            var domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/;
+            if (!domainRegex.test(domainValue) || domainValue.indexOf('.') === -1) {
+                layer.msg('请输入正确的域名格式后再添加新配置，例如：example.com', {
+                    icon: 2,
+                    time: 3000,
+                    shade: 0.1
+                });
+                $('input[name="domain"]').focus();
+                return false;
+            }
+
+            // 保存当前配置数据
+            saveCurrentConfig();
+
+            // 添加新选项
+            const configSelect = $('select[name="config"]');
+            const newValue = (parseInt(configSelect.find('option:last').val()) || 0) + 1;
+            const newOption = '<option value="' + newValue + '" selected>' + newValue + '</option>';
+            configSelect.append(newOption);
+
+            // 重新渲染表单（Layui 特有）
+            form.render('select');
+
+            // 更新当前选中的配置
+            currentSelectedConfig = newValue;
+
+            // 清空所有表单字段，为新配置做准备
+            clearFormFields();
+
+            return false;
+        });
+        // 重命名当前配置
+        $('#config-rename').on('click', function () {
+            var $select = $('select[name="config"]');
+            var currentValue = $select.val();
+            var currentDisplayText = $select.find('option[value="' + currentValue + '"]').text();
+
+            if (!currentValue) {
+                layer.msg('请先选择一个配置项', {
+                    icon: 0,
+                    time: 2000
+                });
+                return false;
+            }
+
+            // 弹出输入框
+            layer.prompt({
+                title: '重命名配置 ' + currentValue,
+                formType: 0, // 文本输入框
+                value: currentDisplayText, // 使用当前显示文本作为默认值
+                maxlength: 50
+            }, function (value, index, elem) {
+                // 去除空格
+                value = value.trim();
+
+                if (!value) {
+                    layer.msg('配置名不能为空', {
+                        icon: 2,
+                        time: 2000
+                    });
+                    $('#rename-input').focus();
+                    return false;
+                }
+
+                // 只更新选项的显示文本，保持value不变
+                $select.find('option[value="' + currentValue + '"]').text(value);
+
+                // 更新 configData 中的配置数据的name字段
+                var config = getConfigById(currentValue);
+                if (config) {
+                    config.name = value;
+                } else {
+                    // 如果配置不存在，先保存当前配置，再设置name
+                    saveCurrentConfig(currentValue);
+                    config = getConfigById(currentValue);
+                    if (config) {
+                        config.name = value;
+                    }
+                }
+
+                // 重新渲染表单
+                form.render('select');
+
+                layer.close(index);
+                layer.msg('重命名成功', {
+                    icon: 1,
+                    time: 1500
+                });
+            });
+
+            return false;
+        });
+        // 删除当前配置
+        $('#config-remove').on('click', function () {
+            var $select = $('select[name="config"]');
+            var currentValue = $select.val();
+            var currentDisplayText = $select.find('option[value="' + currentValue + '"]').text();
+
+            // 检查是否有选中的值且选项数量大于1
+            if (currentValue && $select.find('option').length > 1) {
+                // 弹出确认框，显示选项的显示文本
+                layer.confirm('确定要删除配置 "' + currentDisplayText + '" 吗？', {
+                    btn: ['确定', '取消']
+                }, function (index) {
+                    // 确定删除
+                    // 删除 configData 中对应的数据
+                    var configIndex = findConfigIndex(currentValue);
+                    if (configIndex !== -1) {
+                        configData.dcdn.splice(configIndex, 1);
+                    }
+
+                    // 移除当前选中的选项
+                    $select.find('option[value="' + currentValue + '"]').remove();
+
+                    // 选择最后一个剩余的选项
+                    $select.find('option:last').prop('selected', true);
+                    // 更新当前选中的配置
+                    currentSelectedConfig = $select.find('option:last').val();
+
+                    // 重新渲染表单
+                    form.render('select');
+
+                    // 加载新选中配置的数据
+                    // 如果新选中的配置存在，则加载；否则清空表单并创建新配置
+                    var existingConfig = getConfigById(currentSelectedConfig);
+                    if (existingConfig) {
+                        loadConfig(currentSelectedConfig);
+                    } else {
+                        // 清空表单并创建默认配置
+                        clearFormFields();
+                    }
+
+                    layer.close(index);
+                });
+            } else {
+                layer.msg('至少需要保留一个配置项');
+            }
+            return false;
+        });
+
+        $('#logs').on('click', function () {
+            // 模拟日志数据
+            var logData = [
+                {time: '2024-01-15 14:30:25', level: 'INFO', message: 'DCDN 服务已启动'},
+                {time: '2024-01-15 14:30:30', level: 'INFO', message: '正在获取 IPv4 地址...'},
+                {time: '2024-01-15 14:30:32', level: 'SUCCESS', message: 'IPv4 地址获取成功: 192.168.1.100'},
+                {time: '2024-01-15 14:30:35', level: 'INFO', message: '正在更新 CDN 记录...'},
+                {time: '2024-01-15 14:30:38', level: 'SUCCESS', message: 'CDN 记录更新成功'},
+                {time: '2024-01-15 14:31:25', level: 'INFO', message: 'IPv6 地址检测中...'},
+                {time: '2024-01-15 14:31:28', level: 'SUCCESS', message: 'IPv6 地址获取成功: 2001:db8::1'},
+                {time: '2024-01-15 14:31:30', level: 'INFO', message: 'DNS 记录同步中...'},
+                {time: '2024-01-15 14:31:33', level: 'SUCCESS', message: 'DNS 记录同步完成'},
+                {time: '2024-01-15 14:32:00', level: 'INFO', message: '配置自动保存'},
+                {time: '2024-01-15 14:32:15', level: 'WARNING', message: '检测到网络延迟较高'},
+                {time: '2024-01-15 14:32:20', level: 'INFO', message: '正在重试网络连接...'},
+                {time: '2024-01-15 14:32:25', level: 'SUCCESS', message: '网络连接已恢复'},
+                {time: '2024-01-15 14:33:00', level: 'INFO', message: '定时任务执行中...'},
+                {time: '2024-01-15 14:33:05', level: 'INFO', message: 'IP 地址未发生变化'},
+                {time: '2024-01-15 14:34:00', level: 'INFO', message: '系统状态检查完成'},
+                {time: '2024-01-15 14:34:30', level: 'ERROR', message: 'CDN API 调用失败，正在重试...'},
+                {time: '2024-01-15 14:34:35', level: 'SUCCESS', message: 'CDN API 调用重试成功'},
+                {time: '2024-01-15 14:35:00', level: 'INFO', message: '配置验证通过'},
+                {time: '2024-01-15 14:35:30', level: 'INFO', message: '正在备份配置文件...'},
+                {time: '2024-01-15 14:35:32', level: 'SUCCESS', message: '配置文件备份完成'},
+                {time: '2024-01-15 14:36:00', level: 'INFO', message: '监控服务运行正常'},
+                {time: '2024-01-15 14:36:15', level: 'INFO', message: 'IPv4 权重调整为 15'},
+                {time: '2024-01-15 14:36:20', level: 'SUCCESS', message: '权重配置已生效'},
+                {time: '2024-01-15 14:37:00', level: 'INFO', message: '定时同步任务开始'},
+                {time: '2024-01-15 14:37:05', level: 'INFO', message: '检查域名解析状态...'},
+                {time: '2024-01-15 14:37:08', level: 'SUCCESS', message: '域名解析正常'},
+                {time: '2024-01-15 14:37:30', level: 'WARNING', message: 'IPv6 连接测试超时'},
+                {time: '2024-01-15 14:37:35', level: 'INFO', message: '正在重新测试 IPv6 连接...'},
+                {time: '2024-01-15 14:37:40', level: 'SUCCESS', message: 'IPv6 连接测试通过'},
+                {time: '2024-01-15 14:38:00', level: 'INFO', message: '系统运行时间: 8分钟'},
+                {time: '2024-01-15 14:38:30', level: 'INFO', message: '内存使用率: 45%'},
+                {time: '2024-01-15 14:39:00', level: 'INFO', message: '网络带宽使用正常'},
+                {time: '2024-01-15 14:39:15', level: 'INFO', message: '配置项同步完成'},
+                {time: '2024-01-15 14:39:30', level: 'SUCCESS', message: '所有服务运行正常'},
+                {time: '2024-01-15 14:40:00', level: 'INFO', message: 'AccessKey 验证通过'},
+                {time: '2024-01-15 14:40:15', level: 'INFO', message: 'CDN 缓存清理中...'},
+                {time: '2024-01-15 14:40:18', level: 'SUCCESS', message: 'CDN 缓存清理完成'},
+                {time: '2024-01-15 14:40:30', level: 'INFO', message: '负载均衡配置更新'},
+                {time: '2024-01-15 14:40:35', level: 'SUCCESS', message: '负载均衡配置生效'},
+                {time: '2024-01-15 14:41:00', level: 'INFO', message: '健康检查通过'},
+                {time: '2024-01-15 14:41:15', level: 'INFO', message: '静态资源同步中...'},
+                {time: '2024-01-15 14:41:20', level: 'SUCCESS', message: '静态资源同步完成'},
+                {time: '2024-01-15 14:41:30', level: 'INFO', message: 'SSL 证书状态正常'},
+                {time: '2024-01-15 14:42:00', level: 'INFO', message: '安全扫描完成，未发现异常'},
+                {time: '2024-01-15 14:42:15', level: 'INFO', message: '日志轮转执行中...'},
+                {time: '2024-01-15 14:42:18', level: 'SUCCESS', message: '日志轮转完成'},
+                {time: '2024-01-15 14:42:30', level: 'INFO', message: '系统性能监控正常'},
+                {time: '2024-01-15 14:43:00', level: 'INFO', message: '定时备份任务完成'},
+                {time: '2024-01-15 14:43:15', level: 'SUCCESS', message: '所有任务执行完毕'},
+                {time: '2024-01-15 14:43:30', level: 'INFO', message: 'DCDN 服务稳定运行中...'}
+            ];
+
+            // 创建日志表格HTML
+            var logTableHtml = '<table class="layui-table" lay-size="sm">' +
+                '<colgroup>' +
+                '<col width="180">' +
+                '<col width="100">' +
+                '<col>' +
+                '</colgroup>' +
+                '<thead>' +
+                '<tr>' +
+                '<th>时间</th>' +
+                '<th>级别</th>' +
+                '<th>消息</th>' +
+                '</tr>' +
+                '</thead>' +
+                '<tbody>';
+
+            // 添加日志行，并根据级别设置不同颜色
+            logData.forEach(function (log) {
+                var levelClass = '';
+                switch (log.level) {
+                    case 'SUCCESS':
+                        levelClass = 'color: #5FB878;';
+                        break;
+                    case 'WARNING':
+                        levelClass = 'color: #FFB800;';
+                        break;
+                    case 'ERROR':
+                        levelClass = 'color: #FF5722;';
+                        break;
+                    default:
+                        levelClass = 'color: #666;';
+                }
+
+                logTableHtml += '<tr>' +
+                    '<td>' + log.time + '</td>' +
+                    '<td><span style="' + levelClass + '">' + log.level + '</span></td>' +
+                    '<td>' + log.message + '</td>' +
+                    '</tr>';
+            });
+
+            logTableHtml += '</tbody></table>';
+
+            // 弹出日志查看框
+            layer.open({
+                type: 1,
+                title: '系统日志 (最近50条)',
+                area: ['90%', '80%'],
+                maxWidth: 900,
+                maxHeight: 600,
+                content: '<div style="padding: 15px; max-height: calc(80vh - 120px); overflow-y: auto;">' + logTableHtml + '</div>',
+                btn: ['清空日志', '关闭'],
+                btn1: function (index, layero) {
+                    layer.confirm('确定要清空所有日志吗？', {
+                        btn: ['确定', '取消']
+                    }, function (confirmIndex) {
+                        layer.msg('日志已清空', {
+                            icon: 1,
+                            time: 1500
+                        });
+                        layer.close(confirmIndex);
+                        layer.close(index);
+                    });
+                },
+                btn2: function (index, layero) {
+                    layer.close(index);
+                }
+            });
+        });
+
+        // Webhook配置功能 - 加载webhook.html页面
+        $('#webhook-config').on('click', function () {
+            layer.open({
+                type: 2,
+                title: 'Webhook 配置',
+                area: function () {
+                    // 根据屏幕宽度自适应
+                    if (window.innerWidth <= 768) {
+                        return ['95%', '85%']; // 移动端占用更多屏幕空间
+                    } else if (window.innerWidth <= 1024) {
+                        return ['80%', '70%']; // 平板端
+                    } else {
+                        return ['50%', '50%']; // 桌面端
+                    }
+                }(),
+                maxWidth: 900,
+                maxHeight: 700,
+                shadeClose: true,
+                resize: false, // 移动端禁用调整大小
+                move: '.layui-layer-title', // 只允许通过标题栏拖拽
+                content: '/webhook',
+                btn: [
+                    '模拟测试 Webhook',
+                    '保存配置',
+                    '取消'
+                ],
+                success: function (layero, index) {
+                    // 给Webhook弹窗添加特定的CSS类
+                    layero.addClass('webhook-dialog');
+                },
+                btn1: function (index, layero) {
+                    // 模拟测试 Webhook 功能
+                    var iframe = layero.find('iframe')[0];
+                    var iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
+                    // 获取表单数据
+                    var webhookData = {
+                        webhook_enabled: iframeDocument.getElementById('webhook_enable').checked,
+                        webhook_url: iframeDocument.getElementById('url').value,
+                        webhook_headers: iframeDocument.getElementById('headers').value,
+                        webhook_request_body: iframeDocument.getElementById('request_body').value
+                    };
+
+
+
+                    if (!webhookData.webhook_url) {
+                        layer.msg('请先输入 Webhook URL', {
+                            icon: 0,
+                            time: 2000
+                        });
+                        return false;
+                    }
+
+                    if (!/^https?:\/\//.test(webhookData.webhook_url)) {
+                        layer.msg('请输入有效的 HTTP(S) URL', {
+                            icon: 2,
+                            time: 2000
+                        });
+                        return false;
+                    }
+
+                    // 显示测试中状态
+                    layer.msg('正在测试 Webhook 连接...', {
+                        icon: 16,
+                        shade: 0.3,
+                        time: 0
+                    });
+                    $.ajax({
+                        url: '/mock',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify(webhookData),
+                        success: function (response) {
+                            layer.closeAll('msg');
+                            try {
+                                var res = typeof response === 'string' ? JSON.parse(response) : response;
+                                if (res.status) {
+                                    layer.msg(res.msg || '保存成功', {
+                                        icon: 1,
+                                        time: 1500
+                                    });
+                                    layer.close(index);
+                                } else {
+                                    layer.msg(res.msg || '保存失败', {
+                                        icon: 2,
+                                        time: 1500
+                                    });
+                                }
+                            } catch (e) {
+                                layer.msg('响应解析失败', {
+                                    icon: 2,
+                                    time: 2000
+                                });
+                            }
+                        },
+                        error: function (xhr, status, error) {
+                            layer.closeAll('msg');
+                            console.error('请求失败:', {
+                                status: xhr.status,
+                                statusText: xhr.statusText,
+                                error: error,
+                                response: xhr.responseText
+                            });
+
+                            var errorMsg = '请求失败';
+                            if (xhr.responseJSON && xhr.responseJSON.msg) {
+                                errorMsg = xhr.responseJSON.msg;
+                            } else if (xhr.status === 0) {
+                                errorMsg = '无法连接到服务器，请检查网络连接';
+                            } else if (xhr.status === 400) {
+                                errorMsg = '请求参数错误';
+                            } else if (xhr.status === 404) {
+                                errorMsg = '请求的资源不存在';
+                            } else if (xhr.status === 500) {
+                                errorMsg = '服务器内部错误';
+                            } else if (error) {
+                                errorMsg = error;
+                            }
+
+                            layer.msg(errorMsg, {
+                                icon: 2,
+                                time: 3000
+                            });
+                        }
+                    });
+                    return false;
+                },
+                btn2: function (index, layero) {
+                    // 获取iframe中的表单数据并保存
+                    var iframe = layero.find('iframe')[0];
+                    var iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
+
+                    // 获取表单数据
+                    var webhookData = {
+                        webhook_enabled: iframeDocument.getElementById('webhook_enable').checked,
+                        webhook_url: iframeDocument.getElementById('url').value,
+                        webhook_headers: iframeDocument.getElementById('headers').value,
+                        webhook_request_body: iframeDocument.getElementById('request_body').value
+                    };
+
+                    // 只有启用时才验证数据
+                    if (webhookData.webhook_enabled && !webhookData.webhook_url.trim()) {
+                        layer.msg('启用 Webhook 时，URL 不能为空', {
+                            icon: 2,
+                            time: 2000
+                        });
+                        return false;
+                    }
+                    // 发送保存请求
+                    $.ajax({
+                        url: '/webhook',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify(webhookData),
+                        success: function (response) {
+                            try {
+                                var res = typeof response === 'string' ? JSON.parse(response) : response;
+                                if (res.status) {
+                                    layer.msg(res.msg || '保存成功', {
+                                        icon: 1,
+                                        time: 1500
+                                    });
+                                    layer.close(index);
+                                } else {
+                                    layer.msg(res.msg || '保存失败', {
+                                        icon: 2,
+                                        time: 1500
+                                    });
+                                }
+                            } catch (e) {
+                                layer.msg('响应解析失败', {
+                                    icon: 2,
+                                    time: 2000
+                                });
+                            }
+                        },
+                        error: function (xhr, status, error) {
+                            console.error('请求失败:', {
+                                status: xhr.status,
+                                statusText: xhr.statusText,
+                                error: error,
+                                response: xhr.responseText
+                            });
+
+                            var errorMsg = '请求失败';
+                            if (xhr.responseJSON && xhr.responseJSON.msg) {
+                                errorMsg = xhr.responseJSON.msg;
+                            } else if (xhr.status === 0) {
+                                errorMsg = '无法连接到服务器，请检查网络连接';
+                            } else if (xhr.status === 400) {
+                                errorMsg = '请求参数错误';
+                            } else if (xhr.status === 404) {
+                                errorMsg = '请求的资源不存在';
+                            } else if (xhr.status === 500) {
+                                errorMsg = '服务器内部错误';
+                            } else if (error) {
+                                errorMsg = error;
+                            }
+
+                            layer.msg(errorMsg, {
+                                icon: 2,
+                                time: 3000
+                            });
+                        }
+                    });
+                },
+                btn3: function (index, layero) {
+                    layer.close(index);
+                },
+            });
+        });
+
+        $('#settings').on('click', function () {
+            layer.open({
+                type: 2,
+                title: '系统设置',
+                area: function () {
+                    // 根据屏幕宽度自适应
+                    if (window.innerWidth <= 768) {
+                        return ['90%', '60%']; // 移动端
+                    } else if (window.innerWidth <= 1024) {
+                        return ['60%', '50%']; // 平板端
+                    } else {
+                        return ['40%', '35%']; // 桌面端
+                    }
+                }(),
+                maxWidth: 800,
+                maxHeight: 500,
+                shadeClose: true,
+                resize: false, // 禁用调整大小
+                move: '.layui-layer-title', // 只允许通过标题栏拖拽
+                content: '/settings',
+                btn: [
+                    '保存',
+                    '取消'
+                ],
+                btn1: function (index, layero) {
+                    // 获取iframe中的表单数据并保存
+                    var iframe = layero.find('iframe')[0];
+                    var iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
+
+                    // 获取表单数据
+                    var settingsData = {
+                        not_allow_wan_access: iframeDocument.getElementById('not_allow_wan_access').checked,
+                        username: iframeDocument.getElementById('username').value,
+                        password: iframeDocument.getElementById('password').value
+                    };
+
+                    // 验证数据
+                    if (!settingsData.username.trim()) {
+                        layer.msg('用户名不能为空', {
+                            icon: 2,
+                            time: 2000
+                        });
+                        return false;
+                    }
+                    // 发送 ajax 事件
+                    $.ajax({
+                        url: '/settings',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify(settingsData),
+                        success: function (response) {
+                            try {
+                                var res = typeof response === 'string' ? JSON.parse(response) : response;
+                                if (res.status) {
+                                    layer.msg(res.msg || '保存成功', {
+                                        icon: 1,
+                                        time: 1500
+                                    });
+                                    layer.close(index);
+                                } else {
+                                    layer.msg(res.msg || '保存失败', {
+                                        icon: 2,
+                                        time: 1500
+                                    });
+                                }
+                            } catch (e) {
+                                layer.msg('响应解析失败', {
+                                    icon: 2,
+                                    time: 2000
+                                });
+                            }
+                        },
+                        error: function (xhr, status, error) {
+                            console.error('请求失败:', {
+                                status: xhr.status,
+                                statusText: xhr.statusText,
+                                error: error,
+                                response: xhr.responseText
+                            });
+
+                            var errorMsg = '请求失败';
+                            if (xhr.responseJSON && xhr.responseJSON.msg) {
+                                errorMsg = xhr.responseJSON.msg;
+                            } else if (xhr.status === 0) {
+                                errorMsg = '无法连接到服务器，请检查网络连接';
+                            } else if (xhr.status === 400) {
+                                errorMsg = '请求参数错误';
+                            } else if (xhr.status === 404) {
+                                errorMsg = '请求的资源不存在';
+                            } else if (xhr.status === 500) {
+                                errorMsg = '服务器内部错误';
+                            } else if (error) {
+                                errorMsg = error;
+                            }
+
+                            layer.msg(errorMsg, {
+                                icon: 2,
+                                time: 3000
+                            });
+                        }
+                    });
+                },
+                btn2: function (index, layero) {
+                    layer.close(index);
+                }
+            });
+        });
+
+        // 初始化配置数据（必须在所有事件绑定完成后调用）
+        initConfigData();
+
+        // 恢复 dcdn_enable 状态
+        if (typeof configData.dcdn_enable !== 'undefined') {
+            $('input[name="dcdn_enable"]').prop('checked', configData.dcdn_enable);
+            form.render('checkbox');
+        }
+
+    });
+
+</script>
+</body>
+</html>

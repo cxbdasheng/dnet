@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Webhook</title>
+    <link rel="stylesheet" href="/static/css/layui.css">
+    <link rel="stylesheet" href="/static/css/common.css">
+    <script src="/static/layui.js"></script>
+</head>
+<style>
+    .layui-fluid {
+        padding: 15px;
+        background: #fff;
+    }
+</style>
+<body>
+<div class="layui-fluid">
+    <div class="layui-row">
+        <form class="layui-form">
+            <div class="layui-form-item">
+                <label for="webhook_enable" class="layui-form-label">启用状态</label>
+                <div class="layui-input-inline">
+                    <input type="checkbox" id="webhook_enable" name="webhook_enable" lay-skin="switch"
+                           lay-text="开启|关闭" {{if .WebhookEnabled}}checked{{end}}>
+                    <tip>关闭后，Webhook 所有配置失效。</tip>
+                </div>
+            </div>
+            <div class="layui-form-item">
+                <label for="url" class="layui-form-label">URL</label>
+                <div class="layui-input-block">
+                    <input type="text" id="url" name="url"  lay-verify="required"
+                           autocomplete="on" class="layui-input" value="{{.WebhookURL}}">
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label for="headers" class="layui-form-label">请求头</label>
+                <div class="layui-input-block">
+                    <textarea type="text" id="headers" name="headers"
+                              autocomplete="off" class="layui-textarea" style="min-height: 60px;">{{.WebhookHeaders}}</textarea>
+                    <tip> 一行一个Header, 如: Authorization: Bearer API_KEY</tip>
+
+                </div>
+            </div>
+            <div class="layui-form-item">
+                <label for="request_body" class="layui-form-label">请求体</label>
+                <div class="layui-input-block">
+                    <textarea name="request_body" id="request_body" class="layui-textarea">{{.WebhookRequestBody}}</textarea>
+                    <tip>如果请求体为空, 则为 GET 请求, 否则为 POST 请求</tip>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+</body>
+</html>

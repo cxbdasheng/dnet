@@ -1,0 +1,176 @@
+.layui-body {
+    left: 0px;
+}
+
+.layui-layout-admin .layui-footer {
+    left: 0px;
+    background-color: #fff;
+    border-top: 1px solid #e6e6e6;
+    font-size: 14px;
+    line-height: 1.6;
+    /*height: 60px;*/
+    display: flex;
+    align-items: center;
+}
+
+.layui-layout-admin .layui-logo {
+    width: auto;
+}
+
+.layui-layout-admin .layui-body {
+    background: #f2f2f2;
+}
+
+.layui-card-header {
+    font-size: 18px;
+}
+
+.clear {
+    clear: both;
+}
+
+.layui-layout-admin .layui-body {
+    position: relative;
+}
+
+.layui-form-label {
+    width: 120px;
+}
+
+.layui-input-block {
+    margin-left: 150px;
+}
+
+.layui-form-item > .layui-input-block > tip {
+    display: inline-block;
+    margin-top: 10px;
+    line-height: 10px;
+    font-size: 10px;
+    color: #a29c9c;
+}
+
+.layui-form-item > .layui-input-inline > tip {
+    display: inline-block;
+    margin-top: 10px;
+    line-height: 10px;
+    font-size: 10px;
+    color: #a29c9c;
+}
+
+.layui-card-body .layui-elem-field legend {
+    font-size: 18px;
+}
+
+.layui-form-mid a {
+    color: #01aaed;
+}
+
+.tip {
+    display: inline-block;
+    margin-top: 10px;
+    margin-left: 150px;
+    line-height: 10px;
+    font-size: 10px;
+    /*color: #a29c9c;*/
+}
+
+.tip a {
+    color: #01aaed;
+}
+
+@media screen and (max-width: 767.98px) {
+    .layui-layout-left {
+        left: 0px;
+    }
+
+    .layui-logo {
+        left: 50% !important;
+        margin-left: -50px;
+        display: inline-block !important;
+    }
+
+    .ws-nav-show .ws-header-menu .layui-nav{
+        position: fixed;
+        top: 61px;
+        left: 0;
+        width: 100%;
+        text-align: center;
+        transition: transform 0.3s ease;
+        transform: translateX(0);
+        z-index: 1003;
+        height: 60px;
+        box-shadow: rgba(0, 0, 0, 0.05) 0px 1px 3px;
+        border-radius: 0px;
+        background: #2f363c!important;
+    }
+
+    .ws-header-menu .layui-nav{
+        position: fixed;
+        top: 61px;
+        left: 0;
+        width: 100%;
+        text-align: center;
+        transition: transform 0.3s ease;
+        transform: translateX(-100%);
+        z-index: 1003;
+        height: 60px;
+        box-shadow: rgba(0, 0, 0, 0.05) 0px 1px 3px;
+        border-radius: 0px;
+        background: #2f363c!important;
+    }
+    .ws-nav-show .layui-nav .layui-nav-item a:hover, .layui-nav .layui-this a {
+        color: #fff;
+        text-decoration: none;
+    }
+    .ws-nav-show .layui-nav .layui-hide-xs {
+        display: inline-block!important;
+    }
+    .ws-nav-show .ws-shade {
+        content: "";
+        position: fixed;
+        top: 0px;
+        bottom: 0px;
+        left: 0px;
+        right: 0px;
+        background-color: rgba(0, 0, 0, 0.7);
+        z-index: 999;
+    }
+}
+
+.layui-logo a {
+    color: #fff;
+}
+
+/* 底部区域样式 */
+.layui-footer .layui-container > div {
+    margin: 0;
+}
+
+.layui-footer p {
+    margin: 5px 0;
+    font-size: 14px;
+    color: #666;
+}
+
+.layui-footer a {
+    color: #1e9fff;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.layui-footer a:hover {
+    color: #01aaed;
+    text-decoration: underline;
+}
+
+/* Webhook 弹窗按钮样式 */
+.webhook-dialog .layui-layer-btn .layui-layer-btn0 {
+    border-color: transparent;
+    background-color: #1e9fff;
+    color: #fff;
+}
+.webhook-dialog .layui-layer-btn .layui-layer-btn1 {
+    border-color: transparent;
+    background-color: #1e9fff;
+    color: #fff;
+}
