@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 
 	"github.com/kardianos/service"
 )
@@ -33,12 +34,41 @@ func getService() service.Service {
 
 	// 确保服务等待网络就绪后再启动
 	switch service.ChosenSystem().String() {
+	case "unix-systemv":
+		// System V init 脚本配置
+		options["SysvScript"] = sysvScript
+		options["UserService"] = false
+	case "unix-upstart":
+		// Upstart 配置
+		options["UserService"] = false
+	case "linux-systemd":
+		// Systemd 配置
+		depends = append(depends,
+			"Requires=network.target",
+			"After=network-online.target syslog.target")
+		// 失败时自动重启
+		options["Restart"] = "on-failure"
+		// 启动失败重试间隔
+		options["RestartSec"] = 10
+		// 文件描述符限制
+		options["LimitNOFILE"] = 65536
+	case "darwin-launchd":
+		// macOS LaunchDaemon 配置
+		options["KeepAlive"] = true
+		options["RunAtLoad"] = true
+		options["UserService"] = false
 	case "windows-service":
 		// 将 Windows 服务的启动类型设为自动(延迟启动)
 		options["DelayedAutoStart"] = true
+		// 失败时自动重启
+		options["OnFailure"] = "restart"
+		// 延迟启动失败时重试间隔
+		options["OnFailureDelayDuration"] = "10s"
+		options["OnFailureResetPeriod"] = 60
 	default:
-		// 向 Systemd 添加网络依赖
-		depends = append(depends, "Requires=network.target",
+		// 默认 Systemd 配置
+		depends = append(depends,
+			"Requires=network.target",
 			"After=network-online.target")
 	}
 
@@ -51,6 +81,10 @@ func getService() service.Service {
 		Option:       options,
 	}
 
+	// 非 Web 运行
+	if *noWebService {
+		svcConfig.Arguments = append(svcConfig.Arguments, "-noweb")
+	}
 	// 添加DNS配置参数
 	if *customDNS != "" {
 		svcConfig.Arguments = append(svcConfig.Arguments, "-dns", *customDNS)
@@ -64,42 +98,180 @@ func getService() service.Service {
 	return s
 }
 
-// installServiceNew 使用service库安装系统服务
-func installServiceNew() {
+// installService 使用service库安装系统服务
+func installService() {
 	fmt.Println("正在安装 D-NET 系统服务...")
 
 	s := getService()
-	err := s.Install()
-	if err != nil {
-		fmt.Printf("D-NET 服务安装失败: %v\n", err)
-		os.Exit(1)
+	status, err := s.Status()
+	if err != nil && status == service.StatusUnknown {
+		// 服务未知，创建服务
+		if err = s.Install(); err == nil {
+			if startErr := s.Start(); startErr != nil {
+				log.Printf("服务安装成功但启动失败: %v\n", startErr)
+			}
+			fmt.Println("安装 D-NET 服务成功! 请打开浏览器并进行配置")
+
+			// System V init 系统需要额外配置开机自启
+			if service.ChosenSystem().String() == "unix-systemv" {
+				serviceName := "dnet"
+				// 尝试使用 update-rc.d (Debian/Ubuntu)
+				if _, err := exec.LookPath("update-rc.d"); err == nil {
+					if out, err := exec.Command("update-rc.d", serviceName, "defaults").CombinedOutput(); err != nil {
+						log.Printf("update-rc.d 配置失败: %v, 输出: %s\n", err, out)
+					} else {
+						fmt.Println("已配置开机自启 (update-rc.d)")
+					}
+				} else if _, err := exec.LookPath("chkconfig"); err == nil {
+					// 尝试使用 chkconfig (RedHat/CentOS)
+					if out, err := exec.Command("chkconfig", "--add", serviceName).CombinedOutput(); err != nil {
+						log.Printf("chkconfig --add 失败: %v, 输出: %s\n", err, out)
+					} else {
+						if out, err := exec.Command("chkconfig", serviceName, "on").CombinedOutput(); err != nil {
+							log.Printf("chkconfig on 失败: %v, 输出: %s\n", err, out)
+						} else {
+							fmt.Println("已配置开机自启 (chkconfig)")
+						}
+					}
+				}
+			}
+			return
+		}
+		fmt.Printf("安装 D-NET 服务失败, 异常信息: %s", err)
 	}
-	fmt.Println("D-NET 服务安装成功")
+
+	if status != service.StatusUnknown {
+		fmt.Println("D-NET 服务已安装, 无需再次安装")
+	}
 }
 
-// uninstallServiceNew 使用service库卸载系统服务
-func uninstallServiceNew() {
+// uninstallService 使用 service 库卸载系统服务
+func uninstallService() {
 	fmt.Println("正在卸载 D-NET 系统服务...")
 
 	s := getService()
-	s.Stop()
-	err := s.Uninstall()
-	if err != nil {
+	if stopErr := s.Stop(); stopErr != nil {
+		log.Printf("停止服务时出现警告: %v\n", stopErr)
+	}
+
+	// System V init 系统需要额外清理
+	if service.ChosenSystem().String() == "unix-systemv" {
+		serviceName := "dnet"
+		// 尝试使用 update-rc.d 移除 (Debian/Ubuntu)
+		if _, err := exec.LookPath("update-rc.d"); err == nil {
+			if out, err := exec.Command("update-rc.d", "-f", serviceName, "remove").CombinedOutput(); err != nil {
+				log.Printf("update-rc.d remove 失败: %v, 输出: %s\n", err, out)
+			}
+		} else if _, err := exec.LookPath("chkconfig"); err == nil {
+			// 尝试使用 chkconfig 移除 (RedHat/CentOS)
+			if out, err := exec.Command("chkconfig", "--del", serviceName).CombinedOutput(); err != nil {
+				log.Printf("chkconfig --del 失败: %v, 输出: %s\n", err, out)
+			}
+		}
+	}
+
+	if err := s.Uninstall(); err != nil {
 		fmt.Printf("D-NET 服务卸载失败: %v\n", err)
 		os.Exit(1)
 	}
 	fmt.Println("D-NET 服务卸载成功")
 }
 
-// restartServiceNew 使用service库重启系统服务
-func restartServiceNew() {
+// restartService 使用service库重启系统服务
+func restartService() {
 	fmt.Println("正在重启 D-NET 系统服务...")
 
 	s := getService()
-	err := s.Restart()
+	status, err := s.Status()
 	if err != nil {
-		fmt.Printf("D-NET 服务重启失败: %v\n", err)
+		fmt.Println("D-NET 服务未安装, 请先安装服务")
 		os.Exit(1)
 	}
-	fmt.Println("D-NET 服务重启成功")
+
+	switch status {
+	case service.StatusRunning:
+		// 服务正在运行，执行重启
+		if err = s.Restart(); err != nil {
+			fmt.Printf("D-NET 服务重启失败: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("D-NET 服务重启成功")
+	case service.StatusStopped:
+		// 服务已停止，执行启动
+		if err = s.Start(); err != nil {
+			fmt.Printf("D-NET 服务启动失败: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("D-NET 服务启动成功")
+	default:
+		fmt.Printf("D-NET 服务状态未知: %v\n", status)
+		os.Exit(1)
+	}
 }
+
+// sysvScript 定义 System V init 脚本模板
+const sysvScript = `#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          {{.Name}}
+# Required-Start:    $network $remote_fs $syslog
+# Required-Stop:     $network $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: {{.DisplayName}}
+# Description:       {{.Description}}
+### END INIT INFO
+
+cmd="{{.Path}}{{range .Arguments}} {{.}}{{end}}"
+
+name=$(basename $(readlink -f $0))
+pid_file="/var/run/$name.pid"
+stdout_log="/var/log/$name.log"
+stderr_log="/var/log/$name.err"
+
+get_pid() {
+    cat "$pid_file"
+}
+
+is_running() {
+    [ -f "$pid_file" ] && ps -p $(get_pid) > /dev/null 2>&1
+}
+
+case "$1" in
+    start)
+        if is_running; then
+            echo "Already started"
+        else
+            echo "Starting $name"
+            $cmd >> "$stdout_log" 2>> "$stderr_log" &
+            echo $! > "$pid_file"
+        fi
+        ;;
+    stop)
+        if is_running; then
+            echo "Stopping $name"
+            kill $(get_pid)
+            rm -f "$pid_file"
+        else
+            echo "Not running"
+        fi
+        ;;
+    restart)
+        $0 stop
+        $0 start
+        ;;
+    status)
+        if is_running; then
+            echo "Running"
+        else
+            echo "Stopped"
+            exit 1
+        fi
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|status}"
+        exit 1
+        ;;
+esac
+
+exit 0
+`
