@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/cxbdasheng/dnet/cdn"
 	"github.com/cxbdasheng/dnet/config"
 	"github.com/cxbdasheng/dnet/helper"
 	"github.com/cxbdasheng/dnet/web"
@@ -23,6 +24,9 @@ var configFilePath = flag.String("c", config.GetConfigFilePathDefault(), "Custom
 
 // 监听地址
 var listen = flag.String("l", ":9876", "Listen address")
+
+// 更新频率(秒)
+var every = flag.Int("f", 300, "Update frequency(seconds)")
 
 // 服务管理
 var serviceType = flag.String("s", "", "Service management (install|uninstall|restart)")
@@ -105,7 +109,7 @@ func main() {
 				case "windows-service":
 					fmt.Println("可使用 .\\dnet.exe -s install 安装服务运行")
 				default:
-					fmt.Println("可使用 sudo ./dnet.exe -s install 安装服务运行")
+					fmt.Println("可使用 sudo ./dnet -s install 安装服务运行")
 				}
 				run()
 			}
@@ -158,5 +162,5 @@ func run() {
 	helper.InitBackupDNS(*customDNS)
 
 	// 等待网络连接
-	select {}
+	cdn.RunTimer(time.Duration(*every) * time.Second)
 }
