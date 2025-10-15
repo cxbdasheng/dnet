@@ -51,13 +51,14 @@ var version = "DEV"
 
 func main() {
 	flag.Parse()
+
 	// 设置配置文件路径
 	if *configFilePath != "" {
 		absPath, _ := filepath.Abs(*configFilePath)
 		os.Setenv(config.PathENV, absPath)
 	}
 
-	// 检查监听地址
+	// 检查监听地址，查看是否合法
 	if _, err := net.ResolveTCPAddr("tcp", *listen); err != nil {
 		log.Fatalf("Parse listen address failed! Exception: %s", err)
 	}
@@ -81,7 +82,6 @@ func main() {
 		}
 		return
 	}
-
 	// 设置自定义DNS
 	if *customDNS != "" {
 		helper.SetDNS(*customDNS)
@@ -143,8 +143,6 @@ func runWebServer() error {
 	return http.Serve(l, nil)
 }
 func run() {
-	// 兼容之前的配置文件
-	//conf, _ := config.GetConfigCached()
 
 	if !*noWebService {
 		go func() {
