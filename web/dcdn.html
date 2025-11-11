@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>DCDN 配置</title>
+    <link rel="stylesheet" href="/static/css/layui.css">
+    <link rel="stylesheet" href="/static/css/common.css">
+    <script src="/static/layui.js"></script>
+    <style>
+        body {
+            background-color: #f2f2f2;
+            margin: 0;
+            padding: 0 0 25px 0;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+        html {
+            overflow-x: hidden;
+        }
+    </style>
+</head>
+<body>
+<div class="layui-container" style="padding: 15px;">
+    <form class="layui-form">
+        <div class="layui-card">
+            <div class="layui-card-header">DCDN 设置</div>
+            <div class="layui-card-body">
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="dcdn_enable">是否开启：</label>
+                    <div class="layui-input-inline">
+                        <input type="checkbox" id="dcdn_enable" name="dcdn_enable" lay-skin="switch"
+                               lay-text="开启|关闭"
+                               checked>
+                    </div>
+                    <div class="layui-form-mid layui-word-aux">
+                        全局开关，关闭后 DCDN 将停用，所有配置失效。
+                    </div>
+                </div>
+                <hr/>
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="config">配置：</label>
+                    <div class="layui-input-inline">
+                        <select id="config" lay-search="{fuzzy: false}" lay-creatable=""
+                                lay-verify="required"
+                                lay-filter="config-select-filter" name="config">
+                            <option value="1">1</option>
+                        </select>
+                    </div>
+                    <div class="layui-input-inline" style="width: 205px;">
+                        <button type="button" class="layui-btn" id="config-add">
+                            <i class="layui-icon layui-icon-add-1"></i>
+                        </button>
+                        <button type="button" class="layui-btn" id="config-rename">
+                            <i class="layui-icon layui-icon-edit"></i>
+                        </button>
+                        <button type="button" class="layui-btn" id="config-remove">
+                            <i class="layui-icon layui-icon-delete"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="domain">域名：</label>
+                    <div class="layui-input-block">
+                        <input type="text" id="domain" name="domain" lay-verify="domain" autocomplete="off"
+                               placeholder="请输域名" class="layui-input">
+                        <!--                                    <tip>填写自己部署网站的名称。</tip>-->
+                    </div>
+                </div>
+                <div class="layui-row layui-form-item">
+                    <div class="layui-input-block">
+                        <button type="submit" class="layui-btn" lay-submit lay-filter="save">立即提交
+                        </button>
+                        <button type="reset" class="layui-btn layui-btn-primary">重置</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="layui-card">
+            <div class="layui-card-header">CDN 服务商</div>
+            <div class="layui-card-body">
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label"></label>
+                    <div class="layui-input-block" id="service-radio-container">
+                        <!-- CDN提供商单选按钮将通过JavaScript动态生成 -->
+                    </div>
+                    <tip class="tip" id="service-help-link"><a href="">创建 AccessKey</a></tip>
+                </div>
+
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="access_key" id="access-key-label">AccessKey
+                        ID：</label>
+                    <div class="layui-input-block">
+                        <input type="text" id="access_key" name="access_key" lay-verify="access_key" placeholder="请输入AccessKey ID" class="layui-input">
+                    </div>
+                </div>
+
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="access_secret" id="access-secret-label">AccessKey
+                        Secret：</label>
+                    <div class="layui-input-block">
+                        <input type="text" id="access_secret" name="access_secret" lay-verify="access_secret" placeholder="请输入AccessKey Secret" class="layui-input">
+                    </div>
+                </div>
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="cdn-type-select">类型：</label>
+                    <div class="layui-input-inline">
+                        <select name="cdn_type" lay-filter="cdn-type-filter" id="cdn-type-select">
+                            <option value="cdn">CDN</option>
+                            <option value="dcdn">DCDN</option>
+                        </select>
+                    </div>
+                    <div class="layui-form-mid layui-word-aux" id="type-help-text">类型请参考：</div>
+                </div>
+            </div>
+        </div>
+        <div class="layui-card">
+            <div class="layui-card-header">源站设置</div>
+            <div class="layui-card-body" style="padding-bottom: 35px">
+                <div class="layui-row layui-form-item dnet-form-sources" style="margin-bottom: 5px;margin-top: 10px">
+                    <label class="layui-form-label"></label>
+                    <div class="layui-input-inline dnet-form-type"><p>源站类型</p></div>
+                    <div class="layui-input-inline dnet-form-value" ><p>源站值</p></div>
+                    <div class="layui-input-inline dnet-form-priority"><p>优先级</p></div>
+                    <div class="layui-input-inline" ><p>权重</p></div>
+                    <div class="layui-input-inline" ><p>端口</p> </div>
+                    <div class="layui-input-inline dnet-form-operation">操作</div>
+                </div>
+                <div class="layui-row layui-form-item dnet-form-sources">
+                    <label class="layui-form-label"></label>
+                    <div class="layui-input-inline dnet-form-type">
+                        <select  name="sources_type" lay-filter="sources-type-filter" lay-search="{caseSensitive:false, fuzzy: false}">
+                            <option value="domain">域名</option>
+                            <option value="static_ipv4">静态 IPv4</option>
+                            <option value="static_ipv6">静态 IPv6</option>
+                            <option value="dynamic_ipv4_url">动态 IPv4：接口获取</option>
+                            <option value="dynamic_ipv4_interface">动态 IPv4：网卡获取</option>
+                            <option value="dynamic_ipv4_command">动态 IPv4：命令获取</option>
+                            <option value="dynamic_ipv6_url">动态 IPv6：接口获取</option>
+                            <option value="dynamic_ipv6_interface">动态 IPv6：网卡获取</option>
+                            <option value="dynamic_ipv6_command">动态 IPv6：命令获取</option>
+                        </select>
+                    </div>
+                    <div class="layui-input-inline dnet-form-value" data-type="sources_type_domain">
+                        <input type="text"  name="sources_type_domain" class="layui-input" placeholder="请输入域名内容" lay-verify="domain">
+                    </div>
+                    <div class="layui-input-inline dnet-form-value" data-type="sources_type_ipv4">
+                        <input type="text"  name="sources_type_ipv4" class="layui-input" placeholder="请输入静态 IPv4 地址" lay-verify="ipv4">
+                    </div>
+                    <div class="layui-input-inline dnet-form-value" data-type="sources_type_ipv6">
+                        <input type="text" lay-verify="ipv6" name="sources_type_ipv6" class="layui-input" placeholder="请输入静态 IPv6 地址">
+                    </div>
+                    <div class="layui-input-inline dnet-form-value" data-type="sources_dynamic_ipv4_url">
+                        <textarea name="sources_dynamic_ipv4_url" placeholder="请输入 IPv4 获取地址" class="layui-textarea"></textarea>
+                    </div>
+                    <div class="layui-input-inline dnet-form-value" data-type="sources_dynamic_ipv4_interface">
+                        <select name="sources_dynamic_ipv4_interface">
+                            {{range .IPv4}}
+                            <option value="{{.Name}}">
+                                {{.Name}}{{.Address}}
+                            </option>
+                            {{end}}
+                        </select>
+                    </div>
+                    <div class="layui-input-inline dnet-form-value" data-type="sources_dynamic_ipv4_command">
+                        <textarea name="sources_dynamic_ipv4_command" placeholder="请输入命令内容" class="layui-textarea"></textarea>
+                    </div>
+                    <!--Pv6-->
+                    <div class="layui-input-inline dnet-form-value" data-type="sources_dynamic_ipv6_url">
+                        <textarea name="sources_dynamic_ipv6_url" placeholder="请输入 IPv6 获取地址" class="layui-textarea"></textarea>
+                    </div>
+                    <div class="layui-input-inline dnet-form-value" data-type="sources_dynamic_ipv6_interface">
+                        <select name="sources_dynamic_ipv6_interface">
+                            {{range .IPv6}}
+                            <option value="{{.Name}}">
+                                {{.Name}}{{.Address}}
+                            </option>
+                            {{end}}
+                        </select>
+                    </div>
+                    <div class="layui-input-inline dnet-form-value" data-type="sources_dynamic_ipv6_command">
+                        <textarea name="sources_dynamic_ipv6_command" placeholder="请输入命令内容" class="layui-textarea"></textarea>
+                    </div>
+                    <div class="layui-input-inline dnet-form-priority">
+                        <select  name="sources_priority">
+                            <option value="main">主站</option>
+                            <option value="backup">备站</option>
+                        </select>
+                    </div>
+                    <div class="layui-input-inline">
+                        <input type="text" name="sources_weight" lay-affix="number" value="10" step="1" max="100" min="1" class="layui-input">
+
+                    </div>
+                    <div class="layui-input-inline">
+                        <input type="text" name="sources_port" lay-affix="number" value="80" step="1" max="65535" min="1" class="layui-input">
+                    </div>
+                    <div class="layui-input-inline">
+                        <button type="button" class="layui-btn btn-add-source">
+                            <i class="layui-icon layui-icon-addition"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="layui-row layui-form-item">
+            <div class="layui-input-block">
+                <button type="submit" class="layui-btn" lay-submit lay-filter="save">立即提交
+                </button>
+                <button type="reset" class="layui-btn layui-btn-primary">重置</button>
+            </div>
+        </div>
+    </form>
+</div>
+</body>
+<script src="/static/cdn.js"></script>
+<script>
+    // 获取第一个CDN提供商作为默认值
+    const firstCDNProvider = Object.keys(CDN_PROVIDERS)[0] || "aliyun";
+    // 获取第一个CDN提供商的第一个类型作为默认值
+    const firstCDNType = (CDN_PROVIDERS[firstCDNProvider] && CDN_PROVIDERS[firstCDNProvider].typeSelect && CDN_PROVIDERS[firstCDNProvider].typeSelect[0]) || "CDN";
+
+    const defaultConfig = {
+        "domain": "",
+        "service": firstCDNProvider,
+        "name": "",
+        "access_key": "",
+        "access_secret": "",
+        "cdn_type": firstCDNType,
+        "sources_type": "dynamic_ipv6_interface",
+        "sources_weight":10,
+        "sources_port":80,
+        "sources_priority": "main",
+        "sources_dynamic_ipv4_url": "https://myip.ipip.net, https://ddns.oray.com/checkip, https://ip.3322.net, https://4.ipw.cn, https://v4.yinghualuo.cn/bejson",
+        "sources_dynamic_ipv6_url": "https://speed.neu6.edu.cn/getIP.php, https://v6.ident.me, https://6.ipw.cn, https://v6.yinghualuo.cn/bejson",
+        "sources":[],
+    }
+    var configData = {{.DCDNConf}}
+
+    // 当前选中的配置ID
+    var currentSelectedConfig = null;
+    layui.use(['element', 'layer', 'util', 'form'], function () {
+        var element = layui.element;
+        var layer = layui.layer;
+        var util = layui.util;
+        var form = layui.form;
+        var $ = layui.$;
+        // 域名验证正则表达式
+        const DOMAIN_REGEX = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/;
+        const ipv4Regex = /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+        // IPv6 完整格式检查
+        const ipv6FullRegex = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
+        // IPv6 压缩格式检查
+        const ipv6CompressedRegex = /^(([0-9a-fA-F]{1,4}:){1,7}:|:((:[0-9a-fA-F]{1,4}){1,7}|:))$/;
+        // IPv6 混合格式检查（包含 ::）
+        const ipv6MixedRegex = /^((([0-9a-fA-F]{1,4}:){1,6}:)|(::))([0-9a-fA-F]{1,4}:){0,5}[0-9a-fA-F]{1,4}$|^::$/;
+        // 自定义验证规则
+        form.verify({
+            // 域名验证
+            domain: function (value, elem) {
+                // 如果父容器被隐藏，跳过验证
+                var $parent = $(elem).closest('.dnet-form-value');
+                if ($parent.length && $parent.is(':hidden')) {
+                    return; // 跳过验证
+                }
+
+                if (!value) {
+                    return '域名不能为空';
+                }
+                // 域名长度检查
+                if (value.length < 3 || value.length > 253) {
+                    return '域名长度必须在3-253个字符之间';
+                }
+                if (!DOMAIN_REGEX.test(value)) {
+                    return '请输入正确的域名格式，例如：example.com';
+                }
+
+                // 检查是否包含至少一个点（顶级域名）
+                if (value.indexOf('.') === -1) {
+                    return '域名必须包含顶级域名';
+                }
+
+                // 检查标签长度（每个部分不能超过63个字符）
+                const labels = value.split('.');
+                for (var i = 0; i < labels.length; i++) {
+                    if (labels[i].length > 63) {
+                        return '域名的每个部分不能超过63个字符';
+                    }
+                }
+            },
+            // IPv4 验证
+            ipv4: function (value, elem) {
+                // 如果父容器被隐藏，跳过验证
+                var $parent = $(elem).closest('.dnet-form-value');
+                if ($parent.length && $parent.is(':hidden')) {
+                    return; // 跳过验证
+                }
+
+                if (!value) {
+                    // return;
+                    return 'IPv4 地址不能为空';
+                }
+                if (!ipv4Regex.test(value)) {
+                    return '请输入正确的 IPv4 地址格式，例如：192.168.1.1';
+                }
+            },
+            // 权重验证
+            weight: function (value, elem) {
+                if (value && (isNaN(value) || parseInt(value) < 1 || parseInt(value) > 100)) {
+                    return '权重必须是1-100之间的数字';
+                }
+            },
+            // AccessKey验证
+            access_key: function (value, elem) {
+                if (!value) {
+                    return 'AccessKey 不能为空';
+                }
+                if (value.length < 6) {
+                    return 'AccessKey 长度不能少于6位';
+                }
+            },
+            // AccessSecret验证
+            access_secret: function (value, elem) {
+                if (!value) {
+                    return 'AccessSecret不能为空';
+                }
+                if (value.length < 10) {
+                    return 'AccessSecret长度不能少于10位';
+                }
+            },
+            // IPv6 验证
+            ipv6: function (value, elem) {
+                // 如果父容器被隐藏，跳过验证
+                var $parent = $(elem).closest('.dnet-form-value');
+                if ($parent.length && $parent.is(':hidden')) {
+                    return; // 跳过验证
+                }
+
+                if (!value) {
+                    // return;
+                    return 'IPv6 地址不能为空';
+                }
+                if (!ipv6FullRegex.test(value) && !ipv6CompressedRegex.test(value) && !ipv6MixedRegex.test(value)) {
+                    // 简化的 IPv6 验证
+                    var simpleIpv6Regex = /^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}$|^::$/;
+                    if (!simpleIpv6Regex.test(value)) {
+                        return '请输入正确的 IPv6 地址格式，例如：2001:db8::1 或 ::1';
+                    }
+                }
+            }
+        });
+        // 域名验证函数
+        function isValidDomain(domain) {
+            return DOMAIN_REGEX.test(domain) && domain.indexOf('.') !== -1;
+        }
+        // 源站类型到字段名的映射
+        const SOURCE_TYPE_MAP = {
+            'domain': 'sources_type_domain',
+            'static_ipv4': 'sources_type_ipv4',
+            'static_ipv6': 'sources_type_ipv6',
+            'dynamic_ipv4_url': 'sources_dynamic_ipv4_url',
+            'dynamic_ipv4_interface': 'sources_dynamic_ipv4_interface',
+            'dynamic_ipv4_command': 'sources_dynamic_ipv4_command',
+            'dynamic_ipv6_url': 'sources_dynamic_ipv6_url',
+            'dynamic_ipv6_interface': 'sources_dynamic_ipv6_interface',
+            'dynamic_ipv6_command': 'sources_dynamic_ipv6_command'
+        };
+        // 获取配置显示文本
+        function getConfigDisplayText(config) {
+            if (config.name) {
+                return config.name;
+            } else if (config.domain) {
+                return config.id + ' - ' + config.domain;
+            }
+            return config.id;
+        }
+
+        // 删除多余的源站行（保留第一个数据行）
+        function removeExtraSourceRows() {
+            $('.dnet-form-sources').each(function(index) {
+                if (index > 1) { // 跳过第一行（标题）和第二行（第一个数据行）
+                    $(this).remove();
+                }
+            });
+        }
+
+        // 重新渲染表单并初始化所有源站行
+        function renderAndInitSourceRows() {
+            // 重新渲染 layui 表单组件
+            form.render();
+            // 初始化所有表单行的显示状态
+            $('.dnet-form-sources').each(function() {
+                if (!$(this).find('p').length) { // 排除标题行
+                    initSourceRow($(this));
+                }
+            });
+        }
+
+        // 提交事件
+        form.on('submit(save)', function (data) {
+            // 使用 Layui 方式进行表单校验
+            let isValid = true;
+            $('.layui-form').find('input[lay-verify], select[lay-verify], textarea[lay-verify]').each(function () {
+                const $this = $(this);
+                const fieldName = $this.attr('name');
+                const verifyType = $this.attr('lay-verify');
+                if (verifyType) {
+                    const value = $this.val();
+                    const verifyRules = verifyType.split('|');
+
+                    for (let i = 0; i < verifyRules.length; i++) {
+                        const rule = verifyRules[i];
+                        if (form.config.verify[rule]) {
+                            const result = form.config.verify[rule](value, this);
+                            if (result) {
+                                layer.msg(result);
+                                $this.focus();
+                                isValid = false;
+                                return false; // 跳出循环
+                            }
+                        }
+                    }
+                }
+                if (!isValid) return false; // 跳出each循环
+            })
+            if (!isValid) {
+                return false;
+            }
+            // 检查当前是否已输入域名
+            const domainValue = $('input[name="domain"]').val().trim();
+            if (!domainValue) {
+                layer.msg('请先输入域名后再添加新配置', {
+                    icon: 0,
+                    time: 2000,
+                    shade: 0.1
+                });
+                $('input[name="domain"]').focus();
+                return false;
+            }
+            // 验证域名格式
+            if (!isValidDomain(domainValue)) {
+                layer.msg('请输入正确的域名格式后再添加新配置，例如：www.example.com', {
+                    icon: 2,
+                    time: 3000,
+                    shade: 0.1
+                });
+                $('input[name="domain"]').focus();
+                return false;
+            }
+            // 保存当前配置数据
+            saveCurrentConfig();
+            // 保存 dcdn_enable 到 configData 中（使用key方式）
+            configData.dcdn_enable = $('input[name="dcdn_enable"]').is(':checked');
+            $.ajax({
+                type: 'POST',
+                url: '/dcdn',
+                contentType: 'application/json',
+                data: JSON.stringify(configData),
+                success: function (response) {
+                    var res = JSON.parse(response)
+                    if (res.status){
+                        layer.msg(res.msg, {
+                            icon: 1,
+                            time: 1000
+                        });
+                    }else {
+                        layer.msg(res.msg, {
+                            icon: 2,
+                            time: 1000
+                        });
+                    }
+                },
+                error: function (xhr, status, error) {
+                    layer.msg(error, {
+                        icon: 2,
+                        time: 2000
+                    });
+                }
+            });
+            // 显示填写结果，仅作演示用
+            // layer.alert(JSON.stringify(configData), {
+            //     title: '当前填写的字段值'
+            // });
+            return false; // 阻止默认 form 跳转
+        })
+
+
+        // 初始化配置下拉选项和数据
+        function initConfigData() {
+            const $select = $('select[name="config"]');
+            // 如果 configData.dcdn 中有数据，初始化下拉选项
+            if (configData.dcdn && configData.dcdn.length > 0) {
+                // 清空现有选项
+                $select.empty();
+
+                // 根据 configData.dcdn 创建选项
+                for (let i = 0; i < configData.dcdn.length; i++) {
+                    const config = configData.dcdn[i];
+                    const optionText = getConfigDisplayText(config);
+                    const isSelected = i === 0 ? ' selected' : '';
+                    $select.append('<option value="' + config.id + '"' + isSelected + '>' + optionText + '</option>');
+                }
+
+                // 重新渲染下拉框
+                form.render('select');
+
+                // 加载第一个配置的数据
+                const firstConfigId = configData.dcdn[0].id;
+                currentSelectedConfig = firstConfigId;
+                loadConfig(firstConfigId);
+            }else {
+                // 没有数据时，使用默认配置
+                currentSelectedConfig = $select.val();
+                clearFormFields();
+            }
+        }
+
+        // 使用默认配置初始化表单字段
+        function clearFormFields() {
+            // 使用默认配置填充基本字段
+            $('input[name="domain"]').val(defaultConfig.domain || '');
+            $('input[name="service"][value="' + (defaultConfig.service || firstCDNProvider) + '"]').prop('checked', true);
+            $('input[name="access_key"]').val(defaultConfig.access_key || '');
+            $('input[name="access_secret"]').val(defaultConfig.access_secret || '');
+            $('select[name="cdn_type"]').val(defaultConfig.cdn_type || '');
+            $('textarea[name="sources_dynamic_ipv4_url"]').val(defaultConfig.sources_dynamic_ipv4_url || '');
+            $('textarea[name="sources_dynamic_ipv6_url"]').val(defaultConfig.sources_dynamic_ipv6_url || '');
+            $('input[name="sources_weight"]').val(defaultConfig.sources_weight || '');
+            $('input[name="sources_port"]').val(defaultConfig.sources_port || '');
+            $('select[name="sources_type"]').val(defaultConfig.sources_type || '');
+
+            // 清空源站设置
+            // 删除除第一行之外的所有源站行
+            removeExtraSourceRows();
+
+            // 清空第一行的源站数据
+            const $firstRow = $('.dnet-form-sources').eq(1);
+            if ($firstRow.length) {
+                clearSourceRow($firstRow);
+            }
+
+            // 重新渲染表单并初始化所有源站行
+            renderAndInitSourceRows();
+        }
+
+        // 源站类型切换函数（针对特定行）
+        function toggleSourcesInputs($row, value) {
+            // 隐藏该行所有的输入框
+            $row.find('.dnet-form-value').hide();
+            // 根据选择的类型显示对应的输入框
+            const fieldName = SOURCE_TYPE_MAP[value];
+            if (fieldName) {
+                $row.find('[data-type="' + fieldName + '"]').show();
+            }
+        }
+
+        // 初始化表单行
+        function initSourceRow($row) {
+            var $select = $row.find('select[name="sources_type"]');
+            var initialValue = $select.val();
+            toggleSourcesInputs($row, initialValue);
+        }
+
+        // 监听源站类型选择框的变化
+        form.on('select(sources-type-filter)', function(data) {
+            const $row = $(data.elem).closest('.dnet-form-sources');
+            toggleSourcesInputs($row, data.value);
+        });
+
+        // 添加源站按钮点击事件
+        $(document).on('click', '.btn-add-source', function() {
+            const $currentRow = $(this).closest('.dnet-form-sources');
+            const $newRow = $currentRow.clone();
+
+            // 清空新行的输入值
+            $newRow.find('input[type="text"]').val('');
+            $newRow.find('textarea').val('');
+            $newRow.find('input[name="sources_weight"]').val(defaultConfig.sources_weight||10);
+            $newRow.find('input[name="sources_port"]').val(defaultConfig.sources_port||80);
+            $newRow.find('select[name="sources_type"]').val(defaultConfig.sources_type);
+            // 重置网卡选择框为第一个选项
+            $newRow.find('select[name="sources_dynamic_ipv4_interface"] option:first').prop('selected', true);
+            $newRow.find('select[name="sources_dynamic_ipv6_interface"] option:first').prop('selected', true);
+
+            // 将添加按钮替换为删除按钮
+            $newRow.find('.btn-add-source').removeClass('btn-add-source')
+                .addClass('layui-btn-danger btn-remove-source')
+                .html('<i class="layui-icon layui-icon-delete"></i>');
+
+            // 找到所有表单行，插入到最后一行
+            const $allRows = $('.dnet-form-sources').filter(function () {
+                return !$(this).find('p').length; // 排除标题行
+            });
+            const $lastRow = $allRows.last();
+            $lastRow.after($newRow);
+
+            // 重新渲染表单
+            form.render();
+            // 初始化新行
+            initSourceRow($newRow);
+        });
+
+        // 删除源站按钮点击事件
+        $(document).on('click', '.btn-remove-source', function() {
+            const $row = $(this).closest('.dnet-form-sources');
+            $row.remove();
+        });
+
+        // 辅助函数：根据配置ID查找配置索引
+        function findConfigIndex(configId) {
+            for (let i = 0; i < configData.dcdn.length; i++) {
+                if (configData.dcdn[i].id === configId) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        // 辅助函数：根据配置ID获取配置对象
+        function getConfigById(configId) {
+            const index = findConfigIndex(configId);
+            return index !== -1 ? configData.dcdn[index] : null;
+        }
+
+        // 新增配置
+        $('#config-add').on('click', function () {
+            // 使用 Layui 方式进行表单校验
+            let isValid = true;
+            $('.layui-form').find('input[lay-verify], select[lay-verify], textarea[lay-verify]').each(function () {
+                const $this = $(this);
+                const fieldName = $this.attr('name');
+                const verifyType = $this.attr('lay-verify');
+                if (verifyType) {
+                    const value = $this.val();
+                    const verifyRules = verifyType.split('|');
+
+                    for (let i = 0; i < verifyRules.length; i++) {
+                        const rule = verifyRules[i];
+                        if (form.config.verify[rule]) {
+                            const result = form.config.verify[rule](value, this);
+                            if (result) {
+                                layer.msg(result);
+                                $this.focus();
+                                isValid = false;
+                                return false; // 跳出循环
+                            }
+                        }
+                    }
+                }
+                if (!isValid) return false; // 跳出each循环
+            })
+            if (!isValid) {
+                return false;
+            }
+            // 检查当前是否已输入域名
+            const domainValue = $('input[name="domain"]').val().trim();
+            if (!domainValue) {
+                layer.msg('请先输入域名后再添加新配置', {
+                    icon: 0,
+                    time: 2000,
+                    shade: 0.1
+                });
+                $('input[name="domain"]').focus();
+                return false;
+            }
+            // 验证域名格式
+            if (!isValidDomain(domainValue)) {
+                layer.msg('请输入正确的域名格式后再添加新配置，例如：www.example.com', {
+                    icon: 2,
+                    time: 3000,
+                    shade: 0.1
+                });
+                $('input[name="domain"]').focus();
+                return false;
+            }
+            // 保存当前配置数据
+            saveCurrentConfig();
+
+            // 添加新选项
+            const configSelect = $('select[name="config"]');
+            const newValue = (parseInt(configSelect.find('option:last').val()) || 0) + 1;
+            const newOption = '<option value="' + newValue + '" selected>' + newValue + '</option>';
+            configSelect.append(newOption);
+
+            // 重新渲染表单（Layui 特有）
+            form.render('select');
+
+            // 更新当前选中的配置
+            currentSelectedConfig = String(newValue);
+
+            // 清空所有表单字段，为新配置做准备
+            clearFormFields();
+
+            return false;
+        });
+
+        // 保存指定配置数据
+        function saveCurrentConfig(configName) {
+            if (!configName) configName = $('select[name="config"]').val();
+            if (!configName) return;
+            // 获取现有配置，保留 name 字段（如果已存在）
+            const existingConfig = getConfigById(configName);
+            const customName = existingConfig && existingConfig.name ? existingConfig.name : '';
+            const configObj = {
+                id: configName,
+                name: customName, // 只保存自定义的 name，没有则为空字符串
+                domain: $('input[name="domain"]').val(),
+                service: $('input[name="service"]:checked').val(),
+                access_key: $('input[name="access_key"]').val(),
+                access_secret: $('input[name="access_secret"]').val(),
+                cdn_type: $('select[name="cdn_type"]').val(),
+                sources: []
+            };
+            // 收集所有源站配置
+            $('.dnet-form-sources').each(function() {
+                const $row = $(this);
+                // 跳过标题行
+                if ($row.find('p').length) return;
+
+                const sourceType = $row.find('select[name="sources_type"]').val();
+                let sourceValue = '';
+
+                // 根据源站类型获取对应的值
+                const fieldName = SOURCE_TYPE_MAP[sourceType];
+                if (fieldName) {
+                    const $field = $row.find('[name="' + fieldName + '"]');
+                    sourceValue = $field.val();
+                }
+
+                configObj.sources.push({
+                    type: sourceType,
+                    value: sourceValue,
+                    priority: $row.find('select[name="sources_priority"]').val(),
+                    weight: $row.find('input[name="sources_weight"]').val(),
+                    port: $row.find('input[name="sources_port"]').val()
+                });
+            });
+            // 查找并更新或添加配置
+            const index = findConfigIndex(configName);
+            if (index !== -1) {
+                configData.dcdn[index] = configObj;
+            } else {
+                configData.dcdn.push(configObj);
+            }
+        }
+
+        // 域名输入监听
+        $('input[name="domain"]').on('blur', function () {
+            const domainValue = $(this).val().trim();
+            const $select = $('select[name="config"]');
+            const currentValue = $select.val();
+
+            // 检查当前配置是否存在 name 字段（已被重命名）
+            const currentConfig = getConfigById(currentValue);
+            const hasCustomName = currentConfig && currentConfig.name;
+            if (hasCustomName) {
+                // 如果配置已被重命名，则不更新显示
+                return;
+            }
+            if (domainValue) {
+                // 验证域名格式
+                if (isValidDomain(domainValue)) {
+                    // 域名格式正确，更新当前选中的配置项显示
+                    const newDisplayText = currentValue + ' - ' + domainValue;
+                    $select.find('option[value="' + currentValue + '"]').text(newDisplayText);
+
+                    // 重新渲染select
+                    form.render('select');
+                } else {
+                    // 域名格式错误
+                    layer.msg('域名格式不正确，请输入正确格式，例如：a.example.com', {
+                        icon: 2,
+                        time: 3000,
+                        shade: 0.1
+                    });
+                }
+            } else {
+                // 域名为空时，恢复显示为纯序号（仅当未重命名时）
+                $select.find('option[value="' + currentValue + '"]').text(currentValue);
+                form.render('select');
+            }
+        });
+
+        // 配置项切换监听，用于同步域名显示
+        form.on('select(config-select-filter)', function (data) {
+            if (data.elem.name === 'config') {
+                // 保存切换前的配置数据
+                if (currentSelectedConfig) {
+                    saveCurrentConfig(currentSelectedConfig);
+                }
+                // 更新当前选中的配置
+                currentSelectedConfig = data.value;
+                // 加载新选择的配置数据，如果没有保存的数据则清空表单
+                if (getConfigById(data.value)) {
+                    loadConfig(data.value);
+                } else {
+                    clearFormFields();
+                }
+            }
+        });
+
+        // 加载配置数据
+        function loadConfig(configValue) {
+            const config = getConfigById(configValue);
+            if (!config) return;
+            const data = config;
+            // 恢复基本配置
+            $('input[name="domain"]').val(data.domain || '');
+            $('input[name="service"][value="' + (data.service || firstCDNProvider) + '"]').prop('checked', true);
+            $('input[name="access_key"]').val(data.access_key || '');
+            $('input[name="access_secret"]').val(data.access_secret || '');
+
+            // 更新下拉选项显示文本
+            const $select = $('select[name="config"]');
+            const $option = $select.find('option[value="' + configValue + '"]');
+            if (data.name) {
+                // 如果有自定义名称，显示自定义名称
+                $option.text(data.name);
+            } else if (data.domain) {
+                // 如果没有自定义名称但有域名，显示 "id - domain"
+                $option.text(configValue + ' - ' + data.domain);
+            } else {
+                // 如果都没有，只显示 id
+                $option.text(configValue);
+            }
+            // 先更新CDN提供商相关的表单字段，然后再设置cdn_type
+            updateFormBasedOnProvider(data.service || firstCDNProvider);
+
+            // 设置cdn_type，如果该值在当前提供商的选项中不存在，则使用第一个选项
+            const cdnTypeValue = data.cdn_type || '';
+            if (cdnTypeValue && $('#cdn-type-select option[value="' + cdnTypeValue + '"]').length > 0) {
+                $('select[name="cdn_type"]').val(cdnTypeValue);
+            } else {
+                // 如果保存的类型不存在，使用第一个可用选项
+                const firstOption = $('#cdn-type-select option:first').val();
+                $('select[name="cdn_type"]').val(firstOption || '');
+            }
+            // 恢复源站信息
+            // 先删除所有现有的源站行（保留第一行）
+            removeExtraSourceRows();
+
+            // 获取第一个数据行作为模板
+            const $firstRow = $('.dnet-form-sources').eq(1);
+
+            if (data.sources && data.sources.length > 0) {
+                // 恢复第一行数据
+                const firstSource = data.sources[0];
+                loadSourceToRow($firstRow, firstSource);
+
+                // 创建其他行
+                for (let i = 1; i < data.sources.length; i++) {
+                    const source = data.sources[i];
+                    const $newRow = $firstRow.clone();
+
+                    // 将添加按钮替换为删除按钮
+                    $newRow.find('.btn-add-source').removeClass('btn-add-source')
+                        .addClass('layui-btn-danger btn-remove-source')
+                        .html('<i class="layui-icon layui-icon-delete"></i>');
+
+                    // 添加新行到最后
+                    $('.dnet-form-sources').last().after($newRow);
+
+                    // 加载数据到新行
+                    loadSourceToRow($newRow, source);
+                }
+            } else {
+                // 如果没有源站数据，清空第一行
+                clearSourceRow($firstRow);
+            }
+
+            // 重新渲染表单并初始化所有源站行
+            renderAndInitSourceRows();
+        }
+
+        // 加载源站数据到指定行
+        function loadSourceToRow($row, sourceData) {
+            // 设置源站类型
+            $row.find('select[name="sources_type"]').val(sourceData.type || 'domain');
+
+            // 根据类型设置对应的值
+            const fieldName = SOURCE_TYPE_MAP[sourceData.type];
+            if (fieldName) {
+                const $field = $row.find('[name="' + fieldName + '"]');
+                // 网卡选择默认值为'1'，其他为空字符串
+                const defaultValue = (sourceData.type && sourceData.type.indexOf('interface') !== -1) ? '1' : '';
+                $field.val(sourceData.value || defaultValue);
+            }
+
+            // 设置其他字段
+            $row.find('select[name="sources_priority"]').val(sourceData.priority || defaultConfig.sources_priority);
+            $row.find('input[name="sources_weight"]').val(sourceData.weight || defaultConfig.sources_weight);
+            $row.find('input[name="sources_port"]').val(sourceData.port || defaultConfig.sources_port);
+        }
+
+        // 清空源站行数据
+        function clearSourceRow($row) {
+            $row.find('input[type="text"]').val('');
+            $row.find('textarea').val('');
+            $row.find('select[name="sources_type"]').val(defaultConfig.sources_type );
+            $row.find('select[name="sources_priority"]').val(defaultConfig.sources_priority);
+            $row.find('textarea[name="sources_dynamic_ipv4_url"]').val(defaultConfig.sources_dynamic_ipv4_url);
+            $row.find('textarea[name="sources_dynamic_ipv6_url"]').val(defaultConfig.sources_dynamic_ipv6_url);
+            // 设置权重和端口的默认值（因为上面清空了所有text输入框）
+            $row.find('input[name="sources_weight"]').val(defaultConfig.sources_weight);
+            $row.find('input[name="sources_port"]').val(defaultConfig.sources_port);
+            // 重置网卡选择框为第一个选项
+            $row.find('select[name="sources_dynamic_ipv4_interface"] option:first').prop('selected', true);
+            $row.find('select[name="sources_dynamic_ipv6_interface"] option:first').prop('selected', true);
+        }
+
+
+        // 重命名当前配置
+        $('#config-rename').on('click', function () {
+            const $select = $('select[name="config"]');
+            const currentValue = $select.val();
+            const currentDisplayText = $select.find('option[value="' + currentValue + '"]').text();
+
+            if (!currentValue) {
+                layer.msg('请先选择一个配置项', {
+                    icon: 0,
+                    time: 2000
+                });
+                return false;
+            }
+
+            // 弹出输入框
+            layer.prompt({
+                title: '重命名配置 ' + currentValue,
+                formType: 0, // 文本输入框
+                value: currentDisplayText, // 使用当前显示文本作为默认值
+                maxlength: 50
+            }, function (value, index, elem) {
+                // 去除空格
+                value = value.trim();
+
+                if (!value) {
+                    layer.msg('配置名不能为空', {
+                        icon: 2,
+                        time: 2000
+                    });
+                    $('#rename-input').focus();
+                    return false;
+                }
+
+                // 只更新选项的显示文本，保持value不变
+                $select.find('option[value="' + currentValue + '"]').text(value);
+
+                // 更新 configData 中的配置数据的name字段
+                let config = getConfigById(currentValue);
+                if (config) {
+                    config.name = value;
+                } else {
+                    // 如果配置不存在，先保存当前配置，再设置name
+                    saveCurrentConfig(currentValue);
+                    config = getConfigById(currentValue);
+                    if (config) {
+                        config.name = value;
+                    }
+                }
+
+                // 重新渲染表单
+                form.render('select');
+
+                layer.close(index);
+                layer.msg('重命名成功', {
+                    icon: 1,
+                    time: 1500
+                });
+            });
+            return false;
+        });
+
+        // 删除当前配置
+        $('#config-remove').on('click', function () {
+            const $select = $('select[name="config"]');
+            const currentValue = $select.val();
+            const currentDisplayText = $select.find('option[value="' + currentValue + '"]').text();
+
+            // 检查是否有选中的值且选项数量大于1
+            if (currentValue && $select.find('option').length > 1) {
+                // 弹出确认框，显示选项的显示文本
+                layer.confirm('确定要删除配置 "' + currentDisplayText + '" 吗？', {
+                    btn: ['确定', '取消']
+                }, function (index) {
+                    // 确定删除
+                    // 删除 configData 中对应的数据
+                    const configIndex = findConfigIndex(currentValue);
+                    if (configIndex !== -1) {
+                        configData.dcdn.splice(configIndex, 1);
+                    }
+
+                    // 移除当前选中的选项
+                    $select.find('option[value="' + currentValue + '"]').remove();
+
+                    // 选择最后一个剩余的选项
+                    $select.find('option:last').prop('selected', true);
+                    // 更新当前选中的配置
+                    currentSelectedConfig = $select.find('option:last').val();
+
+                    // 重新渲染表单
+                    form.render('select');
+
+                    // 加载新选中配置的数据
+                    // 如果新选中的配置存在，则加载；否则清空表单并创建新配置
+                    const existingConfig = getConfigById(currentSelectedConfig);
+                    if (existingConfig) {
+                        loadConfig(currentSelectedConfig);
+                    } else {
+                        // 清空表单并创建默认配置
+                        clearFormFields();
+                    }
+
+                    layer.close(index);
+                });
+            } else {
+                layer.msg('至少需要保留一个配置项');
+            }
+            return false;
+        });
+
+        // CDN提供商动态更新功能
+        function initCDNProviders() {
+            const container = $('#service-radio-container');
+            let radioHtml = '';
+            let isFirst = true;
+
+            // 生成单选按钮HTML
+            for (const providerId in CDN_PROVIDERS) {
+                if (CDN_PROVIDERS.hasOwnProperty(providerId)) {
+                    const provider = CDN_PROVIDERS[providerId];
+                    radioHtml += '<input type="radio" name="service" lay-filter="service" value="' + providerId + '" title="' + provider.name + '"';
+                    if (isFirst) {
+                        radioHtml += ' checked';
+                        isFirst = false;
+                    }
+                    radioHtml += '>';
+                }
+            }
+            // 插入HTML
+            container.html(radioHtml);
+            // 重新渲染表单
+            form.render('radio');
+            // 初始化表单标签和选项
+            updateFormBasedOnProvider($('input[name="service"]:checked').val());
+        }
+        // 根据选择的CDN提供商更新表单
+        function updateFormBasedOnProvider(providerId) {
+            if (!CDN_PROVIDERS[providerId]) return;
+
+            const provider = CDN_PROVIDERS[providerId];
+
+            // 更新AccessKey字段
+            updateFormField('access-key-label', 'access_key', provider.idLabel, 'access_key');
+            updateFormField('access-secret-label', 'access_secret', provider.secretLabel, 'access_secret');
+
+            // 更新类型选择下拉框
+            const typeSelect = $('#cdn-type-select');
+            typeSelect.empty();
+
+            if (provider.typeSelect && provider.typeSelect.length > 0) {
+                for (let i = 0; i < provider.typeSelect.length; i++) {
+                    const option = provider.typeSelect[i];
+                    typeSelect.append('<option value="' + option + '">' + option + '</option>');
+                }
+            } else {
+                typeSelect.append('<option value="CDN">CDN</option>');
+            }
+
+            // 更新帮助文本
+            if (provider.typeHelpHtml) {
+                $('#type-help-text').html('类型请参考：' + provider.typeHelpHtml);
+            } else {
+                $('#type-help-text').html('类型请参考：');
+            }
+
+            // 更新创建AccessKey链接
+            const $serviceHelpContainer = $('#service-help-link');
+            if (provider.idHelpHtml) {
+                $serviceHelpContainer.html(provider.idHelpHtml);
+            } else {
+                $serviceHelpContainer.html('<a href="">创建 AccessKey</a>');
+            }
+
+            // 重新渲染表单
+            form.render('select');
+        }
+        // 表单字段显示/隐藏辅助函数
+        function updateFormField(labelId, fieldName, labelText, fieldId) {
+            const $row = $('#' + labelId).parent();
+            if (labelText && labelText.trim()) {
+                $('#' + labelId).text(labelText);
+                const placeholder = '请输入' + labelText.replace('：', '');
+
+                if ($row.is(':hidden') || $row.find('input[name="' + fieldName + '"]').length === 0) {
+                    $row.find('.layui-input-block').html(
+                        '<input type="text" id="' + fieldId + '" name="' + fieldName + '"  lay-verify="'+fieldName+'" placeholder="' + placeholder + '" class="layui-input">'
+                    );
+                } else {
+                    $row.find('input[name="' + fieldName + '"]').attr('placeholder', placeholder);
+                }
+                $row.show();
+            } else {
+                $row.hide();
+            }
+        }
+        // 监听CDN提供商选择变化
+        form.on('radio(service)', function (data) {
+            updateFormBasedOnProvider(data.value);
+        });
+
+        // 初始化CDN提供商选择
+        initCDNProviders();
+        // 初始化配置数据（必须在所有事件绑定完成后调用）
+        initConfigData();
+        // 恢复 dcdn_enable 状态
+        if (typeof configData.dcdn_enable !== 'undefined') {
+            $('input[name="dcdn_enable"]').prop('checked', configData.dcdn_enable);
+            form.render('checkbox');
+        }
+    });
+
+</script>
+</html>

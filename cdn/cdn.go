@@ -28,10 +28,6 @@ func RunOnce() {
 	}
 
 	for _, cdn := range conf.DCDNConfig.DCDN {
-		// 如果 IPv4 和 IPv6 都未启用，则属于无效的配置
-		if !cdn.IPv4Enable && !cdn.IPv6Enable {
-			continue
-		}
 		var cdnSelected CDN
 		switch cdn.Service {
 		case "aliyun":

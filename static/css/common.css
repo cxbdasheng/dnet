@@ -118,7 +118,7 @@
         border-radius: 0px;
         background: #2f363c!important;
     }
-    .ws-nav-show .layui-nav .layui-nav-item a:hover, .layui-nav .layui-this a {
+    .ws-nav-show .layui-nav .layui-nav-item a:hover, .layui-layout-left .layui-this a {
         color: #fff;
         text-decoration: none;
     }
@@ -135,6 +135,28 @@
         background-color: rgba(0, 0, 0, 0.7);
         z-index: 999;
     }
+    /* ip 地址获取 */
+    .dnet-form-sources .layui-form-label{
+        width: auto!important;
+        display: none;
+    }
+    .dnet-form-sources .layui-input-inline{
+        margin-right: 0px!important;
+        margin-left: 0px;
+    }
+    .dnet-form-sources .dnet-form-type{
+        width: auto!important;;
+    }
+    .dnet-form-sources .dnet-form-value{
+        width: auto!important;;
+    }
+    .dnet-form-sources .dnet-form-priority{
+        width: auto!important;;
+    }
+    .dnet-form-sources .dnet-form-operation{
+        width: auto!important;;
+    }
+
 }
 
 .layui-logo a {
@@ -162,6 +184,33 @@
     color: #01aaed;
     text-decoration: underline;
 }
+
+.dnet-form-sources .layui-form-label{
+    width: 75px;
+}
+.dnet-form-sources .layui-input-inline{
+    margin-right: 25px;
+    width: 100px;
+}
+.dnet-form-sources .layui-input-inline p {
+    text-align: center;
+    height: 30px;
+    font-size: 14px;
+}
+.dnet-form-sources .dnet-form-type{
+    width: 190px;
+}
+.dnet-form-sources .dnet-form-value{
+    width: 350px;
+}
+.dnet-form-sources .dnet-form-priority{
+    width: 80px;
+}
+.dnet-form-sources .dnet-form-operation{
+    width: 100px;
+}
+
+
 
 /* Webhook 弹窗按钮样式 */
 .webhook-dialog .layui-layer-btn .layui-layer-btn0 {

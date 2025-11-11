@@ -19,32 +19,15 @@ type CDN struct {
 	AccessSecret string `json:"access_secret"`
 	CDNType      string `json:"cdn_type"`
 
-	IPv4Enable          bool       `json:"ipv4_enable"`
-	IPv4Type            string     `json:"ipv4_type"`
-	IPv4URLValue        string     `json:"ipv4_url_value"`
-	IPv4InterfaceSelect string     `json:"ipv4_interface_select"`
-	IPv4CommandValue    string     `json:"ipv4_command_value"`
-	IPv4Port            uint       `json:"ipv4_port"`
-	IPv4Priority        uint       `json:"ipv4_priority"`
-	IPv4Weight          string     `json:"ipv4_weight"`
-	StaticIPv4          []StaticIP `json:"static_ipv4"`
-
-	IPv6Enable          bool       `json:"ipv6_enable"`
-	IPv6Type            string     `json:"ipv6_type"`
-	IPv6URLValue        string     `json:"ipv6_url_value"`
-	IPv6InterfaceSelect string     `json:"ipv6_interface_select"`
-	IPv6CommandValue    string     `json:"ipv6_command_value"`
-	IPv6Port            uint       `json:"ipv6_port"`
-	IPv6Priority        uint       `json:"ipv6_priority"`
-	IPv6Weight          string     `json:"ipv6_weight"`
-	StaticIPv6          []StaticIP `json:"static_ipv6"`
+	Sources []Source `json:"sources"`
 }
 
-type StaticIP struct {
-	IP       string `json:"ip"`
-	Port     uint   `json:"port"`
-	Priority uint   `json:"priority"`
+type Source struct {
+	Type     string `json:"type"`
+	Value    string `json:"value"`
+	Priority string `json:"priority"`
 	Weight   string `json:"weight"`
+	Port     string `json:"port"`
 }
 
 // GetDCDNConfigJSON 将 DCDN 配置转换为 JSON 字符串
