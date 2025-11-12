@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/cxbdasheng/dnet/config"
+	"github.com/cxbdasheng/dnet/dcdn"
 	"github.com/cxbdasheng/dnet/helper"
 )
 
@@ -45,13 +46,13 @@ func handleDCDNGet(writer http.ResponseWriter, request *http.Request) {
 		}
 	}
 
-	ipv4, ipv6, _ := config.GetNetInterface()
+	ipv4, ipv6, _ := helper.GetNetInterface()
 
 	err = tmpl.Execute(writer, struct {
 		DCDNConf template.JS
 		Version  string
-		IPv4     []config.NetInterface
-		IPv6     []config.NetInterface
+		IPv4     []helper.NetInterface
+		IPv6     []helper.NetInterface
 	}{
 		DCDNConf: template.JS(config.GetDCDNConfigJSON(conf.DCDNConfig)),
 		Version:  os.Getenv(VersionEnv),
@@ -79,7 +80,7 @@ func handleDCDNPost(writer http.ResponseWriter, request *http.Request) {
 
 	// 更新 DCDN 配置
 	conf.DCDNConfig = configData
-
+	dcdn.ForceCompareGlobal = true
 	// 保存配置
 	if err := conf.SaveConfig(); err != nil {
 		log.Printf("保存配置失败: %v", err)

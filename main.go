@@ -10,10 +10,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
-	"github.com/cxbdasheng/dnet/cdn"
+	"github.com/cxbdasheng/dnet/bootstrap"
 	"github.com/cxbdasheng/dnet/config"
+	"github.com/cxbdasheng/dnet/dcdn"
 	"github.com/cxbdasheng/dnet/helper"
 	"github.com/cxbdasheng/dnet/web"
 	"github.com/kardianos/service"
@@ -39,6 +41,9 @@ var customDNS = flag.String("dns", "", "Custom DNS server address, example: 8.8.
 
 // Web 服务
 var noWebService = flag.Bool("noweb", false, "No web service")
+
+// 缓存次数
+var dcdnCacheTimes = flag.Int("dcdnCacheTimes", 5, "dcdn Cache times")
 
 //go:embed static
 var staticEmbeddedFiles embed.FS
@@ -86,6 +91,8 @@ func main() {
 	if *customDNS != "" {
 		helper.SetDNS(*customDNS)
 	}
+
+	os.Setenv(dcdn.CacheTimesENV, strconv.Itoa(*dcdnCacheTimes))
 
 	switch *serviceType {
 	case "install":
@@ -161,5 +168,5 @@ func run() {
 	helper.InitBackupDNS(*customDNS)
 
 	// 等待网络连接
-	cdn.RunTimer(time.Duration(*every) * time.Second)
+	bootstrap.RunTimer(time.Duration(*every) * time.Second)
 }

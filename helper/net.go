@@ -5,8 +5,22 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os/exec"
+	"regexp"
+	"runtime"
 	"strings"
 	"time"
+)
+
+// Ipv4Reg IPv4正则
+var Ipv4Reg = regexp.MustCompile(`((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])`)
+
+// Ipv6Reg IPv6正则
+var Ipv6Reg = regexp.MustCompile(`((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4}){1,2})|:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4}){1,5})|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:)))`)
+
+const (
+	IPv4 = "ipv4"
+	IPv6 = "ipv6"
 )
 
 // SetDNS 设置自定义DNS服务器
@@ -279,4 +293,70 @@ func GetClientIP(r *http.Request) string {
 		}
 	}
 	return ip
+}
+
+func GetAddrFromUrl(url string, addrType string) string {
+	return ""
+}
+
+func GetAddrFromCmd(cmd string, addrType string) string {
+	var comp *regexp.Regexp
+	comp = Ipv4Reg
+	if addrType == IPv6 {
+		comp = Ipv6Reg
+	}
+	// cmd is empty
+	if cmd == "" {
+		return ""
+	}
+	// run cmd with proper shell
+	var execCmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		execCmd = exec.Command("powershell", "-Command", cmd)
+	} else {
+		// If Bash does not exist, use sh
+		_, err := exec.LookPath("bash")
+		if err != nil {
+			execCmd = exec.Command("sh", "-c", cmd)
+		} else {
+			execCmd = exec.Command("bash", "-c", cmd)
+		}
+	}
+	// run cmd
+	out, err := execCmd.CombinedOutput()
+	if err != nil {
+		// todo 日志
+		return ""
+	}
+	str := string(out)
+	// get result
+	result := comp.FindString(str)
+	if result == "" {
+		// todo 日志
+	}
+	return result
+}
+
+func GetAddrFromInterface(interfaceName string, addrType string) string {
+	ipv4, ipv6, err := GetNetInterface()
+	if err != nil {
+		// todo 日志
+		return ""
+	}
+	if addrType == IPv4 {
+		for _, netInterface := range ipv4 {
+			if netInterface.Name == interfaceName && len(netInterface.Address) > 0 {
+				return netInterface.Address[0]
+			}
+		}
+	}
+	if addrType == IPv6 {
+		for _, netInterface := range ipv6 {
+			if netInterface.Name == interfaceName && len(netInterface.Address) > 0 {
+				return netInterface.Address[0]
+			}
+		}
+	}
+	// todo 日志
+	return ""
 }
