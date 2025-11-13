@@ -6,6 +6,7 @@
     <title>D-NET</title>
     <link rel="stylesheet" href="/static/css/layui.css">
     <link rel="stylesheet" href="/static/css/common.css">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
     <script src="/static/layui.js"></script>
     <style>
     </style>
@@ -150,123 +151,30 @@
 
         // 日志状态
         $('#logs').on('click', function () {
-            // 模拟日志数据
-            var logData = [
-                {time: '2024-01-15 14:30:25', level: 'INFO', message: 'DCDN 服务已启动'},
-                {time: '2024-01-15 14:30:30', level: 'INFO', message: '正在获取 IPv4 地址...'},
-                {time: '2024-01-15 14:30:32', level: 'SUCCESS', message: 'IPv4 地址获取成功: 192.168.1.100'},
-                {time: '2024-01-15 14:30:35', level: 'INFO', message: '正在更新 CDN 记录...'},
-                {time: '2024-01-15 14:30:38', level: 'SUCCESS', message: 'CDN 记录更新成功'},
-                {time: '2024-01-15 14:31:25', level: 'INFO', message: 'IPv6 地址检测中...'},
-                {time: '2024-01-15 14:31:28', level: 'SUCCESS', message: 'IPv6 地址获取成功: 2001:db8::1'},
-                {time: '2024-01-15 14:31:30', level: 'INFO', message: 'DNS 记录同步中...'},
-                {time: '2024-01-15 14:31:33', level: 'SUCCESS', message: 'DNS 记录同步完成'},
-                {time: '2024-01-15 14:32:00', level: 'INFO', message: '配置自动保存'},
-                {time: '2024-01-15 14:32:15', level: 'WARNING', message: '检测到网络延迟较高'},
-                {time: '2024-01-15 14:32:20', level: 'INFO', message: '正在重试网络连接...'},
-                {time: '2024-01-15 14:32:25', level: 'SUCCESS', message: '网络连接已恢复'},
-                {time: '2024-01-15 14:33:00', level: 'INFO', message: '定时任务执行中...'},
-                {time: '2024-01-15 14:33:05', level: 'INFO', message: 'IP 地址未发生变化'},
-                {time: '2024-01-15 14:34:00', level: 'INFO', message: '系统状态检查完成'},
-                {time: '2024-01-15 14:34:30', level: 'ERROR', message: 'CDN API 调用失败，正在重试...'},
-                {time: '2024-01-15 14:34:35', level: 'SUCCESS', message: 'CDN API 调用重试成功'},
-                {time: '2024-01-15 14:35:00', level: 'INFO', message: '配置验证通过'},
-                {time: '2024-01-15 14:35:30', level: 'INFO', message: '正在备份配置文件...'},
-                {time: '2024-01-15 14:35:32', level: 'SUCCESS', message: '配置文件备份完成'},
-                {time: '2024-01-15 14:36:00', level: 'INFO', message: '监控服务运行正常'},
-                {time: '2024-01-15 14:36:15', level: 'INFO', message: 'IPv4 权重调整为 15'},
-                {time: '2024-01-15 14:36:20', level: 'SUCCESS', message: '权重配置已生效'},
-                {time: '2024-01-15 14:37:00', level: 'INFO', message: '定时同步任务开始'},
-                {time: '2024-01-15 14:37:05', level: 'INFO', message: '检查域名解析状态...'},
-                {time: '2024-01-15 14:37:08', level: 'SUCCESS', message: '域名解析正常'},
-                {time: '2024-01-15 14:37:30', level: 'WARNING', message: 'IPv6 连接测试超时'},
-                {time: '2024-01-15 14:37:35', level: 'INFO', message: '正在重新测试 IPv6 连接...'},
-                {time: '2024-01-15 14:37:40', level: 'SUCCESS', message: 'IPv6 连接测试通过'},
-                {time: '2024-01-15 14:38:00', level: 'INFO', message: '系统运行时间: 8分钟'},
-                {time: '2024-01-15 14:38:30', level: 'INFO', message: '内存使用率: 45%'},
-                {time: '2024-01-15 14:39:00', level: 'INFO', message: '网络带宽使用正常'},
-                {time: '2024-01-15 14:39:15', level: 'INFO', message: '配置项同步完成'},
-                {time: '2024-01-15 14:39:30', level: 'SUCCESS', message: '所有服务运行正常'},
-                {time: '2024-01-15 14:40:00', level: 'INFO', message: 'AccessKey 验证通过'},
-                {time: '2024-01-15 14:40:15', level: 'INFO', message: 'CDN 缓存清理中...'},
-                {time: '2024-01-15 14:40:18', level: 'SUCCESS', message: 'CDN 缓存清理完成'},
-                {time: '2024-01-15 14:40:30', level: 'INFO', message: '负载均衡配置更新'},
-                {time: '2024-01-15 14:40:35', level: 'SUCCESS', message: '负载均衡配置生效'},
-                {time: '2024-01-15 14:41:00', level: 'INFO', message: '健康检查通过'},
-                {time: '2024-01-15 14:41:15', level: 'INFO', message: '静态资源同步中...'},
-                {time: '2024-01-15 14:41:20', level: 'SUCCESS', message: '静态资源同步完成'},
-                {time: '2024-01-15 14:41:30', level: 'INFO', message: 'SSL 证书状态正常'},
-                {time: '2024-01-15 14:42:00', level: 'INFO', message: '安全扫描完成，未发现异常'},
-                {time: '2024-01-15 14:42:15', level: 'INFO', message: '日志轮转执行中...'},
-                {time: '2024-01-15 14:42:18', level: 'SUCCESS', message: '日志轮转完成'},
-                {time: '2024-01-15 14:42:30', level: 'INFO', message: '系统性能监控正常'},
-                {time: '2024-01-15 14:43:00', level: 'INFO', message: '定时备份任务完成'},
-                {time: '2024-01-15 14:43:15', level: 'SUCCESS', message: '所有任务执行完毕'},
-                {time: '2024-01-15 14:43:30', level: 'INFO', message: 'DCDN 服务稳定运行中...'}
-            ];
-
-            // 创建日志表格HTML
-            var logTableHtml = '<table class="layui-table" lay-size="sm">' +
-                '<colgroup>' +
-                '<col width="180">' +
-                '<col width="100">' +
-                '<col>' +
-                '</colgroup>' +
-                '<thead>' +
-                '<tr>' +
-                '<th>时间</th>' +
-                '<th>级别</th>' +
-                '<th>消息</th>' +
-                '</tr>' +
-                '</thead>' +
-                '<tbody>';
-
-            // 添加日志行，并根据级别设置不同颜色
-            logData.forEach(function (log) {
-                var levelClass = '';
-                switch (log.level) {
-                    case 'SUCCESS':
-                        levelClass = 'color: #5FB878;';
-                        break;
-                    case 'WARNING':
-                        levelClass = 'color: #FFB800;';
-                        break;
-                    case 'ERROR':
-                        levelClass = 'color: #FF5722;';
-                        break;
-                    default:
-                        levelClass = 'color: #666;';
-                }
-
-                logTableHtml += '<tr>' +
-                    '<td>' + log.time + '</td>' +
-                    '<td><span style="' + levelClass + '">' + log.level + '</span></td>' +
-                    '<td>' + log.message + '</td>' +
-                    '</tr>';
-            });
-
-            logTableHtml += '</tbody></table>';
-
-            // 弹出日志查看框
             layer.open({
-                type: 1,
-                title: '系统日志 (最近50条)',
-                area: ['90%', '80%'],
-                maxWidth: 900,
-                maxHeight: 600,
-                content: '<div style="padding: 15px; max-height: calc(80vh - 120px); overflow-y: auto;">' + logTableHtml + '</div>',
-                btn: ['清空日志', '关闭'],
+                type: 2,
+                title: '系统日志（最近 100 条）',
+                area: function () {
+                    // 根据屏幕宽度自适应
+                    if (window.innerWidth <= 768) {
+                        return ['90%', '60%']; // 移动端
+                    } else if (window.innerWidth <= 1024) {
+                        return ['60%', '50%']; // 平板端
+                    } else {
+                        return ['40%', '35%']; // 桌面端
+                    }
+                }(),
+                maxWidth: 800,
+                maxHeight: 500,
+                shadeClose: true,
+                resize: false, // 禁用调整大小
+                move: '.layui-layer-title', // 只允许通过标题栏拖拽
+                content: '/logs',
+                btn: [
+                    '保存',
+                    '关闭'
+                ],
                 btn1: function (index, layero) {
-                    layer.confirm('确定要清空所有日志吗？', {
-                        btn: ['确定', '取消']
-                    }, function (confirmIndex) {
-                        layer.msg('日志已清空', {
-                            icon: 1,
-                            time: 1500
-                        });
-                        layer.close(confirmIndex);
-                        layer.close(index);
-                    });
                 },
                 btn2: function (index, layero) {
                     layer.close(index);
@@ -298,7 +206,7 @@
                 btn: [
                     '模拟测试 Webhook',
                     '保存配置',
-                    '取消'
+                    '关闭'
                 ],
                 success: function (layero, index) {
                     // 给Webhook弹窗添加特定的CSS类
@@ -508,7 +416,7 @@
                 content: '/settings',
                 btn: [
                     '保存',
-                    '取消'
+                    '关闭'
                 ],
                 btn1: function (index, layero) {
                     // 获取iframe中的表单数据并保存
