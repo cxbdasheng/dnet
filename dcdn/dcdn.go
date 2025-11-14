@@ -1,6 +1,8 @@
 package dcdn
 
 import (
+	"os"
+	"strconv"
 	"sync"
 
 	"github.com/cxbdasheng/dnet/config"
@@ -33,13 +35,9 @@ const (
 	// UpdatedSuccess 更新成功
 	UpdatedSuccess = "成功"
 )
-const (
-	// 等待最大次数
-	maxTimes = 5
-)
 
 type Cache struct {
-	Times         uint32            // 剩余次数
+	Times         int               // 剩余次数
 	TimesFailedIP int               // 获取ip失败的次数
 	DynamicIPs    map[string]string // 动态 IP 缓存: key=source唯一标识(type:value), value=获取到的IP
 	mu            sync.RWMutex      // 保护 DynamicIPs 的读写锁
@@ -53,8 +51,12 @@ type CDN interface {
 
 // NewCache 创建新的缓存实例
 func NewCache() Cache {
+	times, err := strconv.Atoi(os.Getenv(CacheTimesENV))
+	if err != nil {
+		times = 5
+	}
 	return Cache{
-		Times:      maxTimes,
+		Times:      times,
 		DynamicIPs: make(map[string]string),
 	}
 }
@@ -91,7 +93,11 @@ func (c *Cache) UpdateDynamicIP(sourceKey string, newIP string) {
 
 // ResetTimes 重置计数器
 func (c *Cache) ResetTimes() {
-	c.Times = maxTimes
+	times, err := strconv.Atoi(os.Getenv(CacheTimesENV))
+	if err != nil {
+		times = 5
+	}
+	c.Times = times
 }
 
 // GetDynamicIPs 获取动态 IP 缓存的副本（线程安全）
