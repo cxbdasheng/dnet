@@ -2,6 +2,8 @@ package helper
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"sync"
 	"time"
 )
@@ -14,6 +16,7 @@ const (
 	LogLevelINFO  LogLevel = "INFO"
 	LogLevelWARN  LogLevel = "WARN"
 	LogLevelERROR LogLevel = "ERROR"
+	LogLevelFATAL LogLevel = "FATAL"
 )
 
 var MaxSize = 100
@@ -41,10 +44,12 @@ type LogEntry struct {
 
 // Logger 日志管理器
 type Logger struct {
-	mu      sync.RWMutex
-	logs    []LogEntry
-	maxSize int  // 最大日志条数
-	enabled bool // 是否启用日志记录
+	mu            sync.RWMutex
+	logs          []LogEntry
+	maxSize       int         // 最大日志条数
+	enabled       bool        // 是否启用日志记录
+	consoleOutput bool        // 是否输出到控制台
+	logger        *log.Logger // 标准库 logger，用于控制台输出
 }
 
 var (
@@ -55,14 +60,24 @@ var (
 
 // InitLogger 初始化日志系统
 func InitLogger(maxSize int) {
+	InitLoggerWithConsole(maxSize, false)
+}
+
+// InitLoggerWithConsole 初始化日志系统并配置控制台输出
+func InitLoggerWithConsole(maxSize int, consoleOutput bool) {
 	once.Do(func() {
 		if maxSize <= 0 {
 			maxSize = MaxSize
 		}
 		DefaultLogger = &Logger{
-			logs:    make([]LogEntry, 0, maxSize),
-			maxSize: maxSize,
-			enabled: true,
+			logs:          make([]LogEntry, 0, maxSize),
+			maxSize:       maxSize,
+			enabled:       true,
+			consoleOutput: consoleOutput,
+		}
+		// 如果启用控制台输出，初始化 logger
+		if consoleOutput {
+			DefaultLogger.initConsoleLogger()
 		}
 	})
 }
@@ -95,6 +110,11 @@ func (l *Logger) addLog(level LogLevel, logType LogType, format string, args ...
 		Message:   message,
 	}
 
+	// 输出到控制台
+	if l.consoleOutput {
+		l.printToConsole(entry)
+	}
+
 	// 如果超过最大条数，删除最旧的日志
 	if len(l.logs) >= l.maxSize {
 		// 移除最旧的日志（从头部删除）
@@ -123,6 +143,17 @@ func (l *Logger) Warn(logType LogType, format string, args ...interface{}) {
 // Error 记录错误日志
 func (l *Logger) Error(logType LogType, format string, args ...interface{}) {
 	l.addLog(LogLevelERROR, logType, format, args...)
+}
+
+// Fatal 记录致命错误日志并退出程序
+func (l *Logger) Fatal(logType LogType, format string, args ...interface{}) {
+	l.addLog(LogLevelFATAL, logType, format, args...)
+	os.Exit(1)
+}
+
+// Fatalf 记录致命错误日志并退出程序（Fatal 的别名，与标准库 log.Fatalf 保持一致）
+func (l *Logger) Fatalf(logType LogType, format string, args ...interface{}) {
+	l.Fatal(logType, format, args...)
 }
 
 // GetLogs 获取所有日志（返回副本）
@@ -158,9 +189,9 @@ func (l *Logger) GetLogsByLevel(level LogLevel) []LogEntry {
 	defer l.mu.RUnlock()
 
 	filtered := make([]LogEntry, 0)
-	for _, log := range l.logs {
-		if log.Level == level {
-			filtered = append(filtered, log)
+	for _, entry := range l.logs {
+		if entry.Level == level {
+			filtered = append(filtered, entry)
 		}
 	}
 	return filtered
@@ -172,9 +203,9 @@ func (l *Logger) GetLogsByType(logType LogType) []LogEntry {
 	defer l.mu.RUnlock()
 
 	filtered := make([]LogEntry, 0)
-	for _, log := range l.logs {
-		if log.Type == logType {
-			filtered = append(filtered, log)
+	for _, entry := range l.logs {
+		if entry.Type == logType {
+			filtered = append(filtered, entry)
 		}
 	}
 	return filtered
@@ -232,6 +263,57 @@ func (l *Logger) GetMaxSize() int {
 	return l.maxSize
 }
 
+// SetConsoleOutput 设置是否输出到控制台
+func (l *Logger) SetConsoleOutput(enabled bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.consoleOutput = enabled
+
+	// 如果启用控制台输出且 logger 未初始化，则初始化它
+	if enabled && l.logger == nil {
+		l.initConsoleLogger()
+	}
+}
+
+// IsConsoleOutputEnabled 检查是否启用控制台输出
+func (l *Logger) IsConsoleOutputEnabled() bool {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.consoleOutput
+}
+
+// initConsoleLogger 初始化控制台 logger（内部方法，调用时不需要持有锁）
+func (l *Logger) initConsoleLogger() {
+	l.logger = log.New(os.Stdout, "", 0)
+}
+
+// printToConsole 输出日志到控制台（内部方法，调用时已持有锁）
+func (l *Logger) printToConsole(entry LogEntry) {
+	if l.logger == nil {
+		l.logger = log.New(os.Stdout, "", 0)
+	}
+
+	// 根据日志级别选择不同的输出格式
+	var prefix string
+	switch entry.Level {
+	case LogLevelDEBUG:
+		prefix = "[DEBUG]"
+	case LogLevelINFO:
+		prefix = "[INFO]"
+	case LogLevelWARN:
+		prefix = "[WARN]"
+	case LogLevelERROR:
+		prefix = "[ERROR]"
+	case LogLevelFATAL:
+		prefix = "[FATAL]"
+	default:
+		prefix = "[LOG]"
+	}
+
+	// 格式化输出: [时间] [级别] [类型] 消息
+	l.logger.Printf("%s %s [%s] %s", entry.Timestamp, prefix, entry.Type, entry.Message)
+}
+
 // 全局便捷方法
 
 // Debug 全局调试日志
@@ -254,6 +336,16 @@ func Error(logType LogType, format string, args ...interface{}) {
 	GetLogger().Error(logType, format, args...)
 }
 
+// Fatal 全局致命错误日志（记录后退出程序）
+func Fatal(logType LogType, format string, args ...interface{}) {
+	GetLogger().Fatal(logType, format, args...)
+}
+
+// Fatalf 全局致命错误日志（Fatal 的别名，记录后退出程序）
+func Fatalf(logType LogType, format string, args ...interface{}) {
+	GetLogger().Fatalf(logType, format, args...)
+}
+
 // GetAllLogs 获取所有日志
 func GetAllLogs() []LogEntry {
 	return GetLogger().GetLogs()
@@ -262,4 +354,14 @@ func GetAllLogs() []LogEntry {
 // ClearLogs 清空所有日志
 func ClearLogs() {
 	GetLogger().Clear()
+}
+
+// SetConsoleOutput 全局设置控制台输出
+func SetConsoleOutput(enabled bool) {
+	GetLogger().SetConsoleOutput(enabled)
+}
+
+// IsConsoleOutputEnabled 全局检查控制台输出是否启用
+func IsConsoleOutputEnabled() bool {
+	return GetLogger().IsConsoleOutputEnabled()
 }

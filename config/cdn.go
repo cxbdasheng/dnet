@@ -2,7 +2,8 @@ package config
 
 import (
 	"encoding/json"
-	"log"
+
+	"github.com/cxbdasheng/dnet/helper"
 )
 
 type DCDNConfig struct {
@@ -39,7 +40,7 @@ func GetDCDNConfigJSON(DCDNConf DCDNConfig) string {
 
 	data, err := json.Marshal(DCDNConf)
 	if err != nil {
-		log.Printf("序列化DCDN配置失败: %v", err)
+		helper.Error(helper.LogTypeDCDN, "序列化DCDN配置失败: %v", err)
 		// 返回包含空数组的默认配置
 		return `{"dcdn_enable":false,"dcdn":[]}`
 	}

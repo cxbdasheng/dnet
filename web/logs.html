@@ -1,153 +1,76 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>系统日志</title>
-    <link rel="stylesheet" href="/static/css/layui.css">
-    <link rel="stylesheet" href="/static/css/common.css">
+    <meta charset="utf-8">
+    <title>Webhook</title>
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
-    <style>
-        .log-container {
-            padding: 20px;
-        }
-        .log-header {
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .log-stats {
-            color: #666;
-            font-size: 14px;
-        }
-        .log-table {
-            background: #fff;
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        .log-entry {
-            padding: 12px;
-            border-bottom: 1px solid #f0f0f0;
-            font-family: 'Courier New', monospace;
-            font-size: 13px;
-            line-height: 1.6;
-        }
-        .log-entry:hover {
-            background: #f9f9f9;
-        }
-        .log-entry:last-child {
-            border-bottom: none;
-        }
-        .log-timestamp {
-            color: #999;
-            margin-right: 10px;
-        }
-        .log-level {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 3px;
-            font-size: 12px;
-            font-weight: bold;
-            margin-right: 10px;
-        }
-        .log-level-INFO {
-            background: #e8f4fd;
-            color: #1890ff;
-        }
-        .log-level-WARN {
-            background: #fff7e6;
-            color: #fa8c16;
-        }
-        .log-level-ERROR {
-            background: #fff1f0;
-            color: #f5222d;
-        }
-        .log-level-DEBUG {
-            background: #f6ffed;
-            color: #52c41a;
-        }
-        .log-message {
-            color: #333;
-            word-break: break-all;
-            white-space: pre-wrap;
-        }
-        .empty-log {
-            text-align: center;
-            padding: 60px 20px;
-            color: #999;
-        }
-    </style>
-    <script src="/static/layui.js"></script>
+    <link rel="stylesheet" href="/static/css/layui.css">
+    <script src="layui/layui.js"></script>
 </head>
+<style>
+    .layui-fluid {
+        padding: 15px;
+        background: #fff;
+    }
+    .log-level-DEBUG {
+        color: #52c41a;
+    }
+    .log-level-INFO {
+        color: #1890ff;
+    }
+    .log-level-WARN {
+        color: #fa8c16;
+    }
+    .log-level-ERROR {
+        color: #f5222d;
+    }
+    .log-level-FATAL {
+        color: #cf1322;
+        font-weight: bold;
+    }
+</style>
 <body>
-<div class="log-container">
-    <div class="log-header">
-        <div>
-            <h2 style="margin: 0;">系统日志</h2>
-            <div class="log-stats">
-                共 <span id="totalCount">{{.Total}}</span> 条日志
-            </div>
-        </div>
-        <div>
-            <button class="layui-btn layui-btn-sm" onclick="window.location.reload()">
-                <i class="layui-icon layui-icon-refresh"></i> 刷新
-            </button>
-            <button class="layui-btn layui-btn-sm layui-btn-danger" id="clearBtn">
-                <i class="layui-icon layui-icon-delete"></i> 清空日志
-            </button>
-        </div>
-    </div>
-
-    <div class="log-table" id="logTable">
+<div class="layui-fluid">
+    <table class="layui-table" lay-skin="line">
+        <colgroup>
+            <col width="180">
+            <col>
+            <col>
+            <col>
+        </colgroup>
+        <thead>
+            <tr>
+                <th>时间</th>
+                <th>级别</th>
+                <th>类型</th>
+                <th>消息</th>
+            </tr>
+        </thead>
+        <tbody>
         {{if .Logs}}
             {{range .Logs}}
-            <div class="log-entry">
-                <span class="log-timestamp">{{.Timestamp}}</span>
-                {{if .Level}}
-                <span class="log-level log-level-{{.Level}}">{{.Level}}</span>
-                {{end}}
-                <span class="log-message">{{.Message}}</span>
-            </div>
+            <tr>
+                <td>{{.Timestamp}}</td>
+                <td><span class="log-level-{{.Level}}">{{.Level}}</span></td>
+                <td>{{.Type}}</td>
+                <td>{{.Message}}</td>
+            </tr>
             {{end}}
         {{else}}
-        <div class="empty-log">
-            <i class="layui-icon layui-icon-file" style="font-size: 48px; color: #d9d9d9;"></i>
-            <p>暂无日志记录</p>
-        </div>
+            <tr>
+                <td colspan="4" style="text-align: center; color: #999;">暂无日志</td>
+            </tr>
         {{end}}
-    </div>
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="4" style="text-align: right; padding: 10px; color: #666;">
+                    共 {{.TotalCount}} 条日志
+                </td>
+            </tr>
+        </tfoot>
+    </table>
 </div>
-
-<script>
-layui.use(['layer', 'jquery'], function(){
-    var layer = layui.layer;
-    var $ = layui.jquery;
-
-    // 清空日志按钮
-    $('#clearBtn').click(function() {
-        layer.confirm('确定要清空所有日志吗？', {
-            icon: 3,
-            title: '确认操作'
-        }, function(index) {
-            $.ajax({
-                url: '/api/logs',
-                type: 'DELETE',
-                success: function() {
-                    layer.msg('日志已清空', {icon: 1});
-                    setTimeout(function() {
-                        window.location.reload();
-                    }, 1000);
-                },
-                error: function(xhr) {
-                    layer.msg('清空日志失败', {icon: 2});
-                    console.error('清空日志失败:', xhr);
-                }
-            });
-            layer.close(index);
-        });
-    });
-});
-</script>
 </body>
+<script src="/static/layui.js"></script>
 </html>

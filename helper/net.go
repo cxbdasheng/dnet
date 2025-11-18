@@ -2,7 +2,6 @@ package helper
 
 import (
 	"context"
-	"log"
 	"net"
 	"net/http"
 	"os/exec"
@@ -26,13 +25,14 @@ const (
 // SetDNS 设置自定义DNS服务器
 func SetDNS(dnsServer string) {
 	if dnsServer == "" {
-		log.Println("DNS服务器地址为空，跳过设置")
+		Info(LogTypeSystem, "DNS服务器地址为空，跳过设置")
+
 		return
 	}
 
 	// 验证DNS服务器地址格式
 	if !isValidDNSServer(dnsServer) {
-		log.Printf("无效的DNS服务器地址: %s", dnsServer)
+		Info(LogTypeSystem, "无效的DNS服务器地址: %s", dnsServer)
 		return
 	}
 
@@ -43,7 +43,7 @@ func SetDNS(dnsServer string) {
 
 	// 测试DNS服务器连通性
 	if !testDNSConnectivity(dnsServer) {
-		log.Printf("DNS服务器 %s 连接测试失败", dnsServer)
+		Info(LogTypeSystem, "DNS服务器 %s 连接测试失败", dnsServer)
 		return
 	}
 
@@ -57,8 +57,7 @@ func SetDNS(dnsServer string) {
 			return d.DialContext(ctx, network, dnsServer)
 		},
 	}
-
-	log.Printf("已设置自定义DNS服务器: %s", dnsServer)
+	Info(LogTypeSystem, "已设置自定义DNS服务器: %s", dnsServer)
 }
 
 // isValidDNSServer 验证DNS服务器地址格式
@@ -160,7 +159,7 @@ func testDNSConnectivity(dnsServer string) bool {
 func InitBackupDNS(customDNS string) {
 	if customDNS != "" {
 		SetDNS(customDNS)
-		log.Printf("使用自定义DNS: %s", customDNS)
+		Info(LogTypeSystem, "使用自定义DNS: %s", customDNS)
 		return
 	}
 
@@ -195,16 +194,15 @@ func InitBackupDNS(customDNS string) {
 		case result := <-resultChan:
 			if result.works {
 				SetDNS(result.dns)
-				log.Printf("使用备用DNS: %s", result.dns)
+				Info(LogTypeSystem, "使用备用DNS: %s", result.dns)
 				return
 			}
 		case <-ctx.Done():
-			log.Println("DNS测试超时，使用系统默认DNS")
+			Info(LogTypeSystem, "DNS测试超时，使用系统默认DNS")
 			return
 		}
 	}
-
-	log.Println("所有备用DNS服务器均不可用，使用系统默认DNS")
+	Info(LogTypeSystem, "所有备用DNS服务器均不可用，使用系统默认DNS")
 }
 
 // IsPrivateIP 检查IP地址是否为私有地址

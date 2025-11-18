@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"log"
 	"net/http"
 
 	"github.com/cxbdasheng/dnet/config"
@@ -61,13 +60,13 @@ func handleSettingsGet(writer http.ResponseWriter, request *http.Request) {
 func handleSettingsPost(writer http.ResponseWriter, request *http.Request) {
 	var settingsReq SettingsRequest
 	if err := json.NewDecoder(request.Body).Decode(&settingsReq); err != nil {
-		log.Printf("请求解析失败: %v", err)
+		helper.Error(helper.LogTypeConfig, "请求解析失败: %v", err)
 		helper.ReturnError(writer, "请求格式错误")
 		return
 	}
 	conf, err := config.GetConfigCached()
 	if err != nil {
-		log.Printf("获取配置失败: %v", err)
+		helper.Error(helper.LogTypeConfig, "获取配置失败: %v", err)
 		helper.ReturnError(writer, "获取配置失败")
 		return
 	}
@@ -82,7 +81,7 @@ func handleSettingsPost(writer http.ResponseWriter, request *http.Request) {
 	}
 	// 保存配置
 	if err := conf.SaveConfig(); err != nil {
-		log.Printf("保存配置失败: %v", err)
+		helper.Error(helper.LogTypeConfig, "保存配置失败: %v", err)
 		helper.ReturnError(writer, "保存配置失败")
 		return
 	}

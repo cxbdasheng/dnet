@@ -3,11 +3,11 @@ package config
 import (
 	"crypto/sha256"
 	"fmt"
-	"log"
 	"os"
 	"sync"
 	"time"
 
+	"github.com/cxbdasheng/dnet/helper"
 	"gopkg.in/yaml.v3"
 )
 
@@ -120,13 +120,13 @@ func (conf *Config) SaveConfig() error {
 
 	data, err := yaml.Marshal(conf)
 	if err != nil {
-		log.Printf("序列化配置失败: %v", err)
+		helper.Error(helper.LogTypeConfig, "序列化配置失败: %v", err)
 		return err
 	}
 
 	configFilePath := GetConfigFilePath()
 	if err = os.WriteFile(configFilePath, data, 0600); err != nil {
-		log.Printf("写入配置文件失败: %v", err)
+		helper.Error(helper.LogTypeConfig, "写入配置文件失败: %v", err)
 		return err
 	}
 
@@ -137,7 +137,7 @@ func (conf *Config) SaveConfig() error {
 	if stat, err := os.Stat(configFilePath); err == nil {
 		globalCache.modTime = stat.ModTime()
 	}
-
+	helper.Info(helper.LogTypeSystem, "配置文件已保存在: %s", configFilePath)
 	return nil
 }
 func (conf *Config) GetPort() string {
@@ -182,7 +182,7 @@ func (conf *Config) ResetPassword(newPassword string) error {
 		return fmt.Errorf("保存密码失败: %v", err)
 	}
 
-	log.Printf("密码重置成功")
+	helper.Info(helper.LogTypeConfig, "密码重置成功")
 	return nil
 }
 

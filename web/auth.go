@@ -2,7 +2,6 @@ package web
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
@@ -50,7 +49,7 @@ func AuthAssert(f ViewFunc) ViewFunc {
 		accessResult := checkWANAccess(r)
 		if !accessResult.Allowed {
 			w.WriteHeader(http.StatusForbidden)
-			log.Println(accessResult.Reason)
+			helper.Warn(helper.LogTypeAuth, "%s", accessResult.Reason)
 			return
 		}
 
@@ -65,7 +64,7 @@ func Auth(f ViewFunc) ViewFunc {
 		accessResult := checkWANAccess(r)
 		if !accessResult.Allowed {
 			w.WriteHeader(http.StatusForbidden)
-			log.Println(accessResult.Reason)
+			helper.Warn(helper.LogTypeAuth, "%s", accessResult.Reason)
 			return
 		}
 

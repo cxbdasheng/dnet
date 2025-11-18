@@ -3,7 +3,6 @@ package web
 import (
 	"embed"
 	"html/template"
-	"log"
 	"net/http"
 	"os"
 
@@ -27,7 +26,7 @@ func Home(writer http.ResponseWriter, request *http.Request) {
 func handleHomeGet(writer http.ResponseWriter, request *http.Request) {
 	tmpl, err := template.ParseFS(homeEmbedFile, "home.html")
 	if err != nil {
-		log.Printf("解析模板失败: %v", err)
+		helper.Error(helper.LogTypeSystem, "解析首页模板失败: %v", err)
 		http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -37,6 +36,6 @@ func handleHomeGet(writer http.ResponseWriter, request *http.Request) {
 		Version: os.Getenv(VersionEnv),
 	})
 	if err != nil {
-		log.Printf("渲染模板失败: %v", err)
+		helper.Error(helper.LogTypeSystem, "渲染首页失败 [路径=%s]: %v", request.URL.Path, err)
 	}
 }

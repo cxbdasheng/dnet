@@ -4,7 +4,6 @@ import (
 	"embed"
 	"encoding/json"
 	"html/template"
-	"log"
 	"net/http"
 	"os"
 
@@ -30,14 +29,14 @@ func DCDN(writer http.ResponseWriter, request *http.Request) {
 func handleDCDNGet(writer http.ResponseWriter, request *http.Request) {
 	tmpl, err := template.ParseFS(DCDNEmbedFile, "dcdn.html")
 	if err != nil {
-		log.Printf("解析模板失败: %v", err)
+		helper.Error(helper.LogTypeDCDN, "解析模板失败: %v", err)
 		http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
 	conf, err := config.GetConfigCached()
 	if err != nil {
-		log.Printf("获取配置失败: %v", err)
+		helper.Warn(helper.LogTypeDCDN, "获取配置失败: %v", err)
 		// 使用默认配置
 		conf = config.Config{
 			Settings: config.Settings{
@@ -60,20 +59,20 @@ func handleDCDNGet(writer http.ResponseWriter, request *http.Request) {
 		IPv6:     ipv6,
 	})
 	if err != nil {
-		log.Printf("渲染模板失败: %v", err)
+		helper.Error(helper.LogTypeDCDN, "渲染模板失败: %v", err)
 	}
 }
 func handleDCDNPost(writer http.ResponseWriter, request *http.Request) {
 	var configData config.DCDNConfig
 	if err := json.NewDecoder(request.Body).Decode(&configData); err != nil {
-		log.Printf("请求解析失败: %v", err)
+		helper.Error(helper.LogTypeDCDN, "请求解析失败: %v", err)
 		helper.ReturnError(writer, "请求格式错误")
 		return
 	}
 
 	conf, err := config.GetConfigCached()
 	if err != nil {
-		log.Printf("获取配置失败: %v", err)
+		helper.Error(helper.LogTypeDCDN, "获取配置失败: %v", err)
 		helper.ReturnError(writer, "获取配置失败")
 		return
 	}
@@ -83,7 +82,7 @@ func handleDCDNPost(writer http.ResponseWriter, request *http.Request) {
 	dcdn.ForceCompareGlobal = true
 	// 保存配置
 	if err := conf.SaveConfig(); err != nil {
-		log.Printf("保存配置失败: %v", err)
+		helper.Error(helper.LogTypeDCDN, "保存配置失败: %v", err)
 		helper.ReturnError(writer, "保存配置失败")
 		return
 	}

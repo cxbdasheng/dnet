@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"log"
 	"net/http"
 
 	"github.com/cxbdasheng/dnet/config"
@@ -38,20 +37,20 @@ func Webhook(writer http.ResponseWriter, request *http.Request) {
 func handleWebhookPost(writer http.ResponseWriter, request *http.Request) {
 	var webhook config.Webhook
 	if err := json.NewDecoder(request.Body).Decode(&webhook); err != nil {
-		log.Printf("请求解析失败: %v", err)
+		helper.Error(helper.LogTypeWebhook, "请求解析失败: %v", err)
 		helper.ReturnError(writer, "请求格式错误")
 		return
 	}
 	conf, err := config.GetConfigCached()
 	if err != nil {
-		log.Printf("获取配置失败: %v", err)
+		helper.Error(helper.LogTypeWebhook, "获取配置失败: %v", err)
 		helper.ReturnError(writer, "获取配置失败")
 		return
 	}
 	conf.Webhook = webhook
 	// 保存配置
 	if err := conf.SaveConfig(); err != nil {
-		log.Printf("保存配置失败: %v", err)
+		helper.Error(helper.LogTypeWebhook, "保存配置失败: %v", err)
 		helper.ReturnError(writer, "保存配置失败")
 		return
 	}

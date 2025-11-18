@@ -4,8 +4,6 @@ import (
 	"embed"
 	"errors"
 	"flag"
-	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -55,8 +53,8 @@ var faviconEmbeddedFile embed.FS
 var version = "DEV"
 
 func main() {
+	helper.InitLoggerWithConsole(helper.MaxSize, true)
 	flag.Parse()
-
 	// 设置配置文件路径
 	if *configFilePath != "" {
 		absPath, _ := filepath.Abs(*configFilePath)
@@ -65,7 +63,7 @@ func main() {
 
 	// 检查监听地址，查看是否合法
 	if _, err := net.ResolveTCPAddr("tcp", *listen); err != nil {
-		log.Fatalf("Parse listen address failed! Exception: %s", err)
+		helper.Fatalf(helper.LogTypeSystem, "Parse listen address failed! Exception: %s", err)
 	}
 
 	// 设置版本号
@@ -77,13 +75,11 @@ func main() {
 		if err == nil {
 			err = conf.ResetPassword(*newPassword)
 			if err != nil {
-				fmt.Printf("重置密码失败: %v\n", err)
-				os.Exit(1)
+				helper.Fatalf(helper.LogTypeSystem, "重置密码失败: %v\n", err)
 			}
-			fmt.Println("密码重置成功")
+			helper.Info(helper.LogTypeSystem, "密码已重置")
 		} else {
-			fmt.Printf("配置文件 %s 不存在, 可通过-c指定配置文件\n", *configFilePath)
-			os.Exit(1)
+			helper.Fatalf(helper.LogTypeSystem, "配置文件 %s 不存在, 可通过-c指定配置文件\n", *configFilePath)
 		}
 		return
 	}
@@ -114,9 +110,9 @@ func main() {
 				// 非服务方式运行
 				switch s.Platform() {
 				case "windows-service":
-					fmt.Println("可使用 .\\dnet.exe -s install 安装服务运行")
+					helper.Info(helper.LogTypeSystem, "可使用 .\\dnet.exe -s install 安装服务运行")
 				default:
-					fmt.Println("可使用 sudo ./dnet -s install 安装服务运行")
+					helper.Info(helper.LogTypeSystem, "可使用 sudo ./dnet -s install 安装服务运行")
 				}
 				run()
 			}
@@ -141,10 +137,12 @@ func runWebServer() error {
 	http.HandleFunc("/webhook", web.Auth(web.Webhook))
 	http.HandleFunc("/mock", web.Auth(web.Mock))
 	http.HandleFunc("/settings", web.Auth(web.Settings))
+	http.HandleFunc("/logs", web.Auth(web.Logs))
 	http.HandleFunc("/login", web.AuthAssert(web.Login))
 	http.HandleFunc("/logout", web.AuthAssert(web.Logout))
 
 	l, err := net.Listen("tcp", *listen)
+	helper.Info(helper.LogTypeSystem, "监听 %s", *listen)
 	if err != nil {
 		return errors.New("监听端口发生异常, 请检查端口是否被占用!" + err.Error())
 	}
@@ -157,7 +155,7 @@ func run() {
 			// 启动web服务
 			err := runWebServer()
 			if err != nil {
-				log.Println(err)
+				helper.Info(helper.LogTypeSystem, "启动web服务失败: %v\n", err)
 				time.Sleep(time.Minute)
 				os.Exit(1)
 			}

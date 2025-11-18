@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 
+	"github.com/cxbdasheng/dnet/helper"
 	"github.com/kardianos/service"
 )
 
@@ -93,7 +93,7 @@ func getService() service.Service {
 	prg := &program{}
 	s, err := service.New(prg, svcConfig)
 	if err != nil {
-		log.Fatalln(err)
+		helper.Fatalf(helper.LogTypeSystem, "创建系统服务失败: %v", err)
 	}
 	return s
 }
@@ -108,7 +108,7 @@ func installService() {
 		// 服务未知，创建服务
 		if err = s.Install(); err == nil {
 			if startErr := s.Start(); startErr != nil {
-				log.Printf("服务安装成功但启动失败: %v\n", startErr)
+				helper.Error(helper.LogTypeSystem, "服务安装成功但启动失败: %v", startErr)
 			}
 			fmt.Println("安装 D-NET 服务成功! 请打开浏览器并进行配置")
 
@@ -118,17 +118,17 @@ func installService() {
 				// 尝试使用 update-rc.d (Debian/Ubuntu)
 				if _, err := exec.LookPath("update-rc.d"); err == nil {
 					if out, err := exec.Command("update-rc.d", serviceName, "defaults").CombinedOutput(); err != nil {
-						log.Printf("update-rc.d 配置失败: %v, 输出: %s\n", err, out)
+						helper.Error(helper.LogTypeSystem, "update-rc.d 配置失败: %v, 输出: %s", err, out)
 					} else {
 						fmt.Println("已配置开机自启 (update-rc.d)")
 					}
 				} else if _, err := exec.LookPath("chkconfig"); err == nil {
 					// 尝试使用 chkconfig (RedHat/CentOS)
 					if out, err := exec.Command("chkconfig", "--add", serviceName).CombinedOutput(); err != nil {
-						log.Printf("chkconfig --add 失败: %v, 输出: %s\n", err, out)
+						helper.Error(helper.LogTypeSystem, "chkconfig --add 失败: %v, 输出: %s", err, out)
 					} else {
 						if out, err := exec.Command("chkconfig", serviceName, "on").CombinedOutput(); err != nil {
-							log.Printf("chkconfig on 失败: %v, 输出: %s\n", err, out)
+							helper.Error(helper.LogTypeSystem, "chkconfig on 失败: %v, 输出: %s", err, out)
 						} else {
 							fmt.Println("已配置开机自启 (chkconfig)")
 						}
@@ -151,7 +151,7 @@ func uninstallService() {
 
 	s := getService()
 	if stopErr := s.Stop(); stopErr != nil {
-		log.Printf("停止服务时出现警告: %v\n", stopErr)
+		helper.Warn(helper.LogTypeSystem, "停止服务时出现警告: %v", stopErr)
 	}
 
 	// System V init 系统需要额外清理
@@ -160,12 +160,12 @@ func uninstallService() {
 		// 尝试使用 update-rc.d 移除 (Debian/Ubuntu)
 		if _, err := exec.LookPath("update-rc.d"); err == nil {
 			if out, err := exec.Command("update-rc.d", "-f", serviceName, "remove").CombinedOutput(); err != nil {
-				log.Printf("update-rc.d remove 失败: %v, 输出: %s\n", err, out)
+				helper.Error(helper.LogTypeSystem, "update-rc.d remove 失败: %v, 输出: %s", err, out)
 			}
 		} else if _, err := exec.LookPath("chkconfig"); err == nil {
 			// 尝试使用 chkconfig 移除 (RedHat/CentOS)
 			if out, err := exec.Command("chkconfig", "--del", serviceName).CombinedOutput(); err != nil {
-				log.Printf("chkconfig --del 失败: %v, 输出: %s\n", err, out)
+				helper.Error(helper.LogTypeSystem, "chkconfig --del 失败: %v, 输出: %s", err, out)
 			}
 		}
 	}

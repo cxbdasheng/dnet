@@ -113,5 +113,4 @@ func (aliyun *Aliyun) shouldUpdateCDN(changedIPCount int) bool {
 }
 
 func (aliyun *Aliyun) updateOrCreateCDN() {
-
 }

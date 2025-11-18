@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -81,7 +80,7 @@ func Login(writer http.ResponseWriter, request *http.Request) {
 func handleLoginGet(writer http.ResponseWriter, _ *http.Request) {
 	tmpl, err := template.ParseFS(loginEmbedFile, "login.html")
 	if err != nil {
-		log.Printf("模板解析失败: %v", err)
+		helper.Info(helper.LogTypeSystem, "模板解析失败: %v", err)
 		helper.ReturnError(writer, "页面加载失败")
 		return
 	}
@@ -95,7 +94,7 @@ func handleLoginGet(writer http.ResponseWriter, _ *http.Request) {
 	}
 
 	if err = tmpl.Execute(writer, data); err != nil {
-		log.Printf("模板执行失败: %v", err)
+		helper.Info(helper.LogTypeSystem, "模板执行失败: %v", err)
 		helper.ReturnError(writer, "页面渲染失败")
 	}
 }
@@ -112,7 +111,7 @@ func handleLoginPost(writer http.ResponseWriter, request *http.Request) {
 	// 解析请求体
 	var loginReq LoginRequest
 	if err := json.NewDecoder(request.Body).Decode(&loginReq); err != nil {
-		log.Printf("请求解析失败: %v", err)
+		helper.Info(helper.LogTypeSystem, "请求解析失败: %v", err)
 		helper.ReturnError(writer, "请求格式错误")
 		return
 	}
@@ -132,9 +131,9 @@ func handleLoginPost(writer http.ResponseWriter, request *http.Request) {
 	if conf.Username == "" || conf.Password == "" {
 		// 获取客户端IP
 		clientIP := helper.GetClientIP(request)
-		log.Printf("登录尝试 - 用户: %s, IP: %s", loginReq.Username, clientIP)
+		helper.Info(helper.LogTypeSystem, "登录尝试 - 用户: %s, IP: %s", loginReq.Username, clientIP)
 		if err := handleInitialSetup(&conf, loginReq, clientIP); err != nil {
-			log.Printf("初始设置失败: %v", err)
+			helper.Info(helper.LogTypeSystem, "初始设置失败: %v", err)
 			helper.ReturnError(writer, err.Error())
 			return
 		}
@@ -144,7 +143,7 @@ func handleLoginPost(writer http.ResponseWriter, request *http.Request) {
 	if loginReq.Username == conf.Username && conf.VerifyPassword(loginReq.Password) {
 		// 登录成功处理
 		if err := handleLoginSuccess(writer, &conf); err != nil {
-			log.Printf("登录成功处理失败: %v", err)
+			helper.Info(helper.LogTypeSystem, "登录成功处理失败: %v", err)
 			helper.ReturnError(writer, "登录处理失败")
 			return
 		}
@@ -153,7 +152,7 @@ func handleLoginPost(writer http.ResponseWriter, request *http.Request) {
 
 	// 登录失败处理
 	globalLoginDetector.FailedAttempts++
-	log.Printf("登录失败 - 用户: %s, 失败次数: %d", loginReq.Username, globalLoginDetector.FailedAttempts)
+	helper.Info(helper.LogTypeSystem, "登录失败 - 用户: %s, 失败次数: %d", loginReq.Username, globalLoginDetector.FailedAttempts)
 	helper.ReturnError(writer, "用户名或密码错误")
 }
 
@@ -178,8 +177,7 @@ func handleInitialSetup(conf *config.Config, loginReq LoginRequest, clientIP str
 	if err = conf.SaveConfig(); err != nil {
 		return fmt.Errorf("保存配置失败: %v", err)
 	}
-
-	log.Printf("初始设置完成 - 用户: %s, 内网模式: %v", conf.Username, conf.NotAllowWanAccess)
+	helper.Info(helper.LogTypeSystem, "初始设置完成 - 用户: %s, 内网模式: %v", conf.Username, conf.NotAllowWanAccess)
 	return nil
 }
 
@@ -209,7 +207,7 @@ func handleLoginSuccess(writer http.ResponseWriter, conf *config.Config) error {
 	}
 
 	http.SetCookie(writer, currentCookie)
-	log.Printf("用户登录成功: %s, Cookie过期时间: %v", conf.Username, expires)
+	helper.Info(helper.LogTypeSystem, "用户登录成功: %s, Cookie过期时间: %v", conf.Username, expires)
 
 	helper.ReturnSuccess(writer, "用户登录成功", currentCookie.Value)
 	return nil
@@ -219,8 +217,7 @@ func handleLoginSuccess(writer http.ResponseWriter, conf *config.Config) error {
 func resetLoginAttempts() {
 	globalLoginDetector.FailedAttempts++
 	globalLoginDetector.ResetTicker.Reset(LoginLockDuration)
-
-	log.Printf("登录尝试已锁定 %v，失败次数: %d", LoginLockDuration, globalLoginDetector.FailedAttempts)
+	helper.Info(helper.LogTypeSystem, "登录尝试已锁定 %v，失败次数: %d", LoginLockDuration, globalLoginDetector.FailedAttempts)
 
 	// 启动后台协程处理解锁
 	go func(ticker *time.Ticker) {
@@ -229,7 +226,7 @@ func resetLoginAttempts() {
 		for range ticker.C {
 			// 解锁：重置为最大尝试次数-1，允许再次尝试
 			globalLoginDetector.FailedAttempts = MaxFailedAttempts - 1
-			log.Printf("登录锁定已解除，可重新尝试登录")
+			helper.Info(helper.LogTypeSystem, "登录锁定已解除，可重新尝试登录")
 			return
 		}
 	}(globalLoginDetector.ResetTicker)
@@ -259,7 +256,7 @@ func generateToken() string {
 	randomBytes := make([]byte, TokenLength)
 	if _, err := rand.Read(randomBytes); err != nil {
 		// 容错处理：使用时间戳作为后备方案
-		log.Printf("生成随机令牌失败，使用时间戳后备: %v", err)
+		helper.Info(helper.LogTypeSystem, "生成随机令牌失败，使用时间戳后备: %v", err)
 		return hex.EncodeToString([]byte(time.Now().Format("20060102150405.000000")))
 	}
 

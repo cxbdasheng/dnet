@@ -3,9 +3,7 @@ package web
 import (
 	"embed"
 	"html/template"
-	"log"
 	"net/http"
-	"os"
 
 	"github.com/cxbdasheng/dnet/helper"
 )
@@ -23,19 +21,32 @@ func Logs(writer http.ResponseWriter, request *http.Request) {
 	}
 }
 
+// LogsPageData 日志页面数据模型
+type LogsPageData struct {
+	Logs       []helper.LogEntry // 日志列表
+	TotalCount int               // 日志总数
+}
+
 func handleLogsGet(writer http.ResponseWriter, request *http.Request) {
 	tmpl, err := template.ParseFS(logsEmbedFile, "logs.html")
 	if err != nil {
-		log.Printf("解析模板失败: %v", err)
+		helper.Error(helper.LogTypeSystem, "解析日志页面模板失败: %v", err)
 		http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	err = tmpl.Execute(writer, struct {
-		Version string
-	}{
-		Version: os.Getenv(VersionEnv),
-	})
-	if err != nil {
-		log.Printf("渲染模板失败: %v", err)
+
+	// 获取日志数据
+	memLogger := helper.GetLogger()
+	logs := memLogger.GetLogs()
+
+	// 构造页面数据
+	data := LogsPageData{
+		Logs:       logs,
+		TotalCount: len(logs),
+	}
+
+	if err = tmpl.Execute(writer, data); err != nil {
+		helper.Error(helper.LogTypeSystem, "渲染日志页面失败 [路径=%s]: %v", request.URL.Path, err)
+		http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
