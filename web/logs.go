@@ -13,8 +13,10 @@ var logsEmbedFile embed.FS
 
 func Logs(writer http.ResponseWriter, request *http.Request) {
 	switch request.Method {
-	case "GET":
+	case http.MethodGet:
 		handleLogsGet(writer, request)
+	case http.MethodDelete:
+		handleLogsAPIDelete(writer, request)
 	default:
 		helper.ReturnError(writer, "不支持的请求方法")
 		return
@@ -49,4 +51,21 @@ func handleLogsGet(writer http.ResponseWriter, request *http.Request) {
 		helper.Error(helper.LogTypeSystem, "渲染日志页面失败 [路径=%s]: %v", request.URL.Path, err)
 		http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
 	}
+}
+
+// handleLogsAPIDelete 清空日志
+func handleLogsAPIDelete(writer http.ResponseWriter, request *http.Request) {
+	memLogger := helper.GetLogger()
+
+	// 记录清空前的日志数量
+	oldCount := memLogger.GetCount()
+
+	// 清空日志
+	memLogger.Clear()
+
+	// 记录清空操作
+	helper.Info(helper.LogTypeSystem, "日志已清空 [操作者IP = %s, 清空数量 = %d ]", helper.GetClientIP(request), oldCount)
+
+	// 返回成功响应
+	helper.ReturnSuccess(writer, "日志已清空", nil)
 }

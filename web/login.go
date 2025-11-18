@@ -64,10 +64,10 @@ type LoginRequest struct {
 
 func Login(writer http.ResponseWriter, request *http.Request) {
 	switch request.Method {
-	case "GET":
+	case http.MethodGet:
 		handleLoginGet(writer, request)
 		return
-	case "POST":
+	case http.MethodPost:
 		handleLoginPost(writer, request)
 		return
 	default:

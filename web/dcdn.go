@@ -17,9 +17,9 @@ var DCDNEmbedFile embed.FS
 
 func DCDN(writer http.ResponseWriter, request *http.Request) {
 	switch request.Method {
-	case "GET":
+	case http.MethodGet:
 		handleDCDNGet(writer, request)
-	case "POST":
+	case http.MethodPost:
 		handleDCDNPost(writer, request)
 	default:
 		helper.ReturnError(writer, "不支持的请求方法")

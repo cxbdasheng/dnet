@@ -171,10 +171,48 @@
                 move: '.layui-layer-title', // 只允许通过标题栏拖拽
                 content: '/logs',
                 btn: [
-                    '保存',
+                    '清空日志',
                     '关闭'
                 ],
                 btn1: function (index, layero) {
+                    // 清空日志功能
+                    layer.confirm('确定要清空所有日志吗？此操作不可恢复！', {
+                        icon: 3,
+                        title: '警告',
+                        btn: ['确定', '取消']
+                    }, function (confirmIndex) {
+                        // 显示加载提示
+                        var loadIndex = layer.load(1, {shade: [0.3, '#000']});
+
+                        // 调用清空日志 API
+                        fetch('/logs', {
+                            method: 'DELETE'
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            layer.close(loadIndex);
+                            if (data.code === 0 || data.status === true) {
+                                layer.msg(data.msg || '日志已清空', {
+                                    icon: 1,
+                                    time: 1500
+                                });
+                                // 刷新 iframe 内容
+                                var iframe = layero.find('iframe')[0];
+                                if (iframe) {
+                                    iframe.contentWindow.location.reload();
+                                }
+                            } else {
+                                layer.msg('清空失败: ' + (data.msg || '未知错误'), {icon: 2});
+                            }
+                            layer.close(confirmIndex);
+                        })
+                        .catch(error => {
+                            layer.close(loadIndex);
+                            layer.msg('清空失败: ' + error.message, {icon: 2});
+                            layer.close(confirmIndex);
+                        });
+                    });
+                    return false; // 阻止默认的关闭行为
                 },
                 btn2: function (index, layero) {
                     layer.close(index);
@@ -223,9 +261,6 @@
                         webhook_headers: iframeDocument.getElementById('headers').value,
                         webhook_request_body: iframeDocument.getElementById('request_body').value
                     };
-
-
-
                     if (!webhookData.webhook_url) {
                         layer.msg('请先输入 Webhook URL', {
                             icon: 0,

@@ -25,9 +25,9 @@ func Mock(writer http.ResponseWriter, request *http.Request) {
 
 func Webhook(writer http.ResponseWriter, request *http.Request) {
 	switch request.Method {
-	case "GET":
+	case http.MethodGet:
 		handleWebhookGet(writer, request)
-	case "POST":
+	case http.MethodPost:
 		handleWebhookPost(writer, request)
 	default:
 		helper.ReturnError(writer, "不支持的请求方法")

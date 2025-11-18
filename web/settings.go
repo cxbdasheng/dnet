@@ -22,9 +22,9 @@ type SettingsRequest struct {
 
 func Settings(writer http.ResponseWriter, request *http.Request) {
 	switch request.Method {
-	case "GET":
+	case http.MethodGet:
 		handleSettingsGet(writer, request)
-	case "POST":
+	case http.MethodPost:
 		handleSettingsPost(writer, request)
 	default:
 		helper.ReturnError(writer, "不支持的请求方法")

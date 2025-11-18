@@ -16,7 +16,7 @@ var homeEmbedFile embed.FS
 
 func Home(writer http.ResponseWriter, request *http.Request) {
 	switch request.Method {
-	case "GET":
+	case http.MethodGet:
 		handleHomeGet(writer, request)
 	default:
 		helper.ReturnError(writer, "不支持的请求方法")
