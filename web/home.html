@@ -191,7 +191,7 @@
                         .then(response => response.json())
                         .then(data => {
                             layer.close(loadIndex);
-                            if (data.code === 0 || data.status === true) {
+                            if (data.status === true) {
                                 layer.msg(data.msg || '日志已清空', {
                                     icon: 1,
                                     time: 1500
