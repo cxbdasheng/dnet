@@ -2,6 +2,9 @@ package helper
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os/exec"
@@ -57,7 +60,7 @@ func SetDNS(dnsServer string) {
 			return d.DialContext(ctx, network, dnsServer)
 		},
 	}
-	Info(LogTypeSystem, "已设置自定义DNS服务器: %s", dnsServer)
+	Info(LogTypeSystem, "已设置自定义 DNS 服务器: %s", dnsServer)
 }
 
 // isValidDNSServer 验证DNS服务器地址格式
@@ -194,15 +197,15 @@ func InitBackupDNS(customDNS string) {
 		case result := <-resultChan:
 			if result.works {
 				SetDNS(result.dns)
-				Info(LogTypeSystem, "使用备用DNS: %s", result.dns)
+				Info(LogTypeSystem, "使用备用 DNS: %s", result.dns)
 				return
 			}
 		case <-ctx.Done():
-			Info(LogTypeSystem, "DNS测试超时，使用系统默认DNS")
+			Info(LogTypeSystem, "DNS 测试超时，使用系统默认 DNS")
 			return
 		}
 	}
-	Info(LogTypeSystem, "所有备用DNS服务器均不可用，使用系统默认DNS")
+	Info(LogTypeSystem, "所有备用 DNS 服务器均不可用，使用系统默认 DNS")
 }
 
 // IsPrivateIP 检查IP地址是否为私有地址
@@ -212,42 +215,8 @@ func IsPrivateIP(ipStr string) bool {
 		return false
 	}
 
-	// 检查IPv4私有地址
-	if ip.To4() != nil {
-		// 10.0.0.0/8
-		if ip[0] == 10 {
-			return true
-		}
-		// 172.16.0.0/12
-		if ip[0] == 172 && ip[1] >= 16 && ip[1] <= 31 {
-			return true
-		}
-		// 192.168.0.0/16
-		if ip[0] == 192 && ip[1] == 168 {
-			return true
-		}
-		// 127.0.0.0/8 (环回地址)
-		if ip[0] == 127 {
-			return true
-		}
-		return false
-	}
-
-	// 检查IPv6私有地址
-	// fe80::/10 (链路本地地址)
-	if ip[0] == 0xfe && (ip[1]&0xc0) == 0x80 {
-		return true
-	}
-	// fc00::/7 (唯一本地地址)
-	if (ip[0] & 0xfe) == 0xfc {
-		return true
-	}
-	// ::1/128 (环回地址)
-	if ip.Equal(net.IPv6loopback) {
-		return true
-	}
-
-	return false
+	// 使用Go 1.17+标准库的IsPrivate方法
+	return ip.IsPrivate()
 }
 
 // GetClientIP 获取客户端真实IP地址
@@ -274,25 +243,17 @@ func GetClientIP(r *http.Request) string {
 		return xri
 	}
 
-	// 使用RemoteAddr，正确处理IPv6地址
-	ip := r.RemoteAddr
-	if strings.Contains(ip, ":") {
-		// 处理IPv6地址格式 [ip]:port 或 ip:port
-		if strings.HasPrefix(ip, "[") {
-			// IPv6格式: [2001:db8::1]:8080
-			if idx := strings.LastIndex(ip, "]:"); idx != -1 {
-				return ip[1:idx]
-			}
-		} else {
-			// IPv4格式: 192.168.1.1:8080 或纯IPv6
-			if host, _, err := net.SplitHostPort(ip); err == nil {
-				return host
-			}
-		}
+	// 使用RemoteAddr，统一使用net.SplitHostPort处理
+	// 这个方法可以正确处理IPv4和IPv6地址(包括[::1]:8080这种格式)
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
 	}
-	return ip
+
+	// 如果SplitHostPort失败，直接返回原始地址(可能是没有端口的情况)
+	return r.RemoteAddr
 }
 
+// GetAddrFromUrl 从 URL 中获取地址
 func GetAddrFromUrl(url string, addrType string) string {
 	return ""
 }
@@ -305,6 +266,7 @@ func GetAddrFromCmd(cmd string, addrType string) string {
 	}
 	// cmd is empty
 	if cmd == "" {
+		Info(LogTypeSystem, "命令为空，无法获取地址")
 		return ""
 	}
 	// run cmd with proper shell
@@ -323,14 +285,14 @@ func GetAddrFromCmd(cmd string, addrType string) string {
 	// run cmd
 	out, err := execCmd.CombinedOutput()
 	if err != nil {
-		// todo 日志
+		Info(LogTypeSystem, "执行命令失败: %s, 错误: %v", cmd, err)
 		return ""
 	}
 	str := string(out)
 	// get result
 	result := comp.FindString(str)
 	if result == "" {
-		// todo 日志
+		Info(LogTypeSystem, "未能从命令输出中提取%s地址: %s", addrType, cmd)
 	}
 	return result
 }
@@ -338,23 +300,94 @@ func GetAddrFromCmd(cmd string, addrType string) string {
 func GetAddrFromInterface(interfaceName string, addrType string) string {
 	ipv4, ipv6, err := GetNetInterface()
 	if err != nil {
-		// todo 日志
+		Info(LogTypeSystem, "获取网络接口失败: %v", err)
 		return ""
 	}
+
 	if addrType == IPv4 {
 		for _, netInterface := range ipv4 {
 			if netInterface.Name == interfaceName && len(netInterface.Address) > 0 {
 				return netInterface.Address[0]
 			}
 		}
-	}
-	if addrType == IPv6 {
+		Info(LogTypeSystem, "未找到IPv4接口: %s", interfaceName)
+	} else if addrType == IPv6 {
 		for _, netInterface := range ipv6 {
 			if netInterface.Name == interfaceName && len(netInterface.Address) > 0 {
 				return netInterface.Address[0]
 			}
 		}
+		Info(LogTypeSystem, "未找到IPv6接口: %s", interfaceName)
 	}
-	// todo 日志
+
 	return ""
+}
+
+var dialer = &net.Dialer{
+	Timeout:   30 * time.Second,
+	KeepAlive: 30 * time.Second,
+}
+
+var defaultTransport = &http.Transport{
+	// from http.DefaultTransport
+	Proxy: http.ProxyFromEnvironment,
+	DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+		return dialer.DialContext(ctx, network, address)
+	},
+	ForceAttemptHTTP2:     true,
+	MaxIdleConns:          100,
+	MaxIdleConnsPerHost:   10, // 限制每个主机的最大空闲连接数
+	IdleConnTimeout:       90 * time.Second,
+	TLSHandshakeTimeout:   10 * time.Second,
+	ExpectContinueTimeout: 1 * time.Second,
+}
+
+// CreateHTTPClient Create Default HTTP Client
+func CreateHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: defaultTransport,
+	}
+}
+
+// GetHTTPResponse 处理HTTP结果，返回序列化的json
+func GetHTTPResponse(resp *http.Response, err error, result interface{}) error {
+	body, err := GetHTTPResponseOrg(resp, err)
+	if err != nil {
+		return err
+	}
+
+	// 空响应体不需要解析
+	if len(body) == 0 {
+		return nil
+	}
+
+	// 尝试解析JSON
+	if err := json.Unmarshal(body, &result); err != nil {
+		return fmt.Errorf("JSON解析失败: %w", err)
+	}
+
+	return nil
+}
+
+// GetHTTPResponseOrg 处理HTTP结果，返回byte
+func GetHTTPResponseOrg(resp *http.Response, err error) ([]byte, error) {
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+	lr := io.LimitReader(resp.Body, 1024000)
+	body, err := io.ReadAll(lr)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// 300及以上状态码都算异常
+	if resp.StatusCode >= 300 {
+		err = fmt.Errorf("HTTP请求失败 [%d]: %s", resp.StatusCode, string(body))
+	}
+
+	return body, err
 }

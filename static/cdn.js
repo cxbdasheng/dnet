@@ -6,7 +6,6 @@ const CDN_PROVIDERS = {
         typeSelect: [
             "CDN",
             "DCDN",
-            "ESA"
         ],
         idHelpHtml: "<a target='_blank' href='https://ram.console.aliyun.com/manage/ak?spm=5176.12818093.nav-right.dak.488716d0mHaMgg'>创建 AccessKey</a>",
         typeHelpHtml: "<a target='_blank' href='https://cdn.console.aliyun.com/overview'>CDN</a>、<a target='_blank' href='https://dcdn.console.aliyun.com/#/overview'>DCDN</a>",

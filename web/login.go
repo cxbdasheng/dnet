@@ -207,7 +207,7 @@ func handleLoginSuccess(writer http.ResponseWriter, conf *config.Config) error {
 	}
 
 	http.SetCookie(writer, currentCookie)
-	helper.Info(helper.LogTypeSystem, "用户登录成功: %s, Cookie过期时间: %v", conf.Username, expires)
+	helper.Info(helper.LogTypeSystem, "用户登录成功: %s, Cookie 过期时间: %v", conf.Username, expires)
 
 	helper.ReturnSuccess(writer, "用户登录成功", currentCookie.Value)
 	return nil
