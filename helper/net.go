@@ -23,13 +23,19 @@ var Ipv6Reg = regexp.MustCompile(`((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|
 const (
 	IPv4 = "ipv4"
 	IPv6 = "ipv6"
+
+	// maxResponseBodySize 最大响应体大小（约1MB）
+	maxResponseBodySize = 1024000
+	// dnsTestTimeout DNS连接测试超时时间
+	dnsTestTimeout = 1 * time.Second
+	// dnsResolverTimeout DNS解析器超时时间
+	dnsResolverTimeout = 3 * time.Second
 )
 
 // SetDNS 设置自定义DNS服务器
 func SetDNS(dnsServer string) {
 	if dnsServer == "" {
 		Info(LogTypeSystem, "DNS服务器地址为空，跳过设置")
-
 		return
 	}
 
@@ -55,7 +61,7 @@ func SetDNS(dnsServer string) {
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 			d := net.Dialer{
-				Timeout: time.Second * 3,
+				Timeout: dnsResolverTimeout,
 			}
 			return d.DialContext(ctx, network, dnsServer)
 		},
@@ -109,6 +115,16 @@ func isValidDomainName(domain string) bool {
 	return true
 }
 
+// testProtocolConnectivity 测试特定协议的连接性
+func testProtocolConnectivity(protocol, address string, timeout time.Duration) bool {
+	conn, err := net.DialTimeout(protocol, address, timeout)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
+}
+
 // testDNSConnectivity 测试DNS服务器连通性
 func testDNSConnectivity(dnsServer string) bool {
 	// 并发测试TCP和UDP连接，提高成功率
@@ -120,24 +136,12 @@ func testDNSConnectivity(dnsServer string) bool {
 
 	// 测试UDP连接
 	go func() {
-		conn, err := net.DialTimeout("udp", dnsServer, time.Second)
-		if err == nil {
-			conn.Close()
-			resultChan <- true
-			return
-		}
-		resultChan <- false
+		resultChan <- testProtocolConnectivity("udp", dnsServer, dnsTestTimeout)
 	}()
 
 	// 测试TCP连接(作为备用)
 	go func() {
-		conn, err := net.DialTimeout("tcp", dnsServer, time.Second)
-		if err == nil {
-			conn.Close()
-			resultChan <- true
-			return
-		}
-		resultChan <- false
+		resultChan <- testProtocolConnectivity("tcp", dnsServer, dnsTestTimeout)
 	}()
 
 	// 等待任意一个连接成功
@@ -219,6 +223,36 @@ func IsPrivateIP(ipStr string) bool {
 	return ip.IsPrivate()
 }
 
+// getRegexByAddrType 根据地址类型返回对应的正则表达式
+func getRegexByAddrType(addrType string) *regexp.Regexp {
+	if addrType == IPv6 {
+		return Ipv6Reg
+	}
+	return Ipv4Reg
+}
+
+// getAddrTypeConfig 根据地址类型返回相应的配置
+type addrTypeConfig struct {
+	network      string
+	regex        *regexp.Regexp
+	addrTypeName string
+}
+
+func getAddrTypeConfig(addrType string) addrTypeConfig {
+	if addrType == IPv6 {
+		return addrTypeConfig{
+			network:      "tcp6",
+			regex:        Ipv6Reg,
+			addrTypeName: "IPv6",
+		}
+	}
+	return addrTypeConfig{
+		network:      "tcp4",
+		regex:        Ipv4Reg,
+		addrTypeName: "IPv4",
+	}
+}
+
 // GetClientIP 获取客户端真实IP地址
 func GetClientIP(r *http.Request) string {
 	// 检查X-Forwarded-For头，获取最原始的客户端IP
@@ -255,23 +289,11 @@ func GetClientIP(r *http.Request) string {
 
 // GetAddrFromUrl 从 URL 中获取地址
 func GetAddrFromUrl(urlsStr string, addrType string) string {
-	// 根据地址类型选择网络协议和正则表达式
-	var network string
-	var reg *regexp.Regexp
-	var addrTypeName string
-
-	if addrType == IPv6 {
-		network = "tcp6"
-		reg = Ipv6Reg
-		addrTypeName = "IPv6"
-	} else {
-		network = "tcp4"
-		reg = Ipv4Reg
-		addrTypeName = "IPv4"
-	}
+	// 根据地址类型获取配置
+	config := getAddrTypeConfig(addrType)
 
 	// 创建对应的 HTTP 客户端
-	client := CreateNoProxyHTTPClient(network)
+	client := CreateNoProxyHTTPClient(config.network)
 
 	// 遍历所有 URL
 	urls := strings.Split(urlsStr, ",")
@@ -284,15 +306,15 @@ func GetAddrFromUrl(urlsStr string, addrType string) string {
 		// 发送 HTTP 请求
 		resp, err := client.Get(url)
 		if err != nil {
-			Info(LogTypeSystem, "通过接口获取 %s 失败! 接口地址: %s", addrTypeName, url)
+			Info(LogTypeSystem, "通过接口获取 %s 失败! 接口地址: %s", config.addrTypeName, url)
 			Warn(LogTypeSystem, "异常信息: %s", err)
 			continue
 		}
 
 		// 读取响应体
-		lr := io.LimitReader(resp.Body, 1024000)
+		lr := io.LimitReader(resp.Body, maxResponseBodySize)
 		body, err := io.ReadAll(lr)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 
 		if err != nil {
 			Warn(LogTypeSystem, "读取响应失败: %s", err)
@@ -300,9 +322,9 @@ func GetAddrFromUrl(urlsStr string, addrType string) string {
 		}
 
 		// 使用正则提取地址
-		result := reg.FindString(string(body))
+		result := config.regex.FindString(string(body))
 		if result == "" {
-			Info(LogTypeSystem, "获取 %s 结果失败! 接口: %s, 返回值: %s", addrTypeName, url, string(body))
+			Info(LogTypeSystem, "获取 %s 结果失败! 接口: %s, 返回值: %s", config.addrTypeName, url, string(body))
 			continue
 		}
 
@@ -314,23 +336,22 @@ func GetAddrFromUrl(urlsStr string, addrType string) string {
 	return ""
 }
 
+// GetAddrFromCmd 从命令输出中获取地址
 func GetAddrFromCmd(cmd string, addrType string) string {
-	var comp *regexp.Regexp
-	comp = Ipv4Reg
-	if addrType == IPv6 {
-		comp = Ipv6Reg
-	}
-	// cmd is empty
 	if cmd == "" {
 		Info(LogTypeSystem, "命令为空，无法获取地址")
 		return ""
 	}
-	// run cmd with proper shell
+
+	// 获取正则表达式
+	regex := getRegexByAddrType(addrType)
+
+	// 根据操作系统选择shell
 	var execCmd *exec.Cmd
 	if runtime.GOOS == "windows" {
 		execCmd = exec.Command("powershell", "-Command", cmd)
 	} else {
-		// If Bash does not exist, use sh
+		// 优先使用bash，不存在则使用sh
 		_, err := exec.LookPath("bash")
 		if err != nil {
 			execCmd = exec.Command("sh", "-c", cmd)
@@ -338,21 +359,33 @@ func GetAddrFromCmd(cmd string, addrType string) string {
 			execCmd = exec.Command("bash", "-c", cmd)
 		}
 	}
-	// run cmd
+
+	// 执行命令
 	out, err := execCmd.CombinedOutput()
 	if err != nil {
 		Info(LogTypeSystem, "执行命令失败: %s, 错误: %v", cmd, err)
 		return ""
 	}
-	str := string(out)
-	// get result
-	result := comp.FindString(str)
+
+	// 使用正则提取地址
+	result := regex.FindString(string(out))
 	if result == "" {
 		Info(LogTypeSystem, "未能从命令输出中提取%s地址: %s", addrType, cmd)
 	}
 	return result
 }
 
+// findAddrInInterfaces 在接口列表中查找地址
+func findAddrInInterfaces(interfaces []NetInterface, interfaceName string) string {
+	for _, netInterface := range interfaces {
+		if netInterface.Name == interfaceName && len(netInterface.Address) > 0 {
+			return netInterface.Address[0]
+		}
+	}
+	return ""
+}
+
+// GetAddrFromInterface 从网络接口获取地址
 func GetAddrFromInterface(interfaceName string, addrType string) string {
 	ipv4, ipv6, err := GetNetInterface()
 	if err != nil {
@@ -360,23 +393,20 @@ func GetAddrFromInterface(interfaceName string, addrType string) string {
 		return ""
 	}
 
+	var result string
 	if addrType == IPv4 {
-		for _, netInterface := range ipv4 {
-			if netInterface.Name == interfaceName && len(netInterface.Address) > 0 {
-				return netInterface.Address[0]
-			}
+		result = findAddrInInterfaces(ipv4, interfaceName)
+		if result == "" {
+			Info(LogTypeSystem, "未找到IPv4接口: %s", interfaceName)
 		}
-		Info(LogTypeSystem, "未找到IPv4接口: %s", interfaceName)
 	} else if addrType == IPv6 {
-		for _, netInterface := range ipv6 {
-			if netInterface.Name == interfaceName && len(netInterface.Address) > 0 {
-				return netInterface.Address[0]
-			}
+		result = findAddrInInterfaces(ipv6, interfaceName)
+		if result == "" {
+			Info(LogTypeSystem, "未找到IPv6接口: %s", interfaceName)
 		}
-		Info(LogTypeSystem, "未找到IPv6接口: %s", interfaceName)
 	}
 
-	return ""
+	return result
 }
 
 const (
@@ -441,7 +471,7 @@ func GetHTTPResponseOrg(resp *http.Response, err error) ([]byte, error) {
 	}
 
 	defer resp.Body.Close()
-	lr := io.LimitReader(resp.Body, 1024000)
+	lr := io.LimitReader(resp.Body, maxResponseBodySize)
 	body, err := io.ReadAll(lr)
 
 	if err != nil {
