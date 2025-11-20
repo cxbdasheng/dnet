@@ -254,7 +254,63 @@ func GetClientIP(r *http.Request) string {
 }
 
 // GetAddrFromUrl 从 URL 中获取地址
-func GetAddrFromUrl(url string, addrType string) string {
+func GetAddrFromUrl(urlsStr string, addrType string) string {
+	// 根据地址类型选择网络协议和正则表达式
+	var network string
+	var reg *regexp.Regexp
+	var addrTypeName string
+
+	if addrType == IPv6 {
+		network = "tcp6"
+		reg = Ipv6Reg
+		addrTypeName = "IPv6"
+	} else {
+		network = "tcp4"
+		reg = Ipv4Reg
+		addrTypeName = "IPv4"
+	}
+
+	// 创建对应的 HTTP 客户端
+	client := CreateNoProxyHTTPClient(network)
+
+	// 遍历所有 URL
+	urls := strings.Split(urlsStr, ",")
+	for _, url := range urls {
+		url = strings.TrimSpace(url)
+		if url == "" {
+			continue
+		}
+
+		// 发送 HTTP 请求
+		resp, err := client.Get(url)
+		if err != nil {
+			Info(LogTypeSystem, "通过接口获取 %s 失败! 接口地址: %s", addrTypeName, url)
+			Warn(LogTypeSystem, "异常信息: %s", err)
+			continue
+		}
+
+		// 读取响应体
+		lr := io.LimitReader(resp.Body, 1024000)
+		body, err := io.ReadAll(lr)
+		resp.Body.Close()
+
+		if err != nil {
+			Warn(LogTypeSystem, "读取响应失败: %s", err)
+			continue
+		}
+
+		// 使用正则提取地址
+		result := reg.FindString(string(body))
+		if result == "" {
+			Info(LogTypeSystem, "获取 %s 结果失败! 接口: %s, 返回值: %s", addrTypeName, url, string(body))
+			continue
+		}
+
+		// 找到有效地址，返回
+		return result
+	}
+
+	// 所有 URL 都失败
 	return ""
 }
 
@@ -323,13 +379,21 @@ func GetAddrFromInterface(interfaceName string, addrType string) string {
 	return ""
 }
 
+const (
+	httpClientTimeout     = 30 * time.Second
+	dialerTimeout         = 30 * time.Second
+	dialerKeepAlive       = 30 * time.Second
+	idleConnTimeout       = 90 * time.Second
+	tlsHandshakeTimeout   = 10 * time.Second
+	expectContinueTimeout = 1 * time.Second
+)
+
 var dialer = &net.Dialer{
-	Timeout:   30 * time.Second,
-	KeepAlive: 30 * time.Second,
+	Timeout:   dialerTimeout,
+	KeepAlive: dialerKeepAlive,
 }
 
 var defaultTransport = &http.Transport{
-	// from http.DefaultTransport
 	Proxy: http.ProxyFromEnvironment,
 	DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
 		return dialer.DialContext(ctx, network, address)
@@ -337,15 +401,15 @@ var defaultTransport = &http.Transport{
 	ForceAttemptHTTP2:     true,
 	MaxIdleConns:          100,
 	MaxIdleConnsPerHost:   10, // 限制每个主机的最大空闲连接数
-	IdleConnTimeout:       90 * time.Second,
-	TLSHandshakeTimeout:   10 * time.Second,
-	ExpectContinueTimeout: 1 * time.Second,
+	IdleConnTimeout:       idleConnTimeout,
+	TLSHandshakeTimeout:   tlsHandshakeTimeout,
+	ExpectContinueTimeout: expectContinueTimeout,
 }
 
 // CreateHTTPClient Create Default HTTP Client
 func CreateHTTPClient() *http.Client {
 	return &http.Client{
-		Timeout:   30 * time.Second,
+		Timeout:   httpClientTimeout,
 		Transport: defaultTransport,
 	}
 }
@@ -364,7 +428,7 @@ func GetHTTPResponse(resp *http.Response, err error, result interface{}) error {
 
 	// 尝试解析JSON
 	if err := json.Unmarshal(body, &result); err != nil {
-		return fmt.Errorf("JSON解析失败: %w", err)
+		return fmt.Errorf("JSON 解析失败: %w", err)
 	}
 
 	return nil
@@ -386,8 +450,41 @@ func GetHTTPResponseOrg(resp *http.Response, err error) ([]byte, error) {
 
 	// 300及以上状态码都算异常
 	if resp.StatusCode >= 300 {
-		err = fmt.Errorf("HTTP请求失败 [%d]: %s", resp.StatusCode, string(body))
+		err = fmt.Errorf("HTTP 请求失败 [%d]: %s", resp.StatusCode, string(body))
 	}
 
 	return body, err
+}
+
+// createNoProxyTransport 创建无代理的 HTTP Transport
+func createNoProxyTransport(network string) *http.Transport {
+	return &http.Transport{
+		DisableKeepAlives: true,
+		DialContext: func(ctx context.Context, _, address string) (net.Conn, error) {
+			return dialer.DialContext(ctx, network, address)
+		},
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       idleConnTimeout,
+		TLSHandshakeTimeout:   tlsHandshakeTimeout,
+		ExpectContinueTimeout: expectContinueTimeout,
+	}
+}
+
+var (
+	noProxyTcp4Transport = createNoProxyTransport("tcp4")
+	noProxyTcp6Transport = createNoProxyTransport("tcp6")
+)
+
+// CreateNoProxyHTTPClient Create NoProxy HTTP Client
+func CreateNoProxyHTTPClient(network string) *http.Client {
+	transport := noProxyTcp4Transport
+	if network == "tcp6" {
+		transport = noProxyTcp6Transport
+	}
+
+	return &http.Client{
+		Timeout:   httpClientTimeout,
+		Transport: transport,
+	}
 }
