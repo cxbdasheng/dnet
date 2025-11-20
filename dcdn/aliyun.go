@@ -280,7 +280,6 @@ func (aliyun *Aliyun) describeDCDNDomain() (*AliyunDomainInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	// 如果未找到域名，返回 nil
 	if response.TotalCount == 0 {
 		return nil, nil
@@ -300,6 +299,12 @@ func (aliyun *Aliyun) buildSourcesParam() string {
 		// 获取实际的源站地址
 		content := aliyun.getSourceContent(&source)
 
+		// 根据源站类型判断是 IP 还是域名
+		sourceType := aliyun.getSourceType(&source, content)
+
+		// 获取优先级（main 或 backup）
+		priority := aliyun.getSourcePriority(source.Priority)
+
 		// 设置默认端口
 		port := source.Port
 		if port == "" {
@@ -312,10 +317,61 @@ func (aliyun *Aliyun) buildSourcesParam() string {
 			weight = "10"
 		}
 
-		sources += `{"Content":"` + content + `","Type":"ipaddr","Priority":"` + source.Priority + `","Port":` + port + `,"Weight":"` + weight + `"}`
+		sources += `{"content":"` + content + `","type":"` + sourceType + `","priority":"` + priority + `","port":` + port + `,"weight":"` + weight + `"}`
 	}
 	sources += "]"
 	return sources
+}
+
+// getSourcePriority 将优先级转换为阿里云 API 要求的格式
+func (aliyun *Aliyun) getSourcePriority(priority string) string {
+	// 如果已经是数字格式 "20" 或 "30"，直接返回
+	if priority == "20" || priority == "30" {
+		return priority
+	}
+
+	// 将文本格式转换为数字格式
+	if priority == "main" {
+		return "20"
+	}
+
+	if priority == "backup" {
+		return "30"
+	}
+
+	// 如果是空字符串，默认为主源站
+	if priority == "" {
+		return "20"
+	}
+
+	// 其他情况默认为主源站
+	return "20"
+}
+
+// getSourceType 判断源站类型是 ipaddr 还是 domain
+func (aliyun *Aliyun) getSourceType(source *config.Source, content string) string {
+	// 如果源类型是静态 IP 类型，返回 ipaddr
+	if source.Type == "ipv4" || source.Type == "ipv6" {
+		return "ipaddr"
+	}
+
+	// 如果是动态类型，需要检查解析出的内容是 IP 还是域名
+	if IsDynamicType(source.Type) {
+		// 尝试解析为 IP 地址
+		if helper.Ipv4Reg.MatchString(content) || helper.Ipv6Reg.MatchString(content) {
+			return "ipaddr"
+		}
+		// 不是 IP，说明是域名
+		return "domain"
+	}
+
+	// 默认情况：检查 content 是否为 IP
+	if helper.Ipv4Reg.MatchString(content) || helper.Ipv6Reg.MatchString(content) {
+		return "ipaddr"
+	}
+
+	// 其他情况视为域名
+	return "domain"
 }
 
 // getSourceContent 获取源站的实际内容（处理动态IP）
@@ -358,9 +414,8 @@ func (aliyun *Aliyun) createCDN() {
 
 func (aliyun *Aliyun) modifyCDN() {
 	params := url.Values{}
-	params.Set("Action", "SetCdnDomainSources")
+	params.Set("Action", "ModifyCdnDomain")
 	params.Set("DomainName", aliyun.CDN.Domain)
-	params.Set("SourceType", "ipaddr")
 
 	// 构建源站配置
 	sources := aliyun.buildSourcesParam()
@@ -380,7 +435,7 @@ func (aliyun *Aliyun) createDCDN() {
 	params := url.Values{}
 	params.Set("Action", "AddDcdnDomain")
 	params.Set("DomainName", aliyun.CDN.Domain)
-	params.Set("Scope", "overseas")
+	//params.Set("Scope", "overseas")
 
 	// 构建源站配置
 	sources := aliyun.buildSourcesParam()
@@ -398,9 +453,8 @@ func (aliyun *Aliyun) createDCDN() {
 
 func (aliyun *Aliyun) modifyDCDN() {
 	params := url.Values{}
-	params.Set("Action", "SetDcdnDomainSources")
+	params.Set("Action", "UpdateDcdnDomain")
 	params.Set("DomainName", aliyun.CDN.Domain)
-	params.Set("SourceType", "ipaddr")
 
 	// 构建源站配置
 	sources := aliyun.buildSourcesParam()
@@ -418,21 +472,28 @@ func (aliyun *Aliyun) modifyDCDN() {
 
 // request 统一请求接口
 func (aliyun *Aliyun) request(params url.Values, result interface{}) (err error) {
-
-	signer.AliyunSigner(aliyun.CDN.AccessKey, aliyun.CDN.Service, &params)
-
-	// 根据 CDN 类型选择对应的 endpoint
+	// 根据 CDN 类型选择对应的 endpoint 和 API 版本
 	var endpoint string
+	var apiVersion string
 	switch aliyun.CDN.CDNType {
 	case CDNTypeDCDN:
 		endpoint = aliyunDCDNEndpoint
+		apiVersion = "2018-01-15"
 	case CDNTypeCDN:
 		endpoint = aliyunCDNEndpoint
+		apiVersion = "2018-05-10"
 	default:
 		// 默认使用 CDN endpoint
 		endpoint = aliyunCDNEndpoint
+		apiVersion = "2018-05-10"
 		helper.Warn(helper.LogTypeDCDN, "未识别的 CDN 类型 [类型=%s]，使用默认CDN端点", aliyun.CDN.CDNType)
 	}
+
+	// 设置 API 版本
+	params.Set("Version", apiVersion)
+
+	// 调用签名函数
+	signer.AliyunSigner(aliyun.CDN.AccessKey, aliyun.CDN.AccessSecret, &params)
 
 	req, err := http.NewRequest(
 		"GET",
