@@ -293,15 +293,14 @@
                             try {
                                 var res = typeof response === 'string' ? JSON.parse(response) : response;
                                 if (res.status) {
-                                    layer.msg(res.msg || '保存成功', {
+                                    layer.msg(res.msg || '测试成功', {
                                         icon: 1,
-                                        time: 1500
+                                        time: 2000
                                     });
-                                    layer.close(index);
                                 } else {
-                                    layer.msg(res.msg || '保存失败', {
+                                    layer.msg(res.msg || '测试失败', {
                                         icon: 2,
-                                        time: 1500
+                                        time: 2000
                                     });
                                 }
                             } catch (e) {

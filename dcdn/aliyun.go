@@ -25,7 +25,19 @@ type Aliyun struct {
 	Status statusType
 }
 
-var AliyunCDNType string
+func (aliyun *Aliyun) GetServiceStatus() string {
+	return string(aliyun.Status)
+}
+
+func (aliyun *Aliyun) GetServiceName() string {
+	if aliyun.CDN == nil {
+		return ""
+	}
+	if aliyun.CDN.Name != "" {
+		return aliyun.CDN.Name
+	}
+	return aliyun.CDN.Domain
+}
 
 // AliyunSource 阿里云源站配置
 type AliyunSource struct {
@@ -176,6 +188,7 @@ func (aliyun *Aliyun) UpdateOrCreateSources() bool {
 		aliyun.updateOrCreateSite()
 		aliyun.Cache.ResetTimes()
 	} else {
+		aliyun.Status = UpdatedNothing
 		helper.Debug(helper.LogTypeDCDN, "无需更新 %s 配置 [域名=%s, 计数器剩余=%d]",
 			aliyun.getCDNTypeName(), aliyun.CDN.Domain, aliyun.Cache.Times)
 	}
@@ -405,10 +418,12 @@ func (aliyun *Aliyun) createCDN() {
 	var result map[string]interface{}
 	err := aliyun.request(params, &result)
 	if err != nil {
+		aliyun.Status = UpdatedFailed
 		helper.Error(helper.LogTypeDCDN, "创建 CDN 域名失败 [域名=%s, 错误=%v]", aliyun.CDN.Domain, err)
 		return
 	}
 
+	aliyun.Status = UpdatedSuccess
 	helper.Info(helper.LogTypeDCDN, "创建 CDN 域名成功 [域名=%s, RequestId=%v]", aliyun.CDN.Domain, result["RequestId"])
 }
 
@@ -424,10 +439,12 @@ func (aliyun *Aliyun) modifyCDN() {
 	var result map[string]interface{}
 	err := aliyun.request(params, &result)
 	if err != nil {
+		aliyun.Status = UpdatedFailed
 		helper.Error(helper.LogTypeDCDN, "修改 CDN 源站配置失败 [域名=%s, 错误=%v]", aliyun.CDN.Domain, err)
 		return
 	}
 
+	aliyun.Status = UpdatedSuccess
 	helper.Info(helper.LogTypeDCDN, "修改 CDN 源站配置成功 [域名=%s, RequestId=%v]", aliyun.CDN.Domain, result["RequestId"])
 }
 
@@ -444,10 +461,12 @@ func (aliyun *Aliyun) createDCDN() {
 	var result map[string]interface{}
 	err := aliyun.request(params, &result)
 	if err != nil {
+		aliyun.Status = UpdatedFailed
 		helper.Error(helper.LogTypeDCDN, "创建 DCDN 域名失败 [域名=%s, 错误=%v]", aliyun.CDN.Domain, err)
 		return
 	}
 
+	aliyun.Status = UpdatedSuccess
 	helper.Info(helper.LogTypeDCDN, "创建 DCDN 域名成功 [域名=%s, RequestId=%v]", aliyun.CDN.Domain, result["RequestId"])
 }
 
@@ -463,11 +482,31 @@ func (aliyun *Aliyun) modifyDCDN() {
 	var result map[string]interface{}
 	err := aliyun.request(params, &result)
 	if err != nil {
+		aliyun.Status = UpdatedFailed
 		helper.Error(helper.LogTypeDCDN, "修改 DCDN 源站配置失败 [域名=%s, 错误=%v]", aliyun.CDN.Domain, err)
 		return
 	}
 
+	aliyun.Status = UpdatedSuccess
 	helper.Info(helper.LogTypeDCDN, "修改 DCDN 源站配置成功 [域名=%s, RequestId=%v]", aliyun.CDN.Domain, result["RequestId"])
+}
+
+// ShouldSendWebhook 判断是否应该发送 webhook
+func (aliyun *Aliyun) ShouldSendWebhook() bool {
+	// 更新成功，重置失败计数器并发送 webhook
+	if aliyun.Status == UpdatedSuccess {
+		aliyun.Cache.TimesFailed = 0
+		return true
+	}
+
+	aliyun.Cache.TimesFailed++
+	if aliyun.Cache.TimesFailed >= 3 {
+		helper.Warn(helper.LogTypeDCDN, "连续更新失败 %d 次，触发 Webhook 通知 [域名=%s]", aliyun.Cache.TimesFailed, aliyun.CDN.Domain)
+		aliyun.Cache.TimesFailed = 0
+		return true
+	}
+	helper.Warn(helper.LogTypeDCDN, "更新失败，将不会触发 Webhook，仅在连续失败 3 次时触发，当前失败次数：%d [域名=%s]", aliyun.Cache.TimesFailed, aliyun.CDN.Domain)
+	return false
 }
 
 // request 统一请求接口

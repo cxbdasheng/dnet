@@ -37,16 +37,19 @@ const (
 )
 
 type Cache struct {
-	Times         int               // 剩余次数
-	TimesFailedIP int               // 获取ip失败的次数
-	DynamicIPs    map[string]string // 动态 IP 缓存: key=source唯一标识(type:value), value=获取到的IP
-	mu            sync.RWMutex      // 保护 DynamicIPs 的读写锁
-	HasRun        bool              //
+	Times       int               // 剩余次数
+	TimesFailed int               // 获取ip失败的次数
+	DynamicIPs  map[string]string // 动态 IP 缓存: key=source唯一标识(type:value), value=获取到的IP
+	mu          sync.RWMutex      // 保护 DynamicIPs 的读写锁
+	HasRun      bool              //
 }
 
 type CDN interface {
 	Init(cdnConfig *config.CDN, cache *Cache)
 	UpdateOrCreateSources() bool
+	ShouldSendWebhook() bool
+	GetServiceStatus() string
+	GetServiceName() string
 }
 
 // NewCache 创建新的缓存实例

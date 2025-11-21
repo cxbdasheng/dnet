@@ -7,6 +7,20 @@ type Baidu struct {
 	Cache *Cache
 }
 
+func (baidu *Baidu) GetServiceStatus() string {
+	//TODO implement me
+	panic("implement me")
+}
+func (baidu *Baidu) GetServiceName() string {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (baidu *Baidu) ShouldSendWebhook() bool {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (baidu *Baidu) UpdateOrCreateSources() bool {
 	//TODO implement me
 	panic("implement me")

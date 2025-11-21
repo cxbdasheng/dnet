@@ -43,6 +43,9 @@ func RunOnce() {
 			}
 			cdnSelected.Init(&cdn, &DCDNCaches[i])
 			cdnSelected.UpdateOrCreateSources()
+			if conf.WebhookEnabled && cdnSelected.ShouldSendWebhook() {
+				config.ExecWebhook(&conf.Webhook, string(helper.LogTypeDCDN), cdnSelected.GetServiceName(), cdnSelected.GetServiceStatus())
+			}
 		}
 		dcdn.ForceCompareGlobal = false
 	}

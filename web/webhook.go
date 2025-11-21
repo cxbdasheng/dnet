@@ -15,12 +15,28 @@ import (
 var webhookEmbedFile embed.FS
 
 func Mock(writer http.ResponseWriter, request *http.Request) {
-	if request.Method == "POST" {
-		helper.ReturnSuccess(writer, "测试成功", nil)
+	if request.Method != http.MethodPost {
+		helper.ReturnError(writer, "不支持的请求方法")
 		return
 	}
-	helper.ReturnError(writer, "不支持的请求方法")
-	return
+
+	var webhook config.Webhook
+	if err := json.NewDecoder(request.Body).Decode(&webhook); err != nil {
+		helper.ReturnError(writer, "数据解析失败, 请刷新页面重试")
+		return
+	}
+
+	if webhook.WebhookURL == "" {
+		helper.ReturnError(writer, "请输入 Webhook 的 URL")
+		return
+	}
+	success := config.ExecWebhook(&webhook, "Webhook", "模拟请求", "测试成功")
+
+	if success {
+		helper.ReturnSuccess(writer, "Webhook 测试成功", nil)
+	} else {
+		helper.ReturnError(writer, "Webhook 测试失败，请检查配置和日志")
+	}
 }
 
 func Webhook(writer http.ResponseWriter, request *http.Request) {
