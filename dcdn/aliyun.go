@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/cxbdasheng/dnet/config"
 	"github.com/cxbdasheng/dnet/helper"
@@ -13,10 +14,6 @@ import (
 const (
 	aliyunCDNEndpoint  string = "https://cdn.aliyuncs.com/"
 	aliyunDCDNEndpoint string = "https://dcdn.aliyuncs.com/"
-
-	// CDN 类型常量
-	CDNTypeCDN  string = "CDN"
-	CDNTypeDCDN string = "DCDN"
 )
 
 type Aliyun struct {
@@ -81,8 +78,12 @@ type DescribeUserDomainsResponse struct {
 
 // getCDNTypeName 获取 CDN 类型的显示名称
 func (aliyun *Aliyun) getCDNTypeName() string {
-	if aliyun.CDN.CDNType == CDNTypeDCDN {
+	cdnType := strings.ToUpper(aliyun.CDN.CDNType)
+	if cdnType == CDNTypeDCDN {
 		return CDNTypeDCDN
+	}
+	if cdnType == CDNTypeDRCDN {
+		return CDNTypeDRCDN
 	}
 	return CDNTypeCDN
 }
@@ -103,32 +104,33 @@ func (aliyun *Aliyun) Init(cdnConfig *config.CDN, cache *Cache) {
 // validateConfig 校验 CDN 配置是否有效
 func (aliyun *Aliyun) validateConfig() bool {
 	if aliyun.CDN == nil {
-		helper.Warn(helper.LogTypeDCDN, "CDN 配置校验失败：配置对象为空")
+		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：配置对象为空", aliyun.getCDNTypeName())
 		return false
 	}
 	// 检查必填的认证信息
 	if aliyun.CDN.AccessKey == "" || aliyun.CDN.AccessSecret == "" {
-		helper.Warn(helper.LogTypeDCDN, "CDN 配置校验失败：AccessKey或AccessSecret为空 [域名=%s]", aliyun.CDN.Domain)
+		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：AccessKey或AccessSecret为空 [域名=%s]", aliyun.getCDNTypeName(), aliyun.CDN.Domain)
 		return false
 	}
 	// 检查域名
 	if aliyun.CDN.Domain == "" {
-		helper.Warn(helper.LogTypeDCDN, "CDN 配置校验失败：域名为空")
+		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：域名为空", aliyun.getCDNTypeName())
 		return false
 	}
 	// 检查 CDN 类型
 	if aliyun.CDN.CDNType == "" {
-		helper.Warn(helper.LogTypeDCDN, "CDN 配置校验失败：CDN 类型为空 [域名=%s]", aliyun.CDN.Domain)
+		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：类型为空 [域名=%s]", aliyun.getCDNTypeName(), aliyun.CDN.Domain)
 		return false
 	}
-	// 验证 CDN 类型是否合法
-	if aliyun.CDN.CDNType != CDNTypeCDN && aliyun.CDN.CDNType != CDNTypeDCDN {
-		helper.Warn(helper.LogTypeDCDN, "CDN 配置校验失败：不支持的 CDN 类型 [域名=%s, 类型=%s]", aliyun.CDN.Domain, aliyun.CDN.CDNType)
+	// 验证 CDN 类型是否合法（不区分大小写）
+	cdnType := strings.ToUpper(aliyun.CDN.CDNType)
+	if cdnType != CDNTypeCDN && cdnType != CDNTypeDCDN && cdnType != CDNTypeDRCDN {
+		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：不支持的类型 [域名=%s, 类型=%s]", aliyun.getCDNTypeName(), aliyun.CDN.Domain, aliyun.CDN.CDNType)
 		return false
 	}
 	// 检查源站配置
 	if len(aliyun.CDN.Sources) == 0 {
-		helper.Warn(helper.LogTypeDCDN, "CDN 配置校验失败：源站配置为空 [域名=%s]", aliyun.CDN.Domain)
+		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：源站配置为空 [域名=%s]", aliyun.getCDNTypeName(), aliyun.CDN.Domain)
 		return false
 	}
 	return true
@@ -229,7 +231,8 @@ func (aliyun *Aliyun) updateOrCreateSite() {
 	var domainInfo *AliyunDomainInfo
 	var err error
 
-	if aliyun.CDN.CDNType == CDNTypeDCDN {
+	cdnType := strings.ToUpper(aliyun.CDN.CDNType)
+	if cdnType == CDNTypeDCDN {
 		domainInfo, err = aliyun.describeDCDNDomain()
 	} else {
 		domainInfo, err = aliyun.describeCDNDomain()
@@ -244,7 +247,7 @@ func (aliyun *Aliyun) updateOrCreateSite() {
 	if domainInfo == nil {
 		// 域名不存在，需要创建
 		helper.Info(helper.LogTypeDCDN, "域名不存在，开始创建 %s [域名=%s]", aliyun.getCDNTypeName(), aliyun.CDN.Domain)
-		if aliyun.CDN.CDNType == CDNTypeDCDN {
+		if cdnType == CDNTypeDCDN {
 			aliyun.createDCDN()
 		} else {
 			aliyun.createCDN()
@@ -254,7 +257,7 @@ func (aliyun *Aliyun) updateOrCreateSite() {
 		helper.Info(helper.LogTypeDCDN, "域名已存在，开始修改源站配置 [域名=%s, 状态=%s, 当前源站数=%d]",
 			aliyun.CDN.Domain, domainInfo.DomainStatus, len(domainInfo.Sources.Source))
 
-		if aliyun.CDN.CDNType == CDNTypeDCDN {
+		if cdnType == CDNTypeDCDN {
 			aliyun.modifyDCDN()
 		} else {
 			aliyun.modifyCDN()
@@ -514,7 +517,8 @@ func (aliyun *Aliyun) request(params url.Values, result interface{}) (err error)
 	// 根据 CDN 类型选择对应的 endpoint 和 API 版本
 	var endpoint string
 	var apiVersion string
-	switch aliyun.CDN.CDNType {
+	cdnType := strings.ToUpper(aliyun.CDN.CDNType)
+	switch cdnType {
 	case CDNTypeDCDN:
 		endpoint = aliyunDCDNEndpoint
 		apiVersion = "2018-01-15"

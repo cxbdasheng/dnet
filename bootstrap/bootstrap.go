@@ -36,7 +36,7 @@ func RunOnce() {
 			switch cdn.Service {
 			case "aliyun":
 				cdnSelected = &dcdn.Aliyun{}
-			case "baidu":
+			case "baiducloud":
 				cdnSelected = &dcdn.Baidu{}
 			default:
 				cdnSelected = &dcdn.Aliyun{}

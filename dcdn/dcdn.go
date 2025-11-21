@@ -36,6 +36,13 @@ const (
 	UpdatedSuccess = "成功"
 )
 
+const (
+	// CDN 类型常量
+	CDNTypeCDN   string = "CDN"
+	CDNTypeDCDN  string = "DCDN"
+	CDNTypeDRCDN string = "DRCDN"
+)
+
 type Cache struct {
 	Times       int               // 剩余次数
 	TimesFailed int               // 获取ip失败的次数
