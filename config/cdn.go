@@ -29,6 +29,7 @@ type Source struct {
 	Priority string `json:"priority"`
 	Weight   string `json:"weight"`
 	Port     string `json:"port"`
+	Protocol string `json:"protocol"` // http 或 https，默认 http
 }
 
 // GetDCDNConfigJSON 将 DCDN 配置转换为 JSON 字符串
