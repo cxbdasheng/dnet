@@ -65,7 +65,7 @@
                     <div class="layui-input-block">
                         <input type="text" id="domain" name="domain" lay-verify="domain" autocomplete="off"
                                placeholder="请输域名" class="layui-input">
-                        <!--                                    <tip>填写自己部署网站的名称。</tip>-->
+<!--                                                            <tip>填写自己部署网站的名称。</tip>-->
                     </div>
                 </div>
                 <div class="layui-row layui-form-item">
@@ -110,6 +110,7 @@
                             <option value="cdn">CDN</option>
                             <option value="dcdn">DCDN</option>
                         </select>
+                        <tip>类型保存后不可更改，请谨慎选择</tip>
                     </div>
                     <div class="layui-form-mid layui-word-aux" id="type-help-text">类型请参考：</div>
                 </div>
@@ -125,6 +126,7 @@
                     <div class="layui-input-inline dnet-form-priority"><p>优先级</p></div>
                     <div class="layui-input-inline" ><p>权重</p></div>
                     <div class="layui-input-inline" ><p>端口</p> </div>
+                    <div class="layui-input-inline dnet-form-protocol-header" style="display: none;"><p>协议</p> </div>
                     <div class="layui-input-inline dnet-form-operation">操作</div>
                 </div>
                 <div class="layui-row layui-form-item dnet-form-sources">
@@ -195,6 +197,12 @@
                     <div class="layui-input-inline">
                         <input type="text" name="sources_port" lay-affix="number" value="80" step="1" max="65535" min="1" class="layui-input">
                     </div>
+                    <div class="layui-input-inline dnet-form-protocol">
+                        <select name="protocol">
+                            <option value="HTTP">HTTP</option>
+                            <option value="HTTPS">HTTPS</option>
+                        </select>
+                    </div>
                     <div class="layui-input-inline">
                         <button type="button" class="layui-btn btn-add-source">
                             <i class="layui-icon layui-icon-addition"></i>
@@ -231,6 +239,7 @@
         "sources_weight":10,
         "sources_port":80,
         "sources_priority": "main",
+        "sources_protocol": "HTTP",
         "sources_dynamic_ipv4_url": "https://myip.ipip.net, https://ddns.oray.com/checkip, https://ip.3322.net, https://4.ipw.cn, https://v4.yinghualuo.cn/bejson",
         "sources_dynamic_ipv6_url": "https://speed.neu6.edu.cn/getIP.php, https://v6.ident.me, https://6.ipw.cn, https://v6.yinghualuo.cn/bejson",
         "sources":[],
@@ -519,7 +528,8 @@
         function clearFormFields() {
             // 使用默认配置填充基本字段
             $('input[name="domain"]').val(defaultConfig.domain || '');
-            $('input[name="service"][value="' + (defaultConfig.service || firstCDNProvider) + '"]').prop('checked', true);
+            const defaultProvider = defaultConfig.service || firstCDNProvider;
+            $('input[name="service"][value="' + defaultProvider + '"]').prop('checked', true);
             $('input[name="access_key"]').val(defaultConfig.access_key || '');
             $('input[name="access_secret"]').val(defaultConfig.access_secret || '');
             $('select[name="cdn_type"]').val(defaultConfig.cdn_type || '');
@@ -538,6 +548,9 @@
             if ($firstRow.length) {
                 clearSourceRow($firstRow);
             }
+
+            // 更新表单以匹配默认服务商（这会正确设置协议字段的显示状态）
+            updateFormBasedOnProvider(defaultProvider);
 
             // 重新渲染表单并初始化所有源站行
             renderAndInitSourceRows();
@@ -732,7 +745,8 @@
                     value: sourceValue,
                     priority: $row.find('select[name="sources_priority"]').val(),
                     weight: $row.find('input[name="sources_weight"]').val(),
-                    port: $row.find('input[name="sources_port"]').val()
+                    port: $row.find('input[name="sources_port"]').val(),
+                    protocol: $row.find('select[name="protocol"]').val()
                 });
             });
             // 查找并更新或添加配置
@@ -890,6 +904,7 @@
             $row.find('select[name="sources_priority"]').val(sourceData.priority || defaultConfig.sources_priority);
             $row.find('input[name="sources_weight"]').val(sourceData.weight || defaultConfig.sources_weight);
             $row.find('input[name="sources_port"]').val(sourceData.port || defaultConfig.sources_port);
+            $row.find('select[name="protocol"]').val(sourceData.protocol || defaultConfig.sources_protocol);
         }
 
         // 清空源站行数据
@@ -1080,7 +1095,16 @@
             } else {
                 $serviceHelpContainer.html('<a href="">创建 AccessKey</a>');
             }
-
+            // 根据服务商显示或隐藏协议字段
+            if (providerId === 'baiducloud') {
+                // 百度云显示协议字段
+                $('.dnet-form-protocol-header').show();
+                $('.dnet-form-protocol').show();
+            } else {
+                // 其他服务商隐藏协议字段
+                $('.dnet-form-protocol-header').hide();
+                $('.dnet-form-protocol').hide();
+            }
             // 重新渲染表单
             form.render('select');
         }
