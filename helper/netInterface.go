@@ -1,7 +1,6 @@
 package helper
 
 import (
-	"fmt"
 	"net"
 )
 
@@ -16,7 +15,7 @@ type NetInterface struct {
 func GetNetInterface() (ipv4NetInterfaces []NetInterface, ipv6NetInterfaces []NetInterface, err error) {
 	allNetInterfaces, err := net.Interfaces()
 	if err != nil {
-		fmt.Println("net.Interfaces failed, err:", err.Error())
+		Error(LogTypeNetwork, "获取网络接口失败: %v", err)
 		return ipv4NetInterfaces, ipv6NetInterfaces, err
 	}
 

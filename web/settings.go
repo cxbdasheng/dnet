@@ -3,7 +3,6 @@ package web
 import (
 	"embed"
 	"encoding/json"
-	"fmt"
 	"html/template"
 	"net/http"
 
@@ -34,14 +33,12 @@ func Settings(writer http.ResponseWriter, request *http.Request) {
 func handleSettingsGet(writer http.ResponseWriter, request *http.Request) {
 	tmpl, err := template.ParseFS(settingsEmbedFile, "settings.html")
 	if err != nil {
-		fmt.Println("Error happened..")
-		fmt.Println(err)
+		helper.Error(helper.LogTypeConfig, "解析 settings.html 模板失败: %v", err)
 		return
 	}
 	conf, err := config.GetConfigCached()
 	if err != nil {
-		fmt.Println("Error happened..")
-		fmt.Println(err)
+		helper.Error(helper.LogTypeConfig, "获取配置失败: %v", err)
 		return
 	}
 
@@ -53,8 +50,7 @@ func handleSettingsGet(writer http.ResponseWriter, request *http.Request) {
 		conf.Settings,
 	})
 	if err != nil {
-		fmt.Println("Error happened..")
-		fmt.Println(err)
+		helper.Error(helper.LogTypeConfig, "执行 settings 模板失败: %v", err)
 	}
 }
 func handleSettingsPost(writer http.ResponseWriter, request *http.Request) {

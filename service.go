@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"os"
 	"os/exec"
 
 	"github.com/cxbdasheng/dnet/helper"
@@ -100,7 +98,7 @@ func getService() service.Service {
 
 // installService 使用service库安装系统服务
 func installService() {
-	fmt.Println("正在安装 D-NET 系统服务...")
+	helper.Info(helper.LogTypeSystem, "正在安装 D-NET 系统服务...")
 
 	s := getService()
 	status, err := s.Status()
@@ -110,7 +108,7 @@ func installService() {
 			if startErr := s.Start(); startErr != nil {
 				helper.Error(helper.LogTypeSystem, "服务安装成功但启动失败: %v", startErr)
 			}
-			fmt.Println("安装 D-NET 服务成功! 请打开浏览器并进行配置")
+			helper.Info(helper.LogTypeSystem, "安装 D-NET 服务成功! 请打开浏览器并进行配置")
 
 			// System V init 系统需要额外配置开机自启
 			if service.ChosenSystem().String() == "unix-systemv" {
@@ -120,7 +118,7 @@ func installService() {
 					if out, err := exec.Command("update-rc.d", serviceName, "defaults").CombinedOutput(); err != nil {
 						helper.Error(helper.LogTypeSystem, "update-rc.d 配置失败: %v, 输出: %s", err, out)
 					} else {
-						fmt.Println("已配置开机自启 (update-rc.d)")
+						helper.Info(helper.LogTypeSystem, "已配置开机自启 (update-rc.d)")
 					}
 				} else if _, err := exec.LookPath("chkconfig"); err == nil {
 					// 尝试使用 chkconfig (RedHat/CentOS)
@@ -130,24 +128,24 @@ func installService() {
 						if out, err := exec.Command("chkconfig", serviceName, "on").CombinedOutput(); err != nil {
 							helper.Error(helper.LogTypeSystem, "chkconfig on 失败: %v, 输出: %s", err, out)
 						} else {
-							fmt.Println("已配置开机自启 (chkconfig)")
+							helper.Info(helper.LogTypeSystem, "已配置开机自启 (chkconfig)")
 						}
 					}
 				}
 			}
 			return
 		}
-		fmt.Printf("安装 D-NET 服务失败, 异常信息: %s", err)
+		helper.Error(helper.LogTypeSystem, "安装 D-NET 服务失败, 异常信息: %v", err)
 	}
 
 	if status != service.StatusUnknown {
-		fmt.Println("D-NET 服务已安装, 无需再次安装")
+		helper.Info(helper.LogTypeSystem, "D-NET 服务已安装, 无需再次安装")
 	}
 }
 
 // uninstallService 使用 service 库卸载系统服务
 func uninstallService() {
-	fmt.Println("正在卸载 D-NET 系统服务...")
+	helper.Info(helper.LogTypeSystem, "正在卸载 D-NET 系统服务...")
 
 	s := getService()
 	if stopErr := s.Stop(); stopErr != nil {
@@ -171,41 +169,36 @@ func uninstallService() {
 	}
 
 	if err := s.Uninstall(); err != nil {
-		fmt.Printf("D-NET 服务卸载失败: %v\n", err)
-		os.Exit(1)
+		helper.Fatal(helper.LogTypeSystem, "D-NET 服务卸载失败: %v", err)
 	}
-	fmt.Println("D-NET 服务卸载成功")
+	helper.Info(helper.LogTypeSystem, "D-NET 服务卸载成功")
 }
 
 // restartService 使用service库重启系统服务
 func restartService() {
-	fmt.Println("正在重启 D-NET 系统服务...")
+	helper.Info(helper.LogTypeSystem, "正在重启 D-NET 系统服务...")
 
 	s := getService()
 	status, err := s.Status()
 	if err != nil {
-		fmt.Println("D-NET 服务未安装, 请先安装服务")
-		os.Exit(1)
+		helper.Fatal(helper.LogTypeSystem, "D-NET 服务未安装, 请先安装服务")
 	}
 
 	switch status {
 	case service.StatusRunning:
 		// 服务正在运行，执行重启
 		if err = s.Restart(); err != nil {
-			fmt.Printf("D-NET 服务重启失败: %v\n", err)
-			os.Exit(1)
+			helper.Fatal(helper.LogTypeSystem, "D-NET 服务重启失败: %v", err)
 		}
-		fmt.Println("D-NET 服务重启成功")
+		helper.Info(helper.LogTypeSystem, "D-NET 服务重启成功")
 	case service.StatusStopped:
 		// 服务已停止，执行启动
 		if err = s.Start(); err != nil {
-			fmt.Printf("D-NET 服务启动失败: %v\n", err)
-			os.Exit(1)
+			helper.Fatal(helper.LogTypeSystem, "D-NET 服务启动失败: %v", err)
 		}
-		fmt.Println("D-NET 服务启动成功")
+		helper.Info(helper.LogTypeSystem, "D-NET 服务启动成功")
 	default:
-		fmt.Printf("D-NET 服务状态未知: %v\n", status)
-		os.Exit(1)
+		helper.Fatal(helper.LogTypeSystem, "D-NET 服务状态未知: %v", status)
 	}
 }
 

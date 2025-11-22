@@ -3,7 +3,6 @@ package web
 import (
 	"embed"
 	"encoding/json"
-	"fmt"
 	"html/template"
 	"net/http"
 
@@ -76,21 +75,18 @@ func handleWebhookPost(writer http.ResponseWriter, request *http.Request) {
 func handleWebhookGet(writer http.ResponseWriter, request *http.Request) {
 	tmpl, err := template.ParseFS(webhookEmbedFile, "webhook.html")
 	if err != nil {
-		fmt.Println("Error happened..")
-		fmt.Println(err)
+		helper.Error(helper.LogTypeWebhook, "解析 webhook.html 模板失败: %v", err)
 		return
 	}
 	conf, err := config.GetConfigCached()
 	if err != nil {
-		fmt.Println("Error happened..")
-		fmt.Println(err)
+		helper.Error(helper.LogTypeWebhook, "获取配置失败: %v", err)
 		return
 	}
 	err = tmpl.Execute(writer, struct {
 		config.Webhook
 	}{conf.Webhook})
 	if err != nil {
-		fmt.Println("Error happened..")
-		fmt.Println(err)
+		helper.Error(helper.LogTypeWebhook, "执行 webhook 模板失败: %v", err)
 	}
 }

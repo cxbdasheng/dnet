@@ -23,7 +23,7 @@ import (
 var configFilePath = flag.String("c", config.GetConfigFilePathDefault(), "Custom configuration file path")
 
 // 监听地址
-var listen = flag.String("l", ":9876", "Listen address")
+var listen = flag.String("l", ":9877", "Listen address")
 
 // 更新频率(秒)
 var every = flag.Int("f", 300, "Update frequency(seconds)")
@@ -68,6 +68,9 @@ func main() {
 
 	// 设置版本号
 	os.Setenv(web.VersionEnv, version)
+
+	// 设置端口
+	os.Setenv(config.DNETPort, *listen)
 
 	// 重置密码
 	if *newPassword != "" {

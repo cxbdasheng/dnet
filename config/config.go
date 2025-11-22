@@ -13,6 +13,8 @@ import (
 
 const PathENV = "DNET_CONFIG_FILE_PATH"
 
+const DNETPort = "DNET_PORT"
+
 func GetConfigFilePathDefault() string {
 	dir, err := os.UserHomeDir()
 	if err != nil {
@@ -21,7 +23,7 @@ func GetConfigFilePathDefault() string {
 	return dir + string(os.PathSeparator) + ".dnet_config.yaml"
 }
 func GetDefaultPort() string {
-	return ":8765"
+	return os.Getenv(DNETPort)
 }
 
 // GetConfigFilePath 获得配置文件路径
