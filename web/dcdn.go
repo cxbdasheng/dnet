@@ -62,6 +62,7 @@ func handleDCDNGet(writer http.ResponseWriter, request *http.Request) {
 		helper.Error(helper.LogTypeDCDN, "渲染模板失败: %v", err)
 	}
 }
+
 func handleDCDNPost(writer http.ResponseWriter, request *http.Request) {
 	var configData config.DCDNConfig
 	if err := json.NewDecoder(request.Body).Decode(&configData); err != nil {

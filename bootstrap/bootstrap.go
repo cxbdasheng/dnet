@@ -16,7 +16,6 @@ func RunTimer(delay time.Duration) {
 		time.Sleep(delay)
 	}
 }
-
 func RunOnce() {
 	conf, err := config.GetConfigCached()
 	if err != nil {

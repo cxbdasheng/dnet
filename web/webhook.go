@@ -49,6 +49,7 @@ func Webhook(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 }
+
 func handleWebhookPost(writer http.ResponseWriter, request *http.Request) {
 	var webhook config.Webhook
 	if err := json.NewDecoder(request.Body).Decode(&webhook); err != nil {
@@ -72,6 +73,7 @@ func handleWebhookPost(writer http.ResponseWriter, request *http.Request) {
 
 	helper.ReturnSuccess(writer, "配置保存成功", nil)
 }
+
 func handleWebhookGet(writer http.ResponseWriter, request *http.Request) {
 	tmpl, err := template.ParseFS(webhookEmbedFile, "webhook.html")
 	if err != nil {

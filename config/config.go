@@ -22,6 +22,8 @@ func GetConfigFilePathDefault() string {
 	}
 	return dir + string(os.PathSeparator) + ".dnet_config.yaml"
 }
+
+// GetDefaultPort 获取默认端口
 func GetDefaultPort() string {
 	return os.Getenv(DNETPort)
 }

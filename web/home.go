@@ -23,6 +23,7 @@ func Home(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 }
+
 func handleHomeGet(writer http.ResponseWriter, request *http.Request) {
 	tmpl, err := template.ParseFS(homeEmbedFile, "home.html")
 	if err != nil {

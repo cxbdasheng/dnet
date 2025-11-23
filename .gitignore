@@ -36,10 +36,13 @@ _test
 releases
 vendor/
 /dist
+/bin
 trace.out
 _testmain.go
 CLAUDE.md
 
+# 构建产物
+dnet
 
 # IDE 和编辑器
 .idea/

@@ -30,6 +30,7 @@ func Settings(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 }
+
 func handleSettingsGet(writer http.ResponseWriter, request *http.Request) {
 	tmpl, err := template.ParseFS(settingsEmbedFile, "settings.html")
 	if err != nil {
@@ -53,6 +54,7 @@ func handleSettingsGet(writer http.ResponseWriter, request *http.Request) {
 		helper.Error(helper.LogTypeConfig, "执行 settings 模板失败: %v", err)
 	}
 }
+
 func handleSettingsPost(writer http.ResponseWriter, request *http.Request) {
 	var settingsReq SettingsRequest
 	if err := json.NewDecoder(request.Body).Decode(&settingsReq); err != nil {
