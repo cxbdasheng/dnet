@@ -56,7 +56,7 @@ jobs:
           distribution: goreleaser
           version: latest
           args: release --clean
-
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          GITHUB_REPOSITORY: ${{ github.repository }}

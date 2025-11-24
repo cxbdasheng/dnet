@@ -7,6 +7,8 @@ before:
   hooks:
     - go mod download
     - go mod tidy
+    - sh -c 'test -d zoneinfo || cp -r /usr/share/zoneinfo zoneinfo'
+
 builds:
   - id: dnet
     binary: dnet
@@ -28,9 +30,6 @@ builds:
       - -s -w
       - -X main.version={{.Version}}
       - -X main.buildTime={{.Date}}
-    hooks:
-      post:
-        - sh -c 'test -d zoneinfo || cp -r /usr/share/zoneinfo .'
 
 archives:
   - id: dnet-archive
