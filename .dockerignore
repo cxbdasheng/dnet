@@ -1,0 +1,70 @@
+# Git 相关
+.git
+.gitignore
+.gitattributes
+
+# 文档
+README.md
+README_*.md
+LICENSE
+*.md
+docs/
+
+# IDE 和编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 构建产物
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+bin/
+dist/
+build/
+
+# Go 相关
+*.mod
+*.sum
+go.work
+go.work.sum
+vendor/
+
+# 测试文件
+*_test.go
+**/*_test.go
+coverage.*
+
+# 配置文件（Docker 容器内部会生成）
+config/*.yaml
+config/*.yml
+config/*.json
+*.log
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Docker 相关（避免递归复制）
+Dockerfile
+Dockerfile.*
+docker-compose*.yml
+.dockerignore
+
+# 其他
+*.bak
+*.orig
+node_modules/
