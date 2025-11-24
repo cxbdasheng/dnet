@@ -82,7 +82,7 @@ func main() {
 			}
 			helper.Info(helper.LogTypeSystem, "密码已重置")
 		} else {
-			helper.Fatalf(helper.LogTypeSystem, "配置文件 %s 不存在, 可通过-c指定配置文件\n", *configFilePath)
+			helper.Fatalf(helper.LogTypeSystem, "配置文件 %s 不存在, 可通过 -c 指定配置文件\n", *configFilePath)
 		}
 		return
 	}
@@ -90,7 +90,7 @@ func main() {
 	if *customDNS != "" {
 		helper.SetDNS(*customDNS)
 	}
-
+	// 设置缓存次数
 	os.Setenv(dcdn.CacheTimesENV, strconv.Itoa(*dcdnCacheTimes))
 
 	switch *serviceType {
@@ -121,8 +121,8 @@ func main() {
 			}
 		}
 	}
-
 }
+
 func staticFsFunc(writer http.ResponseWriter, request *http.Request) {
 	http.FileServer(http.FS(staticEmbeddedFiles)).ServeHTTP(writer, request)
 }
