@@ -1,0 +1,176 @@
+# GoReleaser configuration for D-NET
+# Documentation: https://goreleaser.com
+
+version: 2
+
+before:
+  hooks:
+    - go mod download
+    - go mod tidy
+builds:
+  - id: dnet
+    binary: dnet
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+      - arm
+    goarm:
+      - '7'
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.buildTime={{.Date}}
+    hooks:
+      post:
+        - sh -c 'test -d zoneinfo || cp -r /usr/share/zoneinfo .'
+
+archives:
+  - id: dnet-archive
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  version_template: "{{ incpatch .Version }}-devel"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - '^style:'
+  groups:
+    - title: 'Features'
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: 'Bug Fixes'
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: 'Others'
+      order: 999
+
+dockers:
+  - image_templates:
+      - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-amd64"
+      - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-amd64"
+    use: buildx
+    goarch: amd64
+    extra_files:
+      - zoneinfo
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.description=Dynamic Network Management System"
+      - "--label=org.opencontainers.image.url=https://github.com/{{.Env.GITHUB_REPOSITORY}}"
+      - "--label=org.opencontainers.image.source=https://github.com/{{.Env.GITHUB_REPOSITORY}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.licenses=MIT"
+
+  - image_templates:
+      - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-arm64"
+      - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-arm64"
+    use: buildx
+    goarch: arm64
+    extra_files:
+      - zoneinfo
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.description=Dynamic Network Management System"
+      - "--label=org.opencontainers.image.url=https://github.com/{{.Env.GITHUB_REPOSITORY}}"
+      - "--label=org.opencontainers.image.source=https://github.com/{{.Env.GITHUB_REPOSITORY}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.licenses=MIT"
+
+  - image_templates:
+      - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-armv7"
+      - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-armv7"
+    use: buildx
+    goarch: arm
+    goarm: '7'
+    extra_files:
+      - zoneinfo
+    build_flag_templates:
+      - "--platform=linux/arm/v7"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.description=Dynamic Network Management System"
+      - "--label=org.opencontainers.image.url=https://github.com/{{.Env.GITHUB_REPOSITORY}}"
+      - "--label=org.opencontainers.image.source=https://github.com/{{.Env.GITHUB_REPOSITORY}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.licenses=MIT"
+
+  - image_templates:
+      - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-riscv64"
+      - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-riscv64"
+    use: buildx
+    goarch: riscv64
+    extra_files:
+      - zoneinfo
+    build_flag_templates:
+      - "--platform=linux/riscv64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.description=Dynamic Network Management System"
+      - "--label=org.opencontainers.image.url=https://github.com/{{.Env.GITHUB_REPOSITORY}}"
+      - "--label=org.opencontainers.image.source=https://github.com/{{.Env.GITHUB_REPOSITORY}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.licenses=MIT"
+
+docker_manifests:
+  - name_template: "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}"
+    image_templates:
+      - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-amd64"
+      - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-arm64"
+      - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-armv7"
+      - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-riscv64"
+
+  - name_template: "{{ .Env.DOCKER_USERNAME }}/dnet:latest"
+    image_templates:
+      - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-amd64"
+      - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-arm64"
+      - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-armv7"
+      - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-riscv64"
+
+  - name_template: "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}"
+    image_templates:
+      - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-amd64"
+      - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-arm64"
+      - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-armv7"
+      - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-riscv64"
+
+  - name_template: "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:latest"
+    image_templates:
+      - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-amd64"
+      - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-arm64"
+      - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-armv7"
+      - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-riscv64"

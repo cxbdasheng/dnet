@@ -9,7 +9,7 @@ RUN apk add --no-cache curl grep
 WORKDIR /app
 
 COPY zoneinfo /usr/share/zoneinfo
-COPY bin/dnet /app/dnet
+COPY dnet /app/dnet
 RUN chmod +x /app/dnet
 ENV TZ=Asia/Shanghai \
     LANG=C.UTF-8 \
