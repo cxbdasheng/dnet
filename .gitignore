@@ -25,7 +25,6 @@ _cgo_export.*
 *.so
 __*
 profile.cov
-/go.sum
 
 # 文件夹
 .DS_Store?
