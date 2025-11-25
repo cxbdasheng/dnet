@@ -24,10 +24,10 @@
 ### 设计初衷
 在复杂的国内网络环境下，我们可能会获得动态的公网 IPv6 地址。然而这个 IPv6 地址容易变化，且不支持 IPv4 访问。动态公网 IPv6 是否能实现固定的 IPv6/IPv4 访问呢？这正是 D-NET 诞生的初衷。
 
-其次，市面上虽然有许多成熟的方案如 DDNS、FRP 等，但这些都是独立的解决方案。D-NET 旨在提供更轻量级的一体化集成方案，将多种动态网络管理功能整合到一个工具中。
+其次，市面上虽然有许多成熟的方案如 DDNS、FRP 等，但这些都是独立的解决方案。有没有一种轻量级集成方案呢？这也是 D-NET 诞生的后续规划。
 
 ### 界面
-![界面](https://raw.githubusercontent.com/cxbdasheng/dne/main/dnet.png)
+![界面](https://raw.githubusercontent.com/cxbdasheng/dnet/refs/heads/main/dnet.png)
 
 ## 功能特性
 
