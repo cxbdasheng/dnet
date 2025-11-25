@@ -2,7 +2,6 @@
 # Documentation: https://goreleaser.com
 
 version: 2
-
 before:
   hooks:
     - go mod download
@@ -17,15 +16,36 @@ builds:
     flags:
       - -trimpath
     goos:
+      - android
       - linux
       - windows
       - darwin
+      - freebsd
     goarch:
+      - '386'
       - amd64
-      - arm64
       - arm
+      - arm64
+      - mips
+      - mipsle
+      - mips64
+      - mips64le
+      - riscv64
     goarm:
+      - '5'
+      - '6'
       - '7'
+    gomips:
+      - hardfloat
+      - softfloat
+    ignore:
+      # we only need the arm64 build on android
+      - goos: android
+        goarch: arm
+      - goos: android
+        goarch: '386'
+      - goos: android
+        goarch: amd64
     ldflags:
       - -s -w
       - -X main.version={{.Version}}
@@ -76,56 +96,57 @@ dockers:
       - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-amd64"
       - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-amd64"
     use: buildx
-    goarch: amd64
     extra_files:
       - zoneinfo
     build_flag_templates:
       - "--platform=linux/amd64"
       - "--label=org.opencontainers.image.created={{.Date}}"
       - "--label=org.opencontainers.image.title={{.ProjectName}}"
-      - "--label=org.opencontainers.image.description=Dynamic Network Management System"
-      - "--label=org.opencontainers.image.url=https://github.com/{{.Env.GITHUB_REPOSITORY}}"
-      - "--label=org.opencontainers.image.source=https://github.com/{{.Env.GITHUB_REPOSITORY}}"
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
       - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=org.opencontainers.image.licenses=MIT"
 
   - image_templates:
       - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-arm64"
       - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-arm64"
     use: buildx
-    goarch: arm64
     extra_files:
       - zoneinfo
     build_flag_templates:
       - "--platform=linux/arm64"
       - "--label=org.opencontainers.image.created={{.Date}}"
       - "--label=org.opencontainers.image.title={{.ProjectName}}"
-      - "--label=org.opencontainers.image.description=Dynamic Network Management System"
-      - "--label=org.opencontainers.image.url=https://github.com/{{.Env.GITHUB_REPOSITORY}}"
-      - "--label=org.opencontainers.image.source=https://github.com/{{.Env.GITHUB_REPOSITORY}}"
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
       - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=org.opencontainers.image.licenses=MIT"
+    goarch: arm64
 
   - image_templates:
       - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-armv7"
       - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-armv7"
     use: buildx
-    goarch: arm
-    goarm: '7'
     extra_files:
       - zoneinfo
     build_flag_templates:
       - "--platform=linux/arm/v7"
       - "--label=org.opencontainers.image.created={{.Date}}"
       - "--label=org.opencontainers.image.title={{.ProjectName}}"
-      - "--label=org.opencontainers.image.description=Dynamic Network Management System"
-      - "--label=org.opencontainers.image.url=https://github.com/{{.Env.GITHUB_REPOSITORY}}"
-      - "--label=org.opencontainers.image.source=https://github.com/{{.Env.GITHUB_REPOSITORY}}"
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
       - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=org.opencontainers.image.licenses=MIT"
+    goarch: arm
+    goarm: 7
+
+  - image_templates:
+      - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-riscv64"
+      - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-riscv64"
+    use: buildx
+    extra_files:
+      - zoneinfo
+    build_flag_templates:
+      - "--platform=linux/riscv64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+    goarch: riscv64
 
 docker_manifests:
   - name_template: "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}"
@@ -133,21 +154,25 @@ docker_manifests:
       - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-amd64"
       - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-arm64"
       - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-armv7"
+      - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-riscv64"
 
   - name_template: "{{ .Env.DOCKER_USERNAME }}/dnet:latest"
     image_templates:
       - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-amd64"
       - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-arm64"
       - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-armv7"
+      - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-riscv64"
 
   - name_template: "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}"
     image_templates:
       - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-amd64"
       - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-arm64"
       - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-armv7"
+      - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-riscv64"
 
   - name_template: "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:latest"
     image_templates:
       - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-amd64"
       - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-arm64"
       - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-armv7"
+      - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-riscv64"

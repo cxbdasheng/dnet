@@ -19,6 +19,6 @@ const CDN_PROVIDERS = {
             "DRCDN"
         ],
         idHelpHtml: "<a target='_blank' href='https://console.bce.baidu.com/iam/?_=1651763238057#/iam/accesslist'>创建 AccessKey </a>",
-        typeHelpHtml: "<a target='_blank' href='https://cloud.baidu.com/doc/CDN/s/Zjwvydyev'>CDN</a>、<a target='_blank' href='https://cloud.baidu.com/doc/CDN/s/Zjwvydyev'>DRCDN</a>",
+        typeHelpHtml: "<a target='_blank' href='https://console.bce.baidu.com/cdn#/cdn/list'>CDN</a>、<a target='_blank' href='https://console.bce.baidu.com/cdn#/cdn/list'>DRCDN</a>",
     }
 }
