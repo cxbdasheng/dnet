@@ -2,7 +2,7 @@
 
 # D-NET 动态网络解析管理系统
 
-一个轻量级的动态网络管理工具，支持动态 CDN (DCDN) 和动态 DNS (DDNS) 解析管理
+一款轻量级动态网络管理工具，为动态 IP 环境设计的一体化解决方案
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.23.0-blue.svg)](https://golang.org/)
@@ -22,9 +22,9 @@
 - **Web 管理界面** - 提供直观的 Web 管理界面，无需命令行操作
 
 ### 设计初衷
-在复杂的国内网络环境下，我们可能会获得动态的公网 IPv6 地址。然而这个 IPv6 地址容易变化，且不支持 IPv4 访问。动态公网 IPv6 是否能实现固定的 IPv6/IPv4 访问呢？这正是 D-NET 诞生的初衷。
+在国内网络环境下，运营商分配的动态公网 IPv6 地址经常变化，且无法直接支持 IPv4 访问。D-NET 正是为解决这一痛点而生，让动态 IPv6 也能实现稳定的双栈访问。
 
-其次，市面上虽然有许多成熟的方案如 DDNS、FRP 等，但这些都是独立的解决方案。有没有一种轻量级集成方案呢？这也是 D-NET 诞生的后续规划。
+其次，在市面上虽然有许多成熟的方案如 DDNS、FRP 等，但这些都是独立的解决方案。D-NET 旨在提供轻量级的一体化集成方案，这也是项目的核心目标和持续规划方向。
 
 ### 界面
 ![界面](https://raw.githubusercontent.com/cxbdasheng/dnet/refs/heads/main/dnet.png)
@@ -92,16 +92,16 @@ Windows: `.\dnet.exe -s restart`（以管理员身份运行）
 
 安装服务时可以指定以下参数：
 
-| 参数 | 说明 | 示例 |
-|------|------|------|
-| `-l` | 监听地址 | `-l :8080` |
-| `-f` | 同步间隔时间（秒） | `-f 600` |
-| `-dcdnCacheTimes` | 间隔 N 次与服务商比对 | `-dcdnCacheTimes 10` |
+| 参数 | 说明 | 示例                        |
+|------|------|---------------------------|
+| `-l` | 监听地址 | `-l :9877`                |
+| `-f` | 同步间隔时间（秒） | `-f 600`                  |
+| `-dcdnCacheTimes` | 间隔 N 次与服务商比对 | `-dcdnCacheTimes 10`      |
 | `-c` | 自定义配置文件路径 | `-c /path/to/config.yaml` |
-| `-noweb` | 不启动 Web 服务 | `-noweb` |
-| `-skipVerify` | 跳过 HTTPS 证书验证 | `-skipVerify` |
-| `-dns` | 自定义 DNS 服务器 | `-dns 8.8.8.8` |
-| `-resetPassword` | 重置密码 | `-resetPassword newpass` |
+| `-noweb` | 不启动 Web 服务 | `-noweb`                  |
+| `-skipVerify` | 跳过 HTTPS 证书验证 | `-skipVerify`             |
+| `-dns` | 自定义 DNS 服务器 | `-dns 8.8.8.8`            |
+| `-resetPassword` | 重置密码 | `-resetPassword newpass`  |
 
 **使用示例：**
 
@@ -264,14 +264,7 @@ https://sctapi.ftqq.com/[SendKey].send?title=DNET通知&desp=服务：#{serviceN
 
 </details>
 
-## 开发指南
-### 从源码构建
-#### 前置要求
-
-- Go 1.23.0 或更高版本
-- Make 工具（可选，也可直接使用 `go build`）
-
-#### 构建步骤
+## 从源码构建
 ```bash
 # 或使用 Make（如果可用）
 make build
@@ -282,17 +275,11 @@ go test ./...
 # 直接运行
 go run main.go
 ```
-### 贡献指南
+## 贡献指南
 如果您想为 D-NET 贡献代码、报告问题或提出建议，请阅读我们的 [贡献指南](CONTRIBUTING.md)。
 
-### 获取帮助
-
-- 查看 [Issues](https://github.com/cxbdasheng/dnet/issues) 了解已知问题
-- 提交新的 [Issue](https://github.com/cxbdasheng/dnet/issues/new) 报告问题
-
 ## 许可证
-
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。
+本项目采用 [MIT](LICENSE) 许可证
 
 ## 致谢
 
