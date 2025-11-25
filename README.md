@@ -14,11 +14,6 @@
 ---
 
 ## 项目介绍
-
-在复杂的国内网络环境下，我们可能会获得动态的公网 IPv6 地址。然而这个 IPv6 地址容易变化，且不支持 IPv4 访问。那么，动态公网 IPv6 是否能实现固定的 IPv6/IPv4 访问呢？这正是 D-NET 诞生的初衷。
-
-市面上虽然有许多成熟的方案如 DDNS、FRP 等，但这些都是独立的解决方案。D-NET 旨在提供更轻量级的一体化集成方案，将多种动态网络管理功能整合到一个工具中。
-
 ### 主要功能
 
 - **动态 CDN 管理 (DCDN)** - 自动更新 CDN 源站配置，支持多家 CDN 服务商，适用于动态公网 IPv6 转 IPv4/IPv6 场景
@@ -26,6 +21,13 @@
 - **Webhook 通知** - 支持多种通知方式，实时推送 IP 变更和更新信息
 - **Web 管理界面** - 提供直观的 Web 管理界面，无需命令行操作
 
+### 设计初衷
+在复杂的国内网络环境下，我们可能会获得动态的公网 IPv6 地址。然而这个 IPv6 地址容易变化，且不支持 IPv4 访问。动态公网 IPv6 是否能实现固定的 IPv6/IPv4 访问呢？这正是 D-NET 诞生的初衷。
+
+其次，市面上虽然有许多成熟的方案如 DDNS、FRP 等，但这些都是独立的解决方案。D-NET 旨在提供更轻量级的一体化集成方案，将多种动态网络管理功能整合到一个工具中。
+
+### 界面
+![界面](https://raw.githubusercontent.com/cxbdasheng/dne/main/dnet.png)
 
 ## 功能特性
 
@@ -270,27 +272,13 @@ https://sctapi.ftqq.com/[SendKey].send?title=DNET通知&desp=服务：#{serviceN
 - Make 工具（可选，也可直接使用 `go build`）
 
 #### 构建步骤
-
 ```bash
-# 克隆仓库
-git clone https://github.com/cxbdasheng/dnet.git
-cd dnet
-
-# 安装依赖
-go mod download
-
-# 构建当前平台
-go build -o dnet
-
 # 或使用 Make（如果可用）
 make build
-
 # 构建所有平台（使用 GoReleaser）
 goreleaser build --snapshot --clean
-
 # 运行测试
 go test ./...
-
 # 直接运行
 go run main.go
 ```
@@ -306,35 +294,6 @@ go run main.go
 - 提交代码修复或新功能实现
 
 详细的开发规范、代码风格、提交流程等信息，请参考 [CONTRIBUTING.md](CONTRIBUTING.md)。
-
-## 问题排查
-
-### 常见问题
-
-**Q: 端口 9877 被占用怎么办？**
-
-A: 使用 `-l` 参数指定其他端口，例如：`./dnet -l :8080`
-
-**Q: 如何查看日志？**
-
-A:
-- 直接运行：日志输出到控制台
-- 系统服务：
-  - Linux systemd：`journalctl -u dnet -f`
-  - Docker：`docker logs -f dnet`
-  - Web 界面：访问 `/logs` 页面
-
-**Q: Docker 容器无法访问配置文件？**
-
-A: 确保配置目录权限正确：`sudo chown -R 1000:1000 ./config`
-
-**Q: 为什么记录没有更新？**
-
-A: 检查以下几点：
-1. 配置文件中的 AccessKey 和 SecretKey 是否正确
-2. 域名是否已在云服务商处配置
-3. 查看日志确认错误信息
-4. 网络连接是否正常
 
 ### 获取帮助
 
