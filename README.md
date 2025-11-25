@@ -208,49 +208,6 @@ docker restart dnet
   -dcdnCacheTimes int
         DCDN 缓存次数（默认 5）
 ```
-
-### 配置文件示例
-
-配置文件默认位于 `~/.dnet_config.yaml`，首次运行会自动生成。
-
-```yaml
-# 用户认证
-user:
-  username: admin
-  password: your_password_hash
-
-# DCDN 配置
-dcdn:
-  providers:
-    - name: aliyun
-      access_key: your_access_key
-      secret_key: your_secret_key
-      domains:
-        - example.com
-    - name: baidu
-      access_key: your_access_key
-      secret_key: your_secret_key
-      domains:
-        - example.net
-
-# Webhook 通知
-webhook:
-  enabled: true
-  url: https://your-webhook-url.com
-  events:
-    - ip_changed
-    - dns_updated
-
-# 系统设置
-settings:
-  check_interval: 300  # 检查间隔（秒）
-  retry_times: 3       # 失败重试次数
-  timeout: 30          # 请求超时（秒）
-
-# 语言设置
-lang: zh-CN
-```
-
 ### Webhook 通知配置
 
 D-NET 支持 Webhook 通知功能。当域名更新成功或失败时，会向配置的 URL 发送通知。
@@ -304,10 +261,9 @@ https://sctapi.ftqq.com/[SendKey].send?title=DNET通知&desp=服务：#{serviceN
 ```
 
 </details>
+
 ## 开发指南
-
 ### 从源码构建
-
 #### 前置要求
 
 - Go 1.23.0 或更高版本
@@ -338,48 +294,18 @@ go test ./...
 # 直接运行
 go run main.go
 ```
-### 项目结构
-
-```
-dnet/
-├── main.go              # 程序入口
-├── config/              # 配置管理模块
-│   ├── config.go        # 配置结构定义
-│   ├── cdn.go           # CDN 配置
-│   ├── webhook.go       # Webhook 配置
-│   └── user.go          # 用户配置
-├── dcdn/                # DCDN 服务实现
-│   ├── dcdn.go          # 通用接口定义
-│   ├── aliyun.go        # 阿里云 CDN 实现
-│   └── baidu.go         # 百度云 CDN 实现
-├── signer/              # 签名工具
-├── web/                 # Web 界面和 API
-├── helper/              # 工具函数
-├── bootstrap/           # 应用启动器
-├── static/              # 静态资源文件
-├── .goreleaser.yaml     # GoReleaser 配置
-├── Dockerfile           # Docker 镜像构建文件
-├── go.mod               # Go 模块定义
-└── go.sum               # 依赖版本锁定
-```
-
 ### 贡献指南
 
-欢迎提交 Issue 和 Pull Request！贡献流程：
+作为一个开源项目，我们欢迎并感谢任何形式的贡献和想法！
 
-1. **Fork 本仓库**到您的 GitHub 账号
-2. **创建特性分支**：`git checkout -b feature/AmazingFeature`
-3. **提交更改**：`git commit -m 'feat: add some amazing feature'`
-4. **推送到分支**：`git push origin feature/AmazingFeature`
-5. **开启 Pull Request**，并详细描述您的改动
+如果您想为 D-NET 贡献代码、报告问题或提出建议，请阅读我们的 [贡献指南](CONTRIBUTING.md)。
 
-### 开发规范
+主要贡献方式：
+- 报告 Bug 或提出功能建议
+- 改进文档或修复拼写错误
+- 提交代码修复或新功能实现
 
-- **代码风格**：遵循 [Effective Go](https://go.dev/doc/effective_go) 规范
-- **代码格式化**：使用 `go fmt` 或 `gofmt` 格式化代码
-- **测试**：为新功能添加单元测试，确保测试通过
-- **提交信息**：使用语义化的提交信息（如：`feat:`、`fix:`、`docs:` 等）
-- **文档**：更新相关文档，包括 README 和代码注释
+详细的开发规范、代码风格、提交流程等信息，请参考 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 问题排查
 
@@ -426,13 +352,3 @@ A: 检查以下几点：
 - [kardianos/service](https://github.com/kardianos/service) - 跨平台系统服务管理
 - [go-yaml/yaml](https://github.com/go-yaml/yaml) - YAML 配置文件解析
 - [GoReleaser](https://goreleaser.com/) - 自动化构建和发布工具
-
----
-
-<div align="center">
-
-**如果这个项目对你有帮助，欢迎给个 ⭐ Star！**
-
-Made with ❤ by [cxbdasheng](https://github.com/cxbdasheng)
-
-</div>
