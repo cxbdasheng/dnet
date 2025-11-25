@@ -2,7 +2,7 @@
 
 # D-NET 动态网络解析管理系统
 
-一款轻量级动态网络管理工具，为动态 IP 环境设计的一体化解决方案
+一款轻量级动态网络管理工具，轻松将动态 IP 转为 IPv4/IPv6 双栈访问
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.23.0-blue.svg)](https://golang.org/)
@@ -277,6 +277,16 @@ go run main.go
 ```
 ## 贡献指南
 如果您想为 D-NET 贡献代码、报告问题或提出建议，请阅读我们的 [贡献指南](CONTRIBUTING.md)。
+
+## 版本规划
+### 即将推出
+- **DDNS 支持** - 完整的动态 DNS 解析功能，支持主流 DNS 服务商
+- **多语言支持** - 国际化支持，提供中文、英文等多语言界面
+- **更多 CDN 服务商** - 支持更多 CDN 平台
+- **监控告警** - IP 变化监控和异常告警通知
+
+
+欢迎通过 [Issues](https://github.com/cxbdasheng/dnet/issues) 提出您的功能建议！
 
 ## 许可证
 本项目采用 [MIT](LICENSE) 许可证
