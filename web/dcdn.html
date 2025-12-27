@@ -196,6 +196,7 @@
                     </div>
                     <div class="layui-input-inline">
                         <input type="text" name="sources_port" lay-affix="number" value="80" step="1" max="65535" min="1" class="layui-input">
+                        <tip id="port-disabled-tip" style="display: none;">阿里云 ESA 类型不支持自定义端口</tip>
                     </div>
                     <div class="layui-input-inline dnet-form-protocol">
                         <select name="protocol">
@@ -582,6 +583,18 @@
 
         // 添加源站按钮点击事件
         $(document).on('click', '.btn-add-source', function() {
+            // 检查是否为阿里云 ESA 类型
+            const selectedService = $('input[name="service"]:checked').val();
+            const selectedCDNType = $('select[name="cdn_type"]').val();
+
+            if (selectedService === 'aliyun' && selectedCDNType === 'ESA') {
+                layer.msg('阿里云 ESA 类型仅支持单个源站，无法添加更多源站', {
+                    icon: 0,
+                    time: 2500
+                });
+                return false;
+            }
+
             const $currentRow = $(this).closest('.dnet-form-sources');
             const $newRow = $currentRow.clone();
 
@@ -1127,9 +1140,58 @@
                 $row.hide();
             }
         }
+        // 更新端口输入框状态
+        function updatePortInputStatus() {
+            const selectedService = $('input[name="service"]:checked').val();
+            const selectedCDNType = $('select[name="cdn_type"]').val();
+
+            if (selectedService === 'aliyun' && selectedCDNType === 'ESA') {
+                // 阿里云 ESA 类型禁用端口输入框
+                $('input[name="sources_port"]').prop('disabled', true).addClass('layui-disabled');
+                $('#port-disabled-tip').show();
+            } else {
+                // 其他情况启用端口输入框
+                $('input[name="sources_port"]').prop('disabled', false).removeClass('layui-disabled');
+                $('#port-disabled-tip').hide();
+            }
+        }
+
         // 监听CDN提供商选择变化
         form.on('radio(service)', function (data) {
             updateFormBasedOnProvider(data.value);
+            updatePortInputStatus();
+        });
+
+        // 监听 CDN 类型选择变化
+        form.on('select(cdn-type-filter)', function(data) {
+            const selectedService = $('input[name="service"]:checked').val();
+            const selectedCDNType = data.value;
+
+            // 如果选择了阿里云 ESA，检查源站数量
+            if (selectedService === 'aliyun' && selectedCDNType === 'ESA') {
+                // 获取当前所有源站行（排除标题行）
+                const $sourceRows = $('.dnet-form-sources').filter(function() {
+                    return !$(this).find('p').length;
+                });
+
+                // 如果有多个源站，删除多余的并提示用户
+                if ($sourceRows.length > 1) {
+                    layer.msg('阿里云 ESA 类型仅支持单个源站，已自动保留第一个源站', {
+                        icon: 0,
+                        time: 3000
+                    });
+
+                    // 删除除第一个之外的所有源站行
+                    $sourceRows.each(function(index) {
+                        if (index > 0) {
+                            $(this).remove();
+                        }
+                    });
+                }
+            }
+
+            // 更新端口输入框状态
+            updatePortInputStatus();
         });
 
         // 初始化CDN提供商选择
@@ -1141,6 +1203,8 @@
             $('input[name="dcdn_enable"]').prop('checked', configData.dcdn_enable);
             form.render('checkbox');
         }
+        // 初始化端口输入框状态
+        updatePortInputStatus();
     });
 
 </script>
