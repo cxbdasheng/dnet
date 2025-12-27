@@ -21,6 +21,7 @@ type CDN struct {
 	AccessSecret string   `json:"access_secret"`
 	CDNType      string   `json:"cdn_type"`
 	Sources      []Source `json:"sources"`
+	CName        string   `json:"cname"`
 }
 
 // GetRootDomain 获取域名的根域名
@@ -117,6 +118,7 @@ func GetDCDNConfigJSON(DCDNConf DCDNConfig) string {
 			ID:           cdn.ID,
 			Name:         cdn.Name,
 			Domain:       cdn.Domain,
+			CName:        cdn.CName,
 			Service:      cdn.Service,
 			AccessKey:    maskSensitiveString(cdn.AccessKey),
 			AccessSecret: maskSensitiveString(cdn.AccessSecret),

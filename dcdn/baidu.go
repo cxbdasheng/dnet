@@ -17,9 +17,10 @@ const (
 )
 
 type Baidu struct {
-	CDN    *config.CDN
-	Cache  *Cache
-	Status statusType
+	CDN           *config.CDN
+	Cache         *Cache
+	Status        statusType
+	configChanged bool // 标记配置是否发生变化（用于触发保存）
 }
 
 func (baidu *Baidu) GetServiceStatus() string {
@@ -34,6 +35,10 @@ func (baidu *Baidu) GetServiceName() string {
 		return baidu.CDN.Name
 	}
 	return baidu.CDN.Domain
+}
+
+func (baidu *Baidu) ConfigChanged() bool {
+	return baidu.configChanged
 }
 
 // getCDNTypeName 获取 CDN 类型的显示名称

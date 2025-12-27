@@ -19,9 +19,10 @@ const (
 )
 
 type Aliyun struct {
-	CDN    *config.CDN
-	Cache  *Cache
-	Status statusType
+	CDN           *config.CDN
+	Cache         *Cache
+	Status        statusType
+	configChanged bool // 标记配置是否发生变化（用于触发保存）
 }
 
 func (aliyun *Aliyun) GetServiceStatus() string {
@@ -36,6 +37,10 @@ func (aliyun *Aliyun) GetServiceName() string {
 		return aliyun.CDN.Name
 	}
 	return aliyun.CDN.Domain
+}
+
+func (aliyun *Aliyun) ConfigChanged() bool {
+	return aliyun.configChanged
 }
 
 // AliyunSource 阿里云源站配置
@@ -388,6 +393,17 @@ func (aliyun *Aliyun) updateOrCreateSite() {
 	if err != nil {
 		helper.Error(helper.LogTypeDCDN, "查询域名失败 [域名=%s, 错误=%v]", aliyun.CDN.Domain, err)
 		return
+	}
+
+	// 如果查询到域名信息，保存 CNAME（仅当 CNAME 发生变化时）
+	if domainInfo != nil {
+		newCname := domainInfo.GetCname()
+		if newCname != "" && newCname != aliyun.CDN.CName {
+			helper.Info(helper.LogTypeDCDN, "CNAME 发生变化 [域名=%s, 旧CNAME=%s, 新CNAME=%s]",
+				aliyun.CDN.Domain, aliyun.CDN.CName, newCname)
+			aliyun.CDN.CName = newCname
+			aliyun.configChanged = true
+		}
 	}
 
 	// 根据查询结果判断是创建还是修改

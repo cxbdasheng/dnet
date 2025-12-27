@@ -69,6 +69,18 @@
                     </div>
                 </div>
                 <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="cname">CNAME：</label>
+                    <div class="layui-input-inline" style="width: 500px;">
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="cname" name="cname" readonly class="layui-input" placeholder="CNAME 记录值将在此显示">
+                            <button type="button" class="layui-btn layui-btn-normal" id="copy-cname">
+                                <i class="layui-icon layui-icon-file"></i> 复制
+                            </button>
+                        </div>
+                        <tip>将此 CNAME 记录添加到您的 DNS 解析中</tip>
+                    </div>
+                </div>
+                <div class="layui-row layui-form-item">
                     <div class="layui-input-block">
                         <button type="submit" class="layui-btn" lay-submit lay-filter="save">立即提交
                         </button>
@@ -833,6 +845,7 @@
             const data = config;
             // 恢复基本配置
             $('input[name="domain"]').val(data.domain || '');
+            $('input[name="cname"]').val(data.cname || '');
             $('input[name="service"][value="' + (data.service || firstCDNProvider) + '"]').prop('checked', true);
             $('input[name="access_key"]').val(data.access_key || '');
             $('input[name="access_secret"]').val(data.access_secret || '');
@@ -1205,6 +1218,54 @@
         }
         // 初始化端口输入框状态
         updatePortInputStatus();
+
+        // 复制 CNAME 按钮点击事件
+        $('#copy-cname').on('click', function() {
+            const cnameValue = $('#cname').val();
+            if (!cnameValue) {
+                layer.msg('CNAME 记录为空，无法复制', {
+                    icon: 0,
+                    time: 2000
+                });
+                return false;
+            }
+
+            // 使用现代浏览器的 Clipboard API
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(cnameValue).then(function() {
+                    layer.msg('CNAME 已复制到剪贴板', {
+                        icon: 1,
+                        time: 1500
+                    });
+                }).catch(function(err) {
+                    // 失败时使用传统方法
+                    copyToClipboardFallback(cnameValue);
+                });
+            } else {
+                // 不支持现代 API，使用传统方法
+                copyToClipboardFallback(cnameValue);
+            }
+        });
+
+        // 传统复制方法（兼容旧浏览器）
+        function copyToClipboardFallback(text) {
+            const $temp = $('<textarea>');
+            $('body').append($temp);
+            $temp.val(text).select();
+            try {
+                document.execCommand('copy');
+                layer.msg('CNAME 已复制到剪贴板', {
+                    icon: 1,
+                    time: 1500
+                });
+            } catch (err) {
+                layer.msg('复制失败，请手动复制', {
+                    icon: 2,
+                    time: 2000
+                });
+            }
+            $temp.remove();
+        }
     });
 
 </script>

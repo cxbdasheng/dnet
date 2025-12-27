@@ -58,6 +58,7 @@ type CDN interface {
 	ShouldSendWebhook() bool
 	GetServiceStatus() string
 	GetServiceName() string
+	ConfigChanged() bool // 检查配置是否发生变化（需要保存）
 }
 
 // NewCache 创建新的缓存实例
