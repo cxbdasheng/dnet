@@ -79,6 +79,9 @@ func handleDCDNPost(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
+	// 恢复脱敏字段的原始值（如果前端发送的是脱敏数据）
+	configData = config.RestoreSensitiveFields(configData, conf.DCDNConfig)
+
 	// 更新 DCDN 配置
 	conf.DCDNConfig = configData
 	dcdn.ForceCompareGlobal = true
