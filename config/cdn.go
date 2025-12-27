@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/cxbdasheng/dnet/helper"
 )
@@ -12,15 +13,33 @@ type DCDNConfig struct {
 }
 
 type CDN struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Domain       string `json:"domain"`
-	Service      string `json:"service"`
-	AccessKey    string `json:"access_key"`
-	AccessSecret string `json:"access_secret"`
-	CDNType      string `json:"cdn_type"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Domain       string   `json:"domain"`
+	Service      string   `json:"service"`
+	AccessKey    string   `json:"access_key"`
+	AccessSecret string   `json:"access_secret"`
+	CDNType      string   `json:"cdn_type"`
+	Sources      []Source `json:"sources"`
+}
 
-	Sources []Source `json:"sources"`
+// GetRootDomain 获取域名的根域名
+// 例如：test.example.com -> example.com
+//
+//	example.com -> example.com
+func (c *CDN) GetRootDomain() string {
+	if c.Domain == "" {
+		return ""
+	}
+
+	parts := strings.Split(c.Domain, ".")
+	if len(parts) <= 2 {
+		// 已经是根域名或无效域名
+		return c.Domain
+	}
+
+	// 返回最后两段作为根域名
+	return parts[len(parts)-2] + "." + parts[len(parts)-1]
 }
 
 type Source struct {

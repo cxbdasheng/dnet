@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/cxbdasheng/dnet/bootstrap"
 	"github.com/cxbdasheng/dnet/config"
 	"github.com/cxbdasheng/dnet/dcdn"
 	"github.com/cxbdasheng/dnet/helper"
@@ -81,6 +82,7 @@ func handleDCDNPost(writer http.ResponseWriter, request *http.Request) {
 	// 更新 DCDN 配置
 	conf.DCDNConfig = configData
 	dcdn.ForceCompareGlobal = true
+	go bootstrap.RunOnce()
 	// 保存配置
 	if err := conf.SaveConfig(); err != nil {
 		helper.Error(helper.LogTypeDCDN, "保存配置失败: %v", err)

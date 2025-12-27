@@ -41,6 +41,7 @@ const (
 	CDNTypeCDN   string = "CDN"
 	CDNTypeDCDN  string = "DCDN"
 	CDNTypeDRCDN string = "DRCDN"
+	CDNTypeESA   string = "ESA"
 )
 
 type Cache struct {
@@ -74,6 +75,11 @@ func NewCache() Cache {
 // IsDynamicType 判断 source 类型是否为动态类型
 func IsDynamicType(sourceType string) bool {
 	return dynamicTypes[sourceType]
+}
+
+// IsDomainType 判断 sourceType 是否为域名类型
+func IsDomainType(sourceType string) bool {
+	return sourceType == "domain"
 }
 
 // CheckIPChanged 检查动态 IP 是否发生变化
