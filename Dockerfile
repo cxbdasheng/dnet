@@ -20,4 +20,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:9877/ || exit 1
 # 设置入口点和默认参数
 ENTRYPOINT ["/app/dnet"]
-CMD ["-l", ":9877", "-f", "300", "-c", "/app/config/config.yaml"]
+CMD ["-l", ":9877", "-f", "300"]

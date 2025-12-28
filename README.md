@@ -134,6 +134,7 @@ docker run -d \
   --name dnet \
   -p 9877:9877 \
   -v $(pwd)/config:/root \
+  --net=host \
   --restart unless-stopped \
   cxbdasheng/dnet:latest
 
