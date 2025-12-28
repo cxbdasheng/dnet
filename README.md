@@ -123,71 +123,91 @@ Windows: `.\dnet.exe -s restart`（以管理员身份运行）
 
 ### 方式二：使用 Docker
 
-#### 基本用法
+#### 推荐方式：Host 网络模式（仅 Linux）
+
+**强烈推荐**使用 host 网络模式，以便容器能够直接访问**宿主机的网卡信息**（特别是 **IPv6 地址**），这对于动态 IPv6 管理功能至关重要。
 
 ```bash
-# 拉取镜像
-docker pull cxbdasheng/dnet:latest
+docker run -d \
+  --name dnet \
+  --net=host \
+  -v /opt/dnet:/root \
+  --restart=always \
+  cxbdasheng/dnet:latest
+```
 
-# 运行容器（推荐方式）
+配置文件将保存在挂载目录下的 `.dnet_config.yaml`（隐藏文件），你可以将 `/opt/dnet` 替换为任意目录。
+
+> **重要说明**：`--net=host` 模式 **仅在 Linux 系统** 下有效，使用此模式容器可以直接获取宿主机的网络接口信息（包括 IPv6 地址）**macOS 和 Windows 不支持此模式**，请使用方式一（二进制文件）或下方的端口映射方式。
+
+#### 端口映射方式（macOS / Windows / Linux 通用）
+
+如果你使用 **macOS / Windows**，或不希望使用 host 模式，可使用端口映射方式：
+
+```bash
 docker run -d \
   --name dnet \
   -p 9877:9877 \
-  -v $(pwd)/config:/root \
-  --net=host \
-  --restart unless-stopped \
+  -v /opt/dnet:/root \
+  --restart=always \
   cxbdasheng/dnet:latest
-
-# 访问 Web 界面
-# 在浏览器中打开 http://localhost:9877
 ```
+
+> **功能限制**：端口映射模式下，容器无法直接获取宿主机的网卡信息，可能影响 IPv6 地址的自动检测功能。
 
 #### 使用 GitHub 容器镜像
 
 如果 Docker Hub 访问不畅，可以使用 GitHub Container Registry：
 
 ```bash
-docker pull ghcr.io/cxbdasheng/dnet:latest
-
+# Host 网络模式（仅 Linux）
 docker run -d \
   --name dnet \
-  --restart=always \
   --net=host \
   -v /opt/dnet:/root \
+  --restart=always \
+  ghcr.io/cxbdasheng/dnet:latest
+
+# 端口映射方式（全平台）
+docker run -d \
+  --name dnet \
+  -p 9877:9877 \
+  -v /opt/dnet:/root \
+  --restart=always \
   ghcr.io/cxbdasheng/dnet:latest
 ```
 
 #### Docker 高级选项
 
-**使用 host 网络模式：**
-
 ```bash
+# 自定义同步间隔（10 分钟）
 docker run -d \
   --name dnet \
-  --restart=always \
   --net=host \
   -v /opt/dnet:/root \
-  cxbdasheng/dnet:latest
-```
-
-**自定义参数启动：**
-
-```bash
-# 自定义监听地址和同步间隔
-docker run -d \
-  --name dnet \
   --restart=always \
-  --net=host \
-  -v /opt/dnet:/root \
   cxbdasheng/dnet:latest \
-  -l :9877 -f 600
+  -f 600
+
+# 指定配置文件路径和 DNS 服务器
+docker run -d \
+  --name dnet \
+  --net=host \
+  -v /opt/dnet:/root \
+  --restart=always \
+  cxbdasheng/dnet:latest \
+  -c /root/.dnet_config.yaml -dns 8.8.8.8
 ```
 
-**重置密码：**
+**容器管理命令：**
 
 ```bash
+# 重置密码
 docker exec dnet ./dnet -resetPassword 123456
 docker restart dnet
+
+# 查看日志
+docker logs -f dnet
 ```
 ## 使用文档
 
