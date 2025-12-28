@@ -484,6 +484,8 @@
                         layer.msg(res.msg, {
                             icon: 1,
                             time: 1000
+                        }, function() {
+                            location.reload();
                         });
                     }else {
                         layer.msg(res.msg, {
