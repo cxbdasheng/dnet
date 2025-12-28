@@ -636,6 +636,21 @@ func (aliyun *Aliyun) createCDN() {
 
 	aliyun.Status = UpdatedSuccess
 	helper.Info(helper.LogTypeDCDN, "创建 CDN 域名成功 [域名=%s, RequestId=%v]", aliyun.CDN.Domain, result["RequestId"])
+
+	// 创建成功后查询域名信息获取 CNAME
+	domainInfo, err := aliyun.describeCDNDomain()
+	if err != nil {
+		helper.Warn(helper.LogTypeDCDN, "创建 CDN 域名后查询 CNAME 失败 [域名=%s, 错误=%v]", aliyun.CDN.Domain, err)
+		return
+	}
+	if domainInfo != nil {
+		newCname := domainInfo.GetCname()
+		if newCname != "" && newCname != aliyun.CDN.CName {
+			helper.Info(helper.LogTypeDCDN, "获取到 CNAME [域名=%s, CNAME=%s]", aliyun.CDN.Domain, newCname)
+			aliyun.CDN.CName = newCname
+			aliyun.configChanged = true
+		}
+	}
 }
 
 func (aliyun *Aliyun) modifyCDN() {
@@ -679,6 +694,21 @@ func (aliyun *Aliyun) createDCDN() {
 
 	aliyun.Status = UpdatedSuccess
 	helper.Info(helper.LogTypeDCDN, "创建 DCDN 域名成功 [域名=%s, RequestId=%v]", aliyun.CDN.Domain, result["RequestId"])
+
+	// 创建成功后查询域名信息获取 CNAME
+	domainInfo, err := aliyun.describeDCDNDomain()
+	if err != nil {
+		helper.Warn(helper.LogTypeDCDN, "创建 DCDN 域名后查询 CNAME 失败 [域名=%s, 错误=%v]", aliyun.CDN.Domain, err)
+		return
+	}
+	if domainInfo != nil {
+		newCname := domainInfo.GetCname()
+		if newCname != "" && newCname != aliyun.CDN.CName {
+			helper.Info(helper.LogTypeDCDN, "获取到 CNAME [域名=%s, CNAME=%s]", aliyun.CDN.Domain, newCname)
+			aliyun.CDN.CName = newCname
+			aliyun.configChanged = true
+		}
+	}
 }
 
 func (aliyun *Aliyun) modifyDCDN() {
@@ -737,6 +767,21 @@ func (aliyun *Aliyun) createESA(SiteId int64) {
 
 	aliyun.Status = UpdatedSuccess
 	helper.Info(helper.LogTypeDCDN, "创建 %s 域名成功 [域名=%s, RequestId=%v]", aliyun.getCDNTypeName(), aliyun.CDN.Domain, result["RequestId"])
+
+	// 创建成功后查询域名信息获取 CNAME
+	domainInfo, err := aliyun.describeESADomain(SiteId)
+	if err != nil {
+		helper.Warn(helper.LogTypeDCDN, "创建 %s 域名后查询 CNAME 失败 [域名=%s, 错误=%v]", aliyun.getCDNTypeName(), aliyun.CDN.Domain, err)
+		return
+	}
+	if domainInfo != nil {
+		newCname := domainInfo.GetCname()
+		if newCname != "" && newCname != aliyun.CDN.CName {
+			helper.Info(helper.LogTypeDCDN, "获取到 CNAME [域名=%s, CNAME=%s]", aliyun.CDN.Domain, newCname)
+			aliyun.CDN.CName = newCname
+			aliyun.configChanged = true
+		}
+	}
 }
 
 func (aliyun *Aliyun) modifyESA(RecordId int64) {

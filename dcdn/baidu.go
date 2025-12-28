@@ -230,6 +230,17 @@ func (baidu *Baidu) updateOrCreateSite() {
 		return
 	}
 
+	// 如果查询到域名信息，保存 CNAME（仅当 CNAME 发生变化时）
+	if domainInfo != nil {
+		newCname := domainInfo.Cname
+		if newCname != "" && newCname != baidu.CDN.CName {
+			helper.Info(helper.LogTypeDCDN, "CNAME 发生变化 [域名=%s, 旧CNAME=%s, 新CNAME=%s]",
+				baidu.CDN.Domain, baidu.CDN.CName, newCname)
+			baidu.CDN.CName = newCname
+			baidu.configChanged = true
+		}
+	}
+
 	// 根据查询结果判断是创建还是修改
 	if domainInfo == nil {
 		// 域名不存在，需要创建
@@ -373,6 +384,21 @@ func (baidu *Baidu) createCDN() {
 
 	baidu.Status = UpdatedSuccess
 	helper.Info(helper.LogTypeDCDN, "创建百度云 %s 域名成功 [域名=%s]", baidu.getCDNTypeName(), baidu.CDN.Domain)
+
+	// 创建成功后查询域名信息获取 CNAME
+	domainInfo, err := baidu.describeDomain()
+	if err != nil {
+		helper.Warn(helper.LogTypeDCDN, "创建百度云 %s 域名后查询 CNAME 失败 [域名=%s, 错误=%v]", baidu.getCDNTypeName(), baidu.CDN.Domain, err)
+		return
+	}
+	if domainInfo != nil {
+		newCname := domainInfo.Cname
+		if newCname != "" && newCname != baidu.CDN.CName {
+			helper.Info(helper.LogTypeDCDN, "获取到 CNAME [域名=%s, CNAME=%s]", baidu.CDN.Domain, newCname)
+			baidu.CDN.CName = newCname
+			baidu.configChanged = true
+		}
+	}
 }
 
 func (baidu *Baidu) modifyCDN() {
