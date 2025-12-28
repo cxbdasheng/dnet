@@ -128,32 +128,22 @@ Windows: `.\dnet.exe -s restart`（以管理员身份运行）
 **强烈推荐**使用 host 网络模式，以便容器能够直接访问**宿主机的网卡信息**（特别是 **IPv6 地址**），这对于动态 IPv6 管理功能至关重要。
 
 ```bash
-docker run -d \
-  --name dnet \
-  --net=host \
-  -v /opt/dnet:/root \
-  --restart=always \
-  cxbdasheng/dnet:latest
+docker run -d --name dnet --net=host -v /opt/dnet:/root --restart=always cxbdasheng/dnet:latest
 ```
 
 配置文件将保存在挂载目录下的 `.dnet_config.yaml`（隐藏文件），你可以将 `/opt/dnet` 替换为任意目录。
 
-> **重要说明**：`--net=host` 模式 **仅在 Linux 系统** 下有效，使用此模式容器可以直接获取宿主机的网络接口信息（包括 IPv6 地址）**macOS 和 Windows 不支持此模式**，请使用方式一（二进制文件）或下方的端口映射方式。
+> ⚠️ **重要说明**：
+> - `--net=host` 模式 **仅在 Linux 系统** 下有效
+> - 使用此模式容器可以直接获取宿主机的网络接口信息（包括 IPv6 地址）
+> - **macOS 和 Windows 不支持此模式**，请使用方式一（二进制文件）或下方的端口映射方式
 
 #### 端口映射方式（macOS / Windows / Linux 通用）
-
 如果你使用 **macOS / Windows**，或不希望使用 host 模式，可使用端口映射方式：
-
 ```bash
-docker run -d \
-  --name dnet \
-  -p 9877:9877 \
-  -v /opt/dnet:/root \
-  --restart=always \
-  cxbdasheng/dnet:latest
+docker run -d --name dnet -p 9877:9877 -v /opt/dnet:/root --restart=always cxbdasheng/dnet:latest
 ```
-
-> **功能限制**：端口映射模式下，容器无法直接获取宿主机的网卡信息，可能影响 IPv6 地址的自动检测功能。
+>  ⚠️ **功能限制**：端口映射模式下，容器无法直接获取宿主机的网卡信息，可能影响 IPv6 地址的自动检测功能。
 
 #### 使用 GitHub 容器镜像
 
@@ -161,42 +151,20 @@ docker run -d \
 
 ```bash
 # Host 网络模式（仅 Linux）
-docker run -d \
-  --name dnet \
-  --net=host \
-  -v /opt/dnet:/root \
-  --restart=always \
-  ghcr.io/cxbdasheng/dnet:latest
+docker run -d --name dnet --net=host -v /opt/dnet:/root --restart=always ghcr.io/cxbdasheng/dnet:latest
 
 # 端口映射方式（全平台）
-docker run -d \
-  --name dnet \
-  -p 9877:9877 \
-  -v /opt/dnet:/root \
-  --restart=always \
-  ghcr.io/cxbdasheng/dnet:latest
+docker run -d --name dnet -p 9877:9877 -v /opt/dnet:/root --restart=always ghcr.io/cxbdasheng/dnet:latest
 ```
 
 #### Docker 高级选项
 
 ```bash
 # 自定义同步间隔（10 分钟）
-docker run -d \
-  --name dnet \
-  --net=host \
-  -v /opt/dnet:/root \
-  --restart=always \
-  cxbdasheng/dnet:latest \
-  -f 600
+docker run -d --name dnet --net=host -v /opt/dnet:/root --restart=always cxbdasheng/dnet:latest -f 600
 
 # 指定配置文件路径和 DNS 服务器
-docker run -d \
-  --name dnet \
-  --net=host \
-  -v /opt/dnet:/root \
-  --restart=always \
-  cxbdasheng/dnet:latest \
-  -c /root/.dnet_config.yaml -dns 8.8.8.8
+docker run -d --name dnet --net=host -v /opt/dnet:/root --restart=always cxbdasheng/dnet:latest -c /root/.dnet_config.yaml -dns 8.8.8.8
 ```
 
 **容器管理命令：**
@@ -301,17 +269,6 @@ go run main.go
 ```
 ## 贡献指南
 如果您想为 D-NET 贡献代码、报告问题或提出建议，请阅读我们的 [贡献指南](CONTRIBUTING.md)。
-
-## 版本规划
-### 即将推出
-- **DDNS 支持** - 完整的动态 DNS 解析功能，支持主流 DNS 服务商
-- **多语言支持** - 国际化支持，提供中文、英文等多语言界面
-- **更多 CDN 服务商** - 支持更多 CDN 平台
-- **监控告警** - IP 变化监控和异常告警通知
-
-
-欢迎通过 [Issues](https://github.com/cxbdasheng/dnet/issues) 提出您的功能建议！
-
 ## 许可证
 本项目采用 [MIT](LICENSE) 许可证
 
