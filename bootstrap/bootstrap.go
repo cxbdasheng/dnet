@@ -22,14 +22,16 @@ func RunOnce() {
 		return
 	}
 	helper.ClearGlobalIPCache()
-	// 开启了 DCND 功能
-	if conf.DCDNConfig.DCDNEnabled {
-		ProcessDCDNServices(&conf)
-	}
-	// 开启了 DDNS 功能
+	// 处理 DCDN 服务
+	ProcessDCDNServices(&conf)
+
 }
 
 func ProcessDCDNServices(conf *config.Config) {
+	// 未开启 DCND 功能，直接返回
+	if !conf.DCDNConfig.DCDNEnabled {
+		return
+	}
 	if dcdn.ForceCompareGlobal || len(conf.DCDNConfig.DCDN) != len(DCDNCaches) {
 		DCDNCaches = []dcdn.Cache{}
 		for range conf.DCDNConfig.DCDN {

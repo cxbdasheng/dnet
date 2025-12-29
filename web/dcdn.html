@@ -481,12 +481,12 @@
                 success: function (response) {
                     var res = JSON.parse(response)
                     if (res.status){
-                        layer.msg(res.msg, {
+                        layer.msg('配置保存成功，正在获取 CNAME...', {
                             icon: 1,
-                            time: 2500
-                        }, function() {
-                            location.reload();
+                            time: 2000
                         });
+                        // 启动 CNAME 轮询
+                        startCnamePolling();
                     }else {
                         layer.msg(res.msg, {
                             icon: 2,
@@ -543,6 +543,7 @@
         function clearFormFields() {
             // 使用默认配置填充基本字段
             $('input[name="domain"]').val(defaultConfig.domain || '');
+            $('input[name="cname"]').val(''); // 清空 CNAME 字段
             const defaultProvider = defaultConfig.service || firstCDNProvider;
             $('input[name="service"][value="' + defaultProvider + '"]').prop('checked', true);
             $('input[name="access_key"]').val(defaultConfig.access_key || '');
@@ -589,6 +590,29 @@
             toggleSourcesInputs($row, initialValue);
         }
 
+        // 获取当前选择的服务商和类型对应的最大源站数量
+        function getMaxSourcesCount() {
+            const selectedService = $('input[name="service"]:checked').val();
+            const selectedCDNType = $('select[name="cdn_type"]').val();
+
+            if (!selectedService || !CDN_PROVIDERS[selectedService]) {
+                return Infinity; // 如果没有配置，返回无限制
+            }
+
+            const provider = CDN_PROVIDERS[selectedService];
+            if (!provider.maxSources || !provider.typeSelect) {
+                return Infinity; // 如果没有配置 maxSources，返回无限制
+            }
+
+            // 找到当前类型在 typeSelect 中的索引
+            const typeIndex = provider.typeSelect.indexOf(selectedCDNType);
+            if (typeIndex === -1 || typeIndex >= provider.maxSources.length) {
+                return Infinity; // 如果找不到或索引越界，返回无限制
+            }
+
+            return provider.maxSources[typeIndex];
+        }
+
         // 监听源站类型选择框的变化
         form.on('select(sources-type-filter)', function(data) {
             const $row = $(data.elem).closest('.dnet-form-sources');
@@ -597,12 +621,22 @@
 
         // 添加源站按钮点击事件
         $(document).on('click', '.btn-add-source', function() {
-            // 检查是否为阿里云 ESA 类型
-            const selectedService = $('input[name="service"]:checked').val();
-            const selectedCDNType = $('select[name="cdn_type"]').val();
+            // 获取当前允许的最大源站数量
+            const maxSources = getMaxSourcesCount();
 
-            if (selectedService === 'aliyun' && selectedCDNType === 'ESA') {
-                layer.msg('阿里云 ESA 类型仅支持单个源站，无法添加更多源站', {
+            // 获取当前源站数量（排除标题行）
+            const currentSourcesCount = $('.dnet-form-sources').filter(function() {
+                return !$(this).find('p').length;
+            }).length;
+
+            // 检查是否超过最大源站数量
+            if (currentSourcesCount >= maxSources) {
+                const selectedService = $('input[name="service"]:checked').val();
+                const selectedCDNType = $('select[name="cdn_type"]').val();
+                const provider = CDN_PROVIDERS[selectedService];
+                const providerName = provider ? provider.name : selectedService;
+
+                layer.msg(providerName + ' ' + selectedCDNType + ' 类型最多支持 ' + maxSources + ' 个源站', {
                     icon: 0,
                     time: 2500
                 });
@@ -738,13 +772,15 @@
         function saveCurrentConfig(configName) {
             if (!configName) configName = $('select[name="config"]').val();
             if (!configName) return;
-            // 获取现有配置，保留 name 字段（如果已存在）
+            // 获取现有配置，保留 name 和 cname 字段（如果已存在）
             const existingConfig = getConfigById(configName);
             const customName = existingConfig && existingConfig.name ? existingConfig.name : '';
+            const existingCname = existingConfig && existingConfig.cname ? existingConfig.cname : '';
             const configObj = {
                 id: configName,
                 name: customName, // 只保存自定义的 name，没有则为空字符串
                 domain: $('input[name="domain"]').val(),
+                cname: $('input[name="cname"]').val() || existingCname, // 保存当前 CNAME 或保留旧值
                 service: $('input[name="service"]:checked').val(),
                 access_key: $('input[name="access_key"]').val(),
                 access_secret: $('input[name="access_secret"]').val(),
@@ -1182,27 +1218,30 @@
             const selectedService = $('input[name="service"]:checked').val();
             const selectedCDNType = data.value;
 
-            // 如果选择了阿里云 ESA，检查源站数量
-            if (selectedService === 'aliyun' && selectedCDNType === 'ESA') {
-                // 获取当前所有源站行（排除标题行）
-                const $sourceRows = $('.dnet-form-sources').filter(function() {
-                    return !$(this).find('p').length;
+            // 获取当前类型的最大源站数量
+            const maxSources = getMaxSourcesCount();
+
+            // 获取当前所有源站行（排除标题行）
+            const $sourceRows = $('.dnet-form-sources').filter(function() {
+                return !$(this).find('p').length;
+            });
+
+            // 如果当前源站数量超过最大限制，删除多余的并提示用户
+            if ($sourceRows.length > maxSources) {
+                const provider = CDN_PROVIDERS[selectedService];
+                const providerName = provider ? provider.name : selectedService;
+
+                layer.msg(providerName + ' ' + selectedCDNType + ' 类型最多支持 ' + maxSources + ' 个源站，已自动保留前 ' + maxSources + ' 个源站', {
+                    icon: 0,
+                    time: 3000
                 });
 
-                // 如果有多个源站，删除多余的并提示用户
-                if ($sourceRows.length > 1) {
-                    layer.msg('阿里云 ESA 类型仅支持单个源站，已自动保留第一个源站', {
-                        icon: 0,
-                        time: 3000
-                    });
-
-                    // 删除除第一个之外的所有源站行
-                    $sourceRows.each(function(index) {
-                        if (index > 0) {
-                            $(this).remove();
-                        }
-                    });
-                }
+                // 删除超过限制的源站行
+                $sourceRows.each(function(index) {
+                    if (index >= maxSources) {
+                        $(this).remove();
+                    }
+                });
             }
 
             // 更新端口输入框状态
@@ -1267,6 +1306,119 @@
                 });
             }
             $temp.remove();
+        }
+
+        // CNAME 轮询相关变量
+        let cnamePollingTimer = null;
+        let cnamePollingCount = 0;
+        let initialCname = ''; // 记录轮询开始时的 CNAME
+        const maxPollingCount = 30; // 最多轮询30次（约60秒）
+        const pollingInterval = 2000; // 每2秒轮询一次
+        const stableCheckCount = 2; // 如果 CNAME 稳定（没变化）2次，认为后端处理完成
+
+        // 启动 CNAME 轮询
+        function startCnamePolling() {
+            // 清除之前的轮询定时器
+            stopCnamePolling();
+            cnamePollingCount = 0;
+            // 记录轮询开始时的 CNAME
+            initialCname = $('input[name="cname"]').val();
+
+            // 立即执行一次轮询
+            checkCnameUpdate();
+        }
+
+        // 停止 CNAME 轮询
+        function stopCnamePolling() {
+            if (cnamePollingTimer) {
+                clearTimeout(cnamePollingTimer);
+                cnamePollingTimer = null;
+            }
+            cnamePollingCount = 0;
+        }
+
+        // 检查 CNAME 更新
+        function checkCnameUpdate() {
+            cnamePollingCount++;
+
+            // 超过最大轮询次数，停止轮询
+            if (cnamePollingCount > maxPollingCount) {
+                stopCnamePolling();
+                layer.msg('CNAME 获取超时，请稍后刷新页面查看', {
+                    icon: 0,
+                    time: 3000
+                });
+                return;
+            }
+
+            // 直接请求配置 API 获取最新配置
+            $.ajax({
+                type: 'GET',
+                url: '/api/dcdn/config',
+                dataType: 'json',
+                success: function(newConfigData) {
+                    // 检查当前配置的 CNAME 是否已更新
+                    if (newConfigData.dcdn && newConfigData.dcdn.length > 0) {
+                        const currentId = currentSelectedConfig;
+                        const currentConfig = newConfigData.dcdn.find(function(cfg) {
+                            return cfg.id === currentId;
+                        });
+
+                        if (currentConfig) {
+                            const newCname = currentConfig.cname || '';
+
+                            // 情况1: CNAME 发生了变化（不管是从有到有，从无到有，还是从有到无）
+                            if (newCname !== initialCname) {
+                                // 更新页面显示
+                                $('input[name="cname"]').val(newCname);
+                                // 更新 configData
+                                configData = newConfigData;
+                                // 更新当前配置的 cname
+                                const localConfig = getConfigById(currentId);
+                                if (localConfig) {
+                                    localConfig.cname = newCname;
+                                }
+
+                                stopCnamePolling();
+                                if (newCname) {
+                                    layer.msg('CNAME 已获取: ' + newCname, {
+                                        icon: 1,
+                                        time: 3000
+                                    });
+                                } else {
+                                    layer.msg('CNAME 已清空', {
+                                        icon: 1,
+                                        time: 2000
+                                    });
+                                }
+                                return;
+                            }
+
+                            // 情况2: CNAME 没有变化，但已经轮询了 stableCheckCount 次
+                            // 如果初始就有 CNAME，说明后端处理完成但没有变化
+                            if (initialCname && cnamePollingCount >= stableCheckCount) {
+                                stopCnamePolling();
+                                layer.msg('配置已保存，CNAME 无变化', {
+                                    icon: 1,
+                                    time: 2000
+                                });
+                                return;
+                            }
+                        }
+                    }
+
+                    // CNAME 未更新，继续轮询
+                    cnamePollingTimer = setTimeout(checkCnameUpdate, pollingInterval);
+                },
+                error: function() {
+                    // 请求失败，停止轮询
+                    stopCnamePolling();
+                    layer.msg('获取配置失败，请手动刷新页面', {
+                        icon: 2,
+                        time: 2000
+                    });
+                }
+            });
         }
     });
 

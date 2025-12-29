@@ -106,3 +106,21 @@ func handleDCDNPost(writer http.ResponseWriter, request *http.Request) {
 
 	helper.ReturnSuccess(writer, "配置保存成功", nil)
 }
+
+// DCDNConfigAPI 返回 DCDN 配置的 JSON 数据
+func DCDNConfigAPI(writer http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodGet {
+		helper.ReturnError(writer, "不支持的请求方法")
+		return
+	}
+
+	conf, err := config.GetConfigCached()
+	if err != nil {
+		helper.Error(helper.LogTypeDCDN, "获取配置失败: %v", err)
+		helper.ReturnError(writer, "获取配置失败")
+		return
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	writer.Write([]byte(config.GetDCDNConfigJSON(conf.DCDNConfig)))
+}
