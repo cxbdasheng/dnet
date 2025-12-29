@@ -84,14 +84,25 @@ func handleDCDNPost(writer http.ResponseWriter, request *http.Request) {
 
 	// 更新 DCDN 配置
 	conf.DCDNConfig = configData
-	dcdn.ForceCompareGlobal = true
-	go bootstrap.RunOnce()
-	// 保存配置
+
+	// 保存用户提交的配置
 	if err := conf.SaveConfig(); err != nil {
 		helper.Error(helper.LogTypeDCDN, "保存配置失败: %v", err)
 		helper.ReturnError(writer, "保存配置失败")
 		return
 	}
+
+	// 然后异步获取并更新 CNAME（如果有变化会再保存一次）
+	dcdn.ForceCompareGlobal = true
+	go func() {
+		// 重新加载最新配置，避免使用旧的缓存
+		freshConf, err := config.GetConfigCached()
+		if err != nil {
+			helper.Error(helper.LogTypeDCDN, "加载配置失败: %v", err)
+			return
+		}
+		bootstrap.ProcessDCDNServices(&freshConf)
+	}()
 
 	helper.ReturnSuccess(writer, "配置保存成功", nil)
 }
