@@ -481,12 +481,22 @@
                 success: function (response) {
                     var res = JSON.parse(response)
                     if (res.status){
-                        layer.msg('配置保存成功，正在获取 CNAME...', {
-                            icon: 1,
-                            time: 2000
-                        });
-                        // 启动 CNAME 轮询
-                        startCnamePolling();
+                        // 检查是否开启了 DCDN
+                        const isDCDNEnabled = $('input[name="dcdn_enable"]').is(':checked');
+
+                        if (isDCDNEnabled) {
+                            layer.msg('配置保存成功，正在获取 CNAME...', {
+                                icon: 1,
+                                time: 2000
+                            });
+                            // 启动 CNAME 轮询
+                            startCnamePolling();
+                        } else {
+                            layer.msg('配置保存成功', {
+                                icon: 1,
+                                time: 1000
+                            });
+                        }
                     }else {
                         layer.msg(res.msg, {
                             icon: 2,
