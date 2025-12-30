@@ -17,7 +17,7 @@ body:
   - type: dropdown
     attributes:
       label: Service type
-      description: The service type you are using
+      description: The service type you are using.
       multiple: true
       options:
         - DCDN
@@ -25,7 +25,7 @@ body:
   - type: dropdown
     attributes:
       label: Service type provider
-      description: The service type provider you are using
+      description: The service type provider you are using.
       multiple: true
       options:
         - 阿里云
@@ -46,8 +46,8 @@ body:
     attributes:
       label: Did you search for similar issues before submitting this one?
       options:
-        - No, I didn't
-        - Yes, I did, but I didn't find anything useful
+        - No, I didn't.
+        - Yes, I did, but I didn't find anything useful.
     validations:
       required: true
   - type: dropdown
