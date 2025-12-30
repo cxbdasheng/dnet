@@ -63,9 +63,8 @@
                 <div class="layui-row layui-form-item">
                     <label class="layui-form-label" for="domain">域名：</label>
                     <div class="layui-input-block">
-                        <input type="text" id="domain" name="domain" lay-verify="domain" autocomplete="off"
-                               placeholder="请输域名" class="layui-input">
-<!--                                                            <tip>填写自己部署网站的名称。</tip>-->
+                        <input type="text" id="domain" name="domain" lay-verify="domain" autocomplete="off" placeholder="请输域名" class="layui-input">
+                        <tip>填写需要加速的域名（如 dcdn.example.com），首次接入时需进行 <a style="color: #1e9fff" href="https://help.aliyun.com/zh/dcdn/user-guide/add-a-domain-name-to-dcdn" target="_blank">域名归属验证</a>。</tip>
                     </div>
                 </div>
                 <div class="layui-row layui-form-item">
@@ -334,20 +333,24 @@
             },
             // AccessKey验证
             access_key: function (value, elem) {
+                // 动态获取 label 文本
+                var labelText = $('#access-key-label').text().replace('：', '').trim();
                 if (!value) {
-                    return 'AccessKey 不能为空';
+                    return labelText + ' 不能为空';
                 }
                 if (value.length < 6) {
-                    return 'AccessKey 长度不能少于6位';
+                    return labelText + ' 长度不能少于6位';
                 }
             },
             // AccessSecret验证
             access_secret: function (value, elem) {
+                // 动态获取 label 文本
+                var labelText = $('#access-secret-label').text().replace('：', '').trim();
                 if (!value) {
-                    return 'AccessSecret不能为空';
+                    return labelText + ' 不能为空';
                 }
                 if (value.length < 10) {
-                    return 'AccessSecret长度不能少于10位';
+                    return labelText + ' 长度不能少于10位';
                 }
             },
             // IPv6 验证
@@ -1187,7 +1190,7 @@
             const $row = $('#' + labelId).parent();
             if (labelText && labelText.trim()) {
                 $('#' + labelId).text(labelText);
-                const placeholder = '请输入' + labelText.replace('：', '');
+                const placeholder = '请输入 ' + labelText.replace('：', '');
 
                 if ($row.is(':hidden') || $row.find('input[name="' + fieldName + '"]').length === 0) {
                     $row.find('.layui-input-block').html(

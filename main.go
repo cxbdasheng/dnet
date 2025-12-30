@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -60,6 +61,10 @@ func main() {
 	if *configFilePath != "" {
 		absPath, _ := filepath.Abs(*configFilePath)
 		os.Setenv(config.PathENV, absPath)
+	}
+
+	if runtime.GOOS == "android" {
+		helper.FixTimezone()
 	}
 
 	// 检查监听地址，查看是否合法

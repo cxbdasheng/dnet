@@ -1,1 +1,5 @@
 blank_issues_enabled: false
+contact_links:
+  - name: None of the above?
+    url: https://github.com/cxbdasheng/dnet/discussions
+    about: If you have any other questions, please visit our Discussions page
