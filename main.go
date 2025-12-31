@@ -4,6 +4,7 @@ import (
 	"embed"
 	"errors"
 	"flag"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -45,6 +46,9 @@ var noWebService = flag.Bool("noweb", false, "No web service")
 // 缓存次数
 var dcdnCacheTimes = flag.Int("dcdnCacheTimes", 5, "dcdn Cache times")
 
+// D-NET 版本
+var showVersion = flag.Bool("v", false, "D-NET version")
+
 //go:embed static
 var staticEmbeddedFiles embed.FS
 
@@ -57,6 +61,12 @@ var version = "DEV"
 func main() {
 	helper.InitLoggerWithConsole(helper.MaxSize, true)
 	flag.Parse()
+
+	// 显示版本
+	if *showVersion {
+		fmt.Println(version)
+		return
+	}
 	// 设置配置文件路径
 	if *configFilePath != "" {
 		absPath, _ := filepath.Abs(*configFilePath)
