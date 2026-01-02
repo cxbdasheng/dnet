@@ -18,12 +18,16 @@ import (
 	"github.com/cxbdasheng/dnet/config"
 	"github.com/cxbdasheng/dnet/dcdn"
 	"github.com/cxbdasheng/dnet/helper"
+	"github.com/cxbdasheng/dnet/helper/update"
 	"github.com/cxbdasheng/dnet/web"
 	"github.com/kardianos/service"
 )
 
 // 配置文件路径
 var configFilePath = flag.String("c", config.GetConfigFilePathDefault(), "Custom configuration file path")
+
+// 更新 D-NET
+var updateFlag = flag.Bool("u", false, "Upgrade D-NET to the latest version")
 
 // 监听地址
 var listen = flag.String("l", ":9877", "Listen address")
@@ -65,6 +69,11 @@ func main() {
 	// 显示版本
 	if *showVersion {
 		fmt.Println(version)
+		return
+	}
+	// 更新 D-NET
+	if *updateFlag {
+		updateDNET()
 		return
 	}
 	// 设置配置文件路径
@@ -450,3 +459,11 @@ esac
 
 exit 0
 `
+
+// https://github.com/creativeprojects/go-selfupdate
+// updateDNET 更新 D-NET 到最新版本
+func updateDNET() {
+	if err := update.CheckAndUpdate(version, false); err != nil {
+		helper.Fatalf(helper.LogTypeSystem, "更新过程出错: %v", err)
+	}
+}
