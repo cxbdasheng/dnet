@@ -212,13 +212,15 @@ func InitBackupDNS(customDNS string) {
 	Info(LogTypeSystem, "所有备用 DNS 服务器均不可用，使用系统默认 DNS")
 }
 
-// IsPrivateIP 检查IP地址是否为私有地址
-func IsPrivateIP(ipStr string) bool {
+// IsLocalAddress 检查IP地址是否为私有地址
+func IsLocalAddress(ipStr string) bool {
 	ip := net.ParseIP(ipStr)
 	if ip == nil {
 		return false
 	}
-
+	if ip.IsLoopback() {
+		return true
+	}
 	// 使用Go 1.17+标准库的IsPrivate方法
 	return ip.IsPrivate()
 }
@@ -261,7 +263,7 @@ func GetClientIP(r *http.Request) string {
 		ips := strings.Split(xff, ",")
 		for _, ip := range ips {
 			ip = strings.TrimSpace(ip)
-			if ip != "" && !IsPrivateIP(ip) {
+			if ip != "" && !IsLocalAddress(ip) {
 				return ip
 			}
 		}

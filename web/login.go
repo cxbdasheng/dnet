@@ -165,7 +165,7 @@ func handleInitialSetup(conf *config.Config, loginReq LoginRequest, clientIP str
 	}
 
 	// 根据IP类型设置访问权限
-	conf.NotAllowWanAccess = helper.IsPrivateIP(clientIP)
+	conf.NotAllowWanAccess = helper.IsLocalAddress(clientIP)
 
 	conf.Username = loginReq.Username
 	hashedPwd, err := conf.GeneratePassword(loginReq.Password)

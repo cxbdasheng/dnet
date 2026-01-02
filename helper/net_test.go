@@ -118,8 +118,8 @@ func TestIsValidDNSServer(t *testing.T) {
 	}
 }
 
-// TestIsPrivateIP 测试私有 IP 检查
-func TestIsPrivateIP(t *testing.T) {
+// TestIsLocalAddress 测试私有 IP 检查
+func TestIsLocalAddress(t *testing.T) {
 	tests := []struct {
 		name     string
 		ip       string
@@ -130,17 +130,17 @@ func TestIsPrivateIP(t *testing.T) {
 		{"private 172.16", "172.16.0.1", true},
 		{"public IP", "8.8.8.8", false},
 		{"public IP 2", "1.1.1.1", false},
-		{"loopback", "127.0.0.1", false}, // IsPrivate() 不把 loopback 当作 private
+		{"loopback", "127.0.0.1", true},
 		{"IPv6 private", "fd00::1", true},
-		{"IPv6 loopback", "::1", false}, // IsPrivate() 不把 loopback 当作 private
+		{"IPv6 loopback", "::1", true},
 		{"invalid IP", "not-an-ip", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := IsPrivateIP(tt.ip)
+			result := IsLocalAddress(tt.ip)
 			if result != tt.expected {
-				t.Errorf("IsPrivateIP(%s) = %v, expected %v", tt.ip, result, tt.expected)
+				t.Errorf("IsLocalAddress(%s) = %v, expected %v", tt.ip, result, tt.expected)
 			}
 		})
 	}

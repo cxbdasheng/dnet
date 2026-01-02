@@ -20,7 +20,7 @@ type AccessCheckResult struct {
 // checkWANAccess 检查WAN访问权限（提取公共逻辑）
 func checkWANAccess(r *http.Request) AccessCheckResult {
 	clientIP := helper.GetClientIP(r)
-	isPrivateIP := helper.IsPrivateIP(clientIP)
+	isPrivateIP := helper.IsLocalAddress(clientIP)
 
 	conf, err := config.GetConfigCached()
 
