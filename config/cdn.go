@@ -93,6 +93,10 @@ func RestoreSensitiveFields(newConf, oldConf DCDNConfig) DCDNConfig {
 			if newConf.DCDN[i].AccessSecret == oldAccessSecretMasked {
 				newConf.DCDN[i].AccessSecret = oldCDN.AccessSecret
 			}
+			// 检查 Domain：如果新值与旧值不相等，说明已修改，将 CName 设置为空
+			if oldCDN.Domain != newConf.DCDN[i].Domain {
+				newConf.DCDN[i].CName = ""
+			}
 		}
 	}
 
