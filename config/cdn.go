@@ -44,12 +44,13 @@ func (c *CDN) GetRootDomain() string {
 }
 
 type Source struct {
-	Type     string `json:"type"`
-	Value    string `json:"value"`
-	Priority string `json:"priority"`
-	Weight   string `json:"weight"`
-	Port     string `json:"port"`
-	Protocol string `json:"protocol"` // http 或 https，默认 http
+	Type      string `json:"type"`
+	Value     string `json:"value"`
+	Priority  string `json:"priority"`
+	Weight    string `json:"weight"`
+	Port      string `json:"port"`       // HTTP 端口
+	HttpsPort string `json:"https_port"` // HTTPS 端口
+	Protocol  string `json:"protocol"`   // HTTP、HTTPS、AUTO（协议跟随），默认 http
 }
 
 // maskSensitiveString 对敏感字符串进行脱敏处理

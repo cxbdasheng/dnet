@@ -277,26 +277,59 @@ func (baidu *Baidu) buildSourcesConfig() []BaiduSource {
 	var sources []BaiduSource
 
 	for _, source := range baidu.CDN.Sources {
-		// 获取实际的源站地址
-		content := baidu.getSourceContent(&source)
-		// 判断是否为备用源站
+		protocol := strings.ToUpper(source.Protocol)
 		isBackup := source.Priority == "backup"
-		// 构建百度云源站配置
-		baiduSource := BaiduSource{
-			Peer:   content,
-			Backup: isBackup,
-		}
 
-		// 设置权重（如果有）
-		if source.Weight != "" && source.Weight != "0" {
-			weight := 10 // 默认权重
-			if w, err := strconv.Atoi(source.Weight); err == nil {
-				weight = w
+		// 如果协议为 AUTO，生成两条记录（HTTP 和 HTTPS）
+		if protocol == "AUTO" {
+			// 生成 HTTP 记录
+			httpContent := baidu.getSourceContentWithProtocol(&source, "http", source.Port)
+			httpSource := BaiduSource{
+				Peer:   httpContent,
+				Backup: isBackup,
 			}
-			baiduSource.Weight = weight
-		}
+			if source.Weight != "" && source.Weight != "0" {
+				weight := 10
+				if w, err := strconv.Atoi(source.Weight); err == nil {
+					weight = w
+				}
+				httpSource.Weight = weight
+			}
+			sources = append(sources, httpSource)
 
-		sources = append(sources, baiduSource)
+			// 生成 HTTPS 记录
+			httpsContent := baidu.getSourceContentWithProtocol(&source, "https", source.HttpsPort)
+			httpsSource := BaiduSource{
+				Peer:   httpsContent,
+				Backup: isBackup,
+			}
+			if source.Weight != "" && source.Weight != "0" {
+				weight := 10
+				if w, err := strconv.Atoi(source.Weight); err == nil {
+					weight = w
+				}
+				httpsSource.Weight = weight
+			}
+			sources = append(sources, httpsSource)
+		} else {
+			// 非 AUTO 协议，使用原有逻辑
+			content := baidu.getSourceContent(&source)
+			baiduSource := BaiduSource{
+				Peer:   content,
+				Backup: isBackup,
+			}
+
+			// 设置权重（如果有）
+			if source.Weight != "" && source.Weight != "0" {
+				weight := 10 // 默认权重
+				if w, err := strconv.Atoi(source.Weight); err == nil {
+					weight = w
+				}
+				baiduSource.Weight = weight
+			}
+
+			sources = append(sources, baiduSource)
+		}
 	}
 
 	return sources
@@ -338,6 +371,52 @@ func (baidu *Baidu) getSourceContent(source *config.Source) string {
 	port := source.Port
 	if port == "" {
 		// 根据协议设置默认端口
+		if protocol == "https" {
+			port = "443"
+		} else {
+			port = "80"
+		}
+	}
+
+	// 判断是否为 IPv6 地址（需要用方括号包裹）
+	if helper.Ipv6Reg.MatchString(addr) {
+		// IPv6 格式：http://[2001:db8::1]:80
+		return protocol + "://[" + addr + "]:" + port
+	}
+
+	// IPv4 或域名格式：http://192.168.1.1:80 或 http://example.com:80
+	return protocol + "://" + addr + ":" + port
+}
+
+// getSourceContentWithProtocol 使用指定的协议和端口获取源站内容
+// 用于 AUTO 协议时强制指定具体的协议和端口
+func (baidu *Baidu) getSourceContentWithProtocol(source *config.Source, protocol string, port string) string {
+	// 获取实际的地址（IP或域名）
+	var addr string
+	if IsDynamicType(source.Type) {
+		// 对于动态类型，从缓存获取IP
+		cacheKey := helper.GetIPCacheKey(source.Type, source.Value)
+		if ip, ok := baidu.Cache.DynamicIPs[cacheKey]; ok {
+			addr = ip
+		} else {
+			// 如果缓存中没有，尝试获取
+			if ip, ok := helper.GetOrSetDynamicIPWithCache(source.Type, source.Value); ok {
+				addr = ip
+			} else {
+				helper.Warn(helper.LogTypeDCDN, "无法获取动态源站IP [类型=%s, 值=%s]，使用配置值", source.Type, source.Value)
+				addr = source.Value
+			}
+		}
+	} else {
+		// 静态类型直接使用配置的值
+		addr = source.Value
+	}
+
+	// 规范化协议为小写
+	protocol = strings.ToLower(protocol)
+
+	// 如果端口为空，根据协议设置默认端口
+	if port == "" {
 		if protocol == "https" {
 			port = "443"
 		} else {

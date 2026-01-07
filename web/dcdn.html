@@ -136,8 +136,8 @@
                     <div class="layui-input-inline dnet-form-value" ><p>源站值</p></div>
                     <div class="layui-input-inline dnet-form-priority"><p>优先级</p></div>
                     <div class="layui-input-inline" ><p>权重</p></div>
-                    <div class="layui-input-inline" ><p>端口</p> </div>
-                    <div class="layui-input-inline dnet-form-protocol-header" style="display: none;"><p>协议</p> </div>
+                    <div class="layui-input-inline dnet-form-protocol-header"><p>协议</p> </div>
+                    <div class="layui-input-inline dnet-form-http-ports-header"><p>HTTP 端口/HTTPS 端口</p></div>
                     <div class="layui-input-inline dnet-form-operation">操作</div>
                 </div>
                 <div class="layui-row layui-form-item dnet-form-sources">
@@ -205,15 +205,21 @@
                         <input type="text" name="sources_weight" lay-affix="number" value="10" step="1" max="100" min="1" class="layui-input">
 
                     </div>
-                    <div class="layui-input-inline">
-                        <input type="text" name="sources_port" lay-affix="number" value="80" step="1" max="65535" min="1" class="layui-input">
-                        <tip id="port-disabled-tip" style="display: none;">阿里云 ESA 类型不支持自定义端口</tip>
-                    </div>
                     <div class="layui-input-inline dnet-form-protocol">
-                        <select name="protocol">
+                        <select name="protocol" lay-filter="protocol-filter">
                             <option value="HTTP">HTTP</option>
                             <option value="HTTPS">HTTPS</option>
+                            <option value="AUTO">协议跟随</option>
                         </select>
+                        <tip></tip>
+                    </div>
+                    <div class="dnet-form-http-ports-body">
+                        <div class="layui-input-inline dnet-form-http-port">
+                            <input type="text" name="sources_port" lay-affix="number" value="80" step="1" max="65535" min="1" class="layui-input">
+                        </div>
+                        <div class="layui-input-inline dnet-form-https-port">
+                            <input type="text" name="sources_https_port" lay-affix="number" value="443" step="1" max="65535" min="1" class="layui-input">
+                        </div>
                     </div>
                     <div class="layui-input-inline">
                         <button type="button" class="layui-btn btn-add-source">
@@ -250,6 +256,7 @@
         "sources_type": "dynamic_ipv6_interface",
         "sources_weight":10,
         "sources_port":80,
+        "sources_https_port":443,
         "sources_priority": "main",
         "sources_protocol": "HTTP",
         "sources_dynamic_ipv4_url": "https://myip.ipip.net, https://ddns.oray.com/checkip, https://ip.3322.net, https://4.ipw.cn, https://v4.yinghualuo.cn/bejson",
@@ -601,6 +608,8 @@
             var $select = $row.find('select[name="sources_type"]');
             var initialValue = $select.val();
             toggleSourcesInputs($row, initialValue);
+            // 初始化端口显示
+            updatePortVisibility($row);
         }
 
         // 获取当前选择的服务商和类型对应的最大源站数量
@@ -664,6 +673,7 @@
             $newRow.find('textarea').val('');
             $newRow.find('input[name="sources_weight"]').val(defaultConfig.sources_weight||10);
             $newRow.find('input[name="sources_port"]').val(defaultConfig.sources_port||80);
+            $newRow.find('input[name="sources_https_port"]').val(defaultConfig.sources_https_port||443);
             $newRow.find('select[name="sources_type"]').val(defaultConfig.sources_type);
             // 重置网卡选择框为第一个选项
             $newRow.find('select[name="sources_dynamic_ipv4_interface"] option:first').prop('selected', true);
@@ -822,6 +832,7 @@
                     priority: $row.find('select[name="sources_priority"]').val(),
                     weight: $row.find('input[name="sources_weight"]').val(),
                     port: $row.find('input[name="sources_port"]').val(),
+                    https_port: $row.find('input[name="sources_https_port"]').val(),
                     protocol: $row.find('select[name="protocol"]').val()
                 });
             });
@@ -981,6 +992,7 @@
             $row.find('select[name="sources_priority"]').val(sourceData.priority || defaultConfig.sources_priority);
             $row.find('input[name="sources_weight"]').val(sourceData.weight || defaultConfig.sources_weight);
             $row.find('input[name="sources_port"]').val(sourceData.port || defaultConfig.sources_port);
+            $row.find('input[name="sources_https_port"]').val(sourceData.https_port || defaultConfig.sources_https_port);
             $row.find('select[name="protocol"]').val(sourceData.protocol || defaultConfig.sources_protocol);
         }
 
@@ -995,6 +1007,9 @@
             // 设置权重和端口的默认值（因为上面清空了所有text输入框）
             $row.find('input[name="sources_weight"]').val(defaultConfig.sources_weight);
             $row.find('input[name="sources_port"]').val(defaultConfig.sources_port);
+            $row.find('input[name="sources_https_port"]').val(defaultConfig.sources_https_port);
+            // 重置协议选择框为第一个选项
+            $row.find('select[name="protocol"] option:first').prop('selected', true);
             // 重置网卡选择框为第一个选项
             $row.find('select[name="sources_dynamic_ipv4_interface"] option:first').prop('selected', true);
             $row.find('select[name="sources_dynamic_ipv6_interface"] option:first').prop('selected', true);
@@ -1172,18 +1187,10 @@
             } else {
                 $serviceHelpContainer.html('<a href="">创建 AccessKey</a>');
             }
-            // 根据服务商显示或隐藏协议字段
-            if (providerId === 'baiducloud') {
-                // 百度云显示协议字段
-                $('.dnet-form-protocol-header').show();
-                $('.dnet-form-protocol').show();
-            } else {
-                // 其他服务商隐藏协议字段
-                $('.dnet-form-protocol-header').hide();
-                $('.dnet-form-protocol').hide();
-            }
-            // 重新渲染表单
             form.render('select');
+
+            // 更新协议提示信息
+            updateProtocolTip();
         }
         // 表单字段显示/隐藏辅助函数
         function updateFormField(labelId, fieldName, labelText, fieldId) {
@@ -1204,26 +1211,141 @@
                 $row.hide();
             }
         }
+        // 更新协议提示信息
+        function updateProtocolTip() {
+            const selectedService = $('input[name="service"]:checked').val();
+            const selectedCDNType = $('select[name="cdn_type"]').val();
+
+            if (!selectedService || !CDN_PROVIDERS[selectedService]) {
+                $('.dnet-form-protocol tip').html('');
+                return;
+            }
+
+            const provider = CDN_PROVIDERS[selectedService];
+
+            // 如果提供商有 protocolTipHtml 配置，则显示提示信息
+            if (provider.protocolTipHtml) {
+                let tipHtml = '';
+
+                // 如果 protocolTipHtml 是数组，根据 CDN 类型索引获取对应的提示
+                if (Array.isArray(provider.protocolTipHtml)) {
+                    // 找到当前类型在 typeSelect 中的索引
+                    const typeIndex = provider.typeSelect ? provider.typeSelect.indexOf(selectedCDNType) : -1;
+                    if (typeIndex !== -1 && typeIndex < provider.protocolTipHtml.length) {
+                        tipHtml = provider.protocolTipHtml[typeIndex];
+                    }
+                } else {
+                    // 如果是字符串，直接使用
+                    tipHtml = provider.protocolTipHtml;
+                }
+
+                // 提取 tipHtml 的内部内容，避免嵌套 tip 标签
+                if (tipHtml) {
+                    const tipContent = $(tipHtml).html() || tipHtml;
+                    $('.dnet-form-protocol tip').html(tipContent);
+                } else {
+                    $('.dnet-form-protocol tip').html('');
+                }
+            } else {
+                $('.dnet-form-protocol tip').html('');
+            }
+        }
+
+        // 设置端口输入框及其layui affix按钮的禁用状态
+        function setPortInputDisabled(portInputName, disabled) {
+            $('input[name="' + portInputName + '"]').each(function() {
+                if (disabled) {
+                    $(this).prop('disabled', true).addClass('layui-disabled');
+                    // 给 layui affix 按钮中的 i 标签添加 layui-disabled 类
+                    $(this).siblings('.layui-input-affix').find('i').addClass('layui-disabled');
+                    $(this).parent().find('.layui-input-affix i').addClass('layui-disabled');
+                } else {
+                    $(this).prop('disabled', false).removeClass('layui-disabled');
+                    // 移除 layui affix 按钮中的 i 标签的 layui-disabled 类
+                    $(this).siblings('.layui-input-affix').find('i').removeClass('layui-disabled');
+                    $(this).parent().find('.layui-input-affix i').removeClass('layui-disabled');
+                }
+            });
+        }
+
         // 更新端口输入框状态
         function updatePortInputStatus() {
             const selectedService = $('input[name="service"]:checked').val();
             const selectedCDNType = $('select[name="cdn_type"]').val();
-
             if (selectedService === 'aliyun' && selectedCDNType === 'ESA') {
                 // 阿里云 ESA 类型禁用端口输入框
-                $('input[name="sources_port"]').prop('disabled', true).addClass('layui-disabled');
-                $('#port-disabled-tip').show();
-            } else {
+                setPortInputDisabled('sources_port', true);
+                setPortInputDisabled('sources_https_port', true);
+            }else if (selectedService === 'aliyun' && (selectedCDNType === 'CDN'|| selectedCDNType === 'DCDN')) {
+                setPortInputDisabled('sources_port', false);
+                setPortInputDisabled('sources_https_port', true);
+            }else{
                 // 其他情况启用端口输入框
-                $('input[name="sources_port"]').prop('disabled', false).removeClass('layui-disabled');
-                $('#port-disabled-tip').hide();
+                setPortInputDisabled('sources_port', false);
+                setPortInputDisabled('sources_https_port', false);
             }
         }
+
+        // 更新单个源站行的端口显示状态（根据协议选择）
+        function updatePortVisibility($row) {
+            const protocol = $row.find('select[name="protocol"]').val();
+            const $httpPort = $row.find('.dnet-form-http-port');
+            const $httpsPort = $row.find('.dnet-form-https-port');
+
+            if (protocol === 'HTTP') {
+                // HTTP: 只显示 HTTP 端口
+                $httpPort.show();
+                $httpsPort.hide();
+            } else if (protocol === 'HTTPS') {
+                // HTTPS: 只显示 HTTPS 端口
+                $httpPort.hide();
+                $httpsPort.show();
+            } else {
+                // AUTO 协议跟随: 显示两个端口
+                $httpPort.show();
+                $httpsPort.show();
+            }
+        }
+
+        // 监听协议选择变化
+        form.on('select(protocol-filter)', function(data) {
+            const $row = $(data.elem).closest('.dnet-form-sources');
+            updatePortVisibility($row);
+            // 更新表头显示
+        });
 
         // 监听CDN提供商选择变化
         form.on('radio(service)', function (data) {
             updateFormBasedOnProvider(data.value);
             updatePortInputStatus();
+
+            // 检查当前源站数量是否超过新服务商的限制
+            const selectedService = data.value;
+            const selectedCDNType = $('select[name="cdn_type"]').val();
+            const maxSources = getMaxSourcesCount();
+
+            // 获取当前所有源站行（排除标题行）
+            const $sourceRows = $('.dnet-form-sources').filter(function() {
+                return !$(this).find('p').length;
+            });
+
+            // 如果当前源站数量超过最大限制，删除多余的并提示用户
+            if ($sourceRows.length > maxSources) {
+                const provider = CDN_PROVIDERS[selectedService];
+                const providerName = provider ? provider.name : selectedService;
+
+                layer.msg(providerName + ' ' + selectedCDNType + ' 类型最多支持 ' + maxSources + ' 个源站，已自动保留前 ' + maxSources + ' 个源站', {
+                    icon: 0,
+                    time: 3000
+                });
+
+                // 删除超过限制的源站行
+                $sourceRows.each(function(index) {
+                    if (index >= maxSources) {
+                        $(this).remove();
+                    }
+                });
+            }
         });
 
         // 监听 CDN 类型选择变化
@@ -1259,6 +1381,8 @@
 
             // 更新端口输入框状态
             updatePortInputStatus();
+            // 更新协议提示信息
+            updateProtocolTip();
         });
 
         // 初始化CDN提供商选择

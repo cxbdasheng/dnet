@@ -89,7 +89,7 @@
         display: inline-block !important;
     }
 
-    .ws-nav-show .ws-header-menu .layui-nav{
+    .ws-nav-show .ws-header-menu .layui-nav {
         position: fixed;
         top: 61px;
         left: 0;
@@ -101,10 +101,10 @@
         height: 60px;
         box-shadow: rgba(0, 0, 0, 0.05) 0px 1px 3px;
         border-radius: 0px;
-        background: #2f363c!important;
+        background: #2f363c !important;
     }
 
-    .ws-header-menu .layui-nav{
+    .ws-header-menu .layui-nav {
         position: fixed;
         top: 61px;
         left: 0;
@@ -116,15 +116,18 @@
         height: 60px;
         box-shadow: rgba(0, 0, 0, 0.05) 0px 1px 3px;
         border-radius: 0px;
-        background: #2f363c!important;
+        background: #2f363c !important;
     }
+
     .ws-nav-show .layui-nav .layui-nav-item a:hover, .layui-layout-left .layui-this a {
         color: #fff;
         text-decoration: none;
     }
+
     .ws-nav-show .layui-nav .layui-hide-xs {
-        display: inline-block!important;
+        display: inline-block !important;
     }
+
     .ws-nav-show .ws-shade {
         content: "";
         position: fixed;
@@ -135,26 +138,32 @@
         background-color: rgba(0, 0, 0, 0.7);
         z-index: 999;
     }
+
     /* ip 地址获取 */
-    .dnet-form-sources .layui-form-label{
-        width: auto!important;
+    .dnet-form-sources .layui-form-label {
+        width: auto !important;
         display: none;
     }
-    .dnet-form-sources .layui-input-inline{
-        margin-right: 0px!important;
+
+    .dnet-form-sources .layui-input-inline {
+        margin-right: 0px !important;
         margin-left: 0px;
     }
-    .dnet-form-sources .dnet-form-type{
-        width: auto!important;;
+
+    .dnet-form-sources .dnet-form-type {
+        width: auto !important;;
     }
-    .dnet-form-sources .dnet-form-value{
-        width: auto!important;;
+
+    .dnet-form-sources .dnet-form-value {
+        width: auto !important;;
     }
-    .dnet-form-sources .dnet-form-priority{
-        width: auto!important;;
+
+    .dnet-form-sources .dnet-form-priority {
+        width: auto !important;;
     }
-    .dnet-form-sources .dnet-form-operation{
-        width: auto!important;;
+
+    .dnet-form-sources .dnet-form-operation {
+        width: auto !important;;
     }
 
 }
@@ -185,31 +194,67 @@
     text-decoration: underline;
 }
 
-.dnet-form-sources .layui-form-label{
+.dnet-form-sources .layui-form-label {
     width: 45px;
 }
-.dnet-form-sources .layui-input-inline{
+
+.dnet-form-sources .layui-input-inline {
     margin-right: 25px;
+    width: 85px;
+}
+
+.dnet-form-sources .dnet-form-http-ports-header {
+    width: 195px;
+}
+
+.dnet-form-sources .dnet-form-http-ports-header {
+    width: 195px;
+}
+
+.dnet-form-sources .dnet-form-http-ports-body {
+    width: 220px;
+    margin-right: 0px;
+    float: left;
+}
+
+.dnet-form-http-ports-body  > .layui-input-inline > tip {
+    display: inline-block;
+    margin-top: 10px;
+    line-height: 10px;
+    font-size: 10px;
+    color: #a29c9c;
+}
+
+.dnet-form-sources .dnet-form-protocol {
     width: 100px;
 }
+
+.dnet-form-sources .dnet-form-protocol-header {
+    width: 100px;
+}
+
+
 .dnet-form-sources .layui-input-inline p {
     text-align: center;
     height: 30px;
     font-size: 14px;
 }
-.dnet-form-sources .dnet-form-type{
-    width: 190px;
-}
-.dnet-form-sources .dnet-form-value{
-    width: 350px;
-}
-.dnet-form-sources .dnet-form-priority{
-    width: 80px;
-}
-.dnet-form-sources .dnet-form-operation{
-    width: 100px;
+
+.dnet-form-sources .dnet-form-type {
+    width: 175px;
 }
 
+.dnet-form-sources .dnet-form-value {
+    width: 300px;
+}
+
+.dnet-form-sources .dnet-form-priority {
+    width: 80px;
+}
+
+.dnet-form-sources .dnet-form-operation {
+    width: 85px;
+}
 
 
 /* Webhook 弹窗按钮样式 */
@@ -218,6 +263,7 @@
     background-color: #1e9fff;
     color: #fff;
 }
+
 .webhook-dialog .layui-layer-btn .layui-layer-btn1 {
     border-color: transparent;
     background-color: #1e9fff;

@@ -531,6 +531,9 @@ func (aliyun *Aliyun) buildSourcesParam() string {
 
 		// 设置默认端口
 		port := source.Port
+		if source.Protocol == "HTTPS" {
+			port = source.HttpsPort
+		}
 		if port == "" {
 			port = "80"
 		}
