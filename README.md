@@ -10,6 +10,7 @@
 [![Docker Pulls](https://img.shields.io/docker/pulls/cxbdasheng/dnet)](https://hub.docker.com/r/cxbdasheng/dnet)
 [![GitHub Downloads](https://img.shields.io/github/downloads/cxbdasheng/dnet/total)](https://github.com/cxbdasheng/dnet/releases)
 
+[主要功能](#主要功能) • [快速开始](#快速开始) • [Wiki 文档](https://github.com/cxbdasheng/dnet/wiki)
 </div>
 
 ---
@@ -27,7 +28,7 @@
 
 ## 快速开始
 
-> 更多使用示例和详细配置说明，请查看 [Wiki 文档](https://github.com/cxbdasheng/dnet/wiki)
+> 更多使用示例和详细配置说明见 [Wiki](https://github.com/cxbdasheng/dnet/wiki)，常见问题见 [FAQ](https://github.com/cxbdasheng/dnet/wiki/FAQ)。
 
 ### 方式一：使用二进制文件
 
@@ -78,7 +79,7 @@ sudo ./dnet -s restart            # Mac/Linux
 | `-dns` | 自定义 DNS 服务器 | `-dns 8.8.8.8`            |
 | `-resetPassword` | 重置密码 | `-resetPassword newpass`  |
 
-> 更多使用参数，请查看 [Wiki 文档 - D‐NET 使用指南](https://github.com/cxbdasheng/dnet/wiki/D%E2%80%90NET-%E4%BD%BF%E7%94%A8%E6%8C%87%E5%8D%97#%E5%91%BD%E4%BB%A4%E5%8F%82%E6%95%B0)
+> 更多使用参数，请查看 [Wiki 文档 - D‐NET 使用指南](https://github.com/cxbdasheng/dnet/wiki/D%E2%80%90NET-%E4%BD%BF%E7%94%A8%E6%8C%87%E5%8D%97#%E5%91%BD%E4%BB%A4%E5%8F%82%E6%95%B0)。
 
 **使用示例：**
 ```bash
