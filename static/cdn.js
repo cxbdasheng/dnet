@@ -34,4 +34,20 @@ const CDN_PROVIDERS = {
             "<tip></tip>"
         ]
     },
+    tencent: {
+        name: "腾讯云",
+        idLabel: "SecretId：",
+        secretLabel: "SecretKey：",
+        typeSelect: [
+            "EdgeOne",
+            "CDN",
+        ],
+        idHelpHtml: "<a target='_blank' href='https://console.dnspod.cn/account/token/apikey'>创建腾讯云 API 密钥</a>",
+        typeHelpHtml: "<a target='_blank' href='https://console.cloud.tencent.com/edgeone'>EdgeOne</a>、<a target='_blank' href='https://console.cloud.tencent.com/cdn'>CDN</a>",
+        maxSources: [1, 5],
+        protocolTipHtml: [
+            "<tip></tip>",
+            "<tip>腾讯云 CDN 协议跟随时，不允许自定义端口号</tip>",
+        ]
+    }
 }

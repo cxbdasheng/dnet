@@ -46,6 +46,8 @@ func ProcessDCDNServices(conf *config.Config) {
 			cdnSelected = &dcdn.Aliyun{}
 		case "baiducloud":
 			cdnSelected = &dcdn.Baidu{}
+		case "tencent":
+			cdnSelected = &dcdn.Tencent{}
 		default:
 			cdnSelected = &dcdn.Aliyun{}
 		}

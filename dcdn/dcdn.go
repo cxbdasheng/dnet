@@ -38,10 +38,11 @@ const (
 
 const (
 	// CDN 类型常量
-	CDNTypeCDN   string = "CDN"
-	CDNTypeDCDN  string = "DCDN"
-	CDNTypeDRCDN string = "DRCDN"
-	CDNTypeESA   string = "ESA"
+	CDNTypeCDN     string = "CDN"
+	CDNTypeDCDN    string = "DCDN"
+	CDNTypeDRCDN   string = "DRCDN"
+	CDNTypeESA     string = "ESA"
+	CDNTypeEdgeOne string = "EdgeOne"
 )
 
 type Cache struct {

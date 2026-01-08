@@ -133,7 +133,6 @@ type ESARecordInfo struct {
 	RecordCname      string                 `json:"RecordCname"`
 }
 
-// 实现 DomainInfo 接口
 func (e *ESARecordInfo) GetDomainName() string {
 	return e.RecordName
 }

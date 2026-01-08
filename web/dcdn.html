@@ -1272,19 +1272,24 @@
         function updatePortInputStatus() {
             const selectedService = $('input[name="service"]:checked').val();
             const selectedCDNType = $('select[name="cdn_type"]').val();
+            const selectedProtocol = $('select[name="protocol"]').val();
             if (selectedService === 'aliyun' && selectedCDNType === 'ESA') {
                 // 阿里云 ESA 类型禁用端口输入框
                 setPortInputDisabled('sources_port', true);
                 setPortInputDisabled('sources_https_port', true);
-            }else if (selectedService === 'aliyun' && (selectedCDNType === 'CDN'|| selectedCDNType === 'DCDN')) {
+            } else if (selectedService === 'aliyun' && (selectedCDNType === 'CDN' || selectedCDNType === 'DCDN')) {
                 setPortInputDisabled('sources_port', false);
                 setPortInputDisabled('sources_https_port', true);
-            }else{
+            } else if (selectedService === 'tencent' && selectedCDNType === 'CDN' && selectedProtocol === 'AUTO') {
+                setPortInputDisabled('sources_port', true);
+                setPortInputDisabled('sources_https_port', true);
+            } else {
                 // 其他情况启用端口输入框
                 setPortInputDisabled('sources_port', false);
                 setPortInputDisabled('sources_https_port', false);
             }
         }
+
 
         // 更新单个源站行的端口显示状态（根据协议选择）
         function updatePortVisibility($row) {
@@ -1311,7 +1316,8 @@
         form.on('select(protocol-filter)', function(data) {
             const $row = $(data.elem).closest('.dnet-form-sources');
             updatePortVisibility($row);
-            // 更新表头显示
+            // 更新端口输入框状态
+            updatePortInputStatus();
         });
 
         // 监听CDN提供商选择变化
@@ -1396,6 +1402,8 @@
         }
         // 初始化端口输入框状态
         updatePortInputStatus();
+        // 初始化协议提示信息
+        updateProtocolTip();
 
         // 复制 CNAME 按钮点击事件
         $('#copy-cname').on('click', function() {
