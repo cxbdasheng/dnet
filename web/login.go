@@ -160,7 +160,7 @@ func handleLoginPost(writer http.ResponseWriter, request *http.Request) {
 func handleInitialSetup(conf *config.Config, loginReq LoginRequest, clientIP string) error {
 	if time.Since(serverStartTime) > SetupTimeLimit {
 		deadline := serverStartTime.Add(SetupTimeLimit)
-		return fmt.Errorf("需在 %s 之前完成用户名密码设置,请重启ddns-go",
+		return fmt.Errorf("需在 %s 之前完成用户名密码设置，请重启 D-NET",
 			deadline.Format("2006-01-02 15:04:05"))
 	}
 
