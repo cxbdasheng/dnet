@@ -9,6 +9,19 @@
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
     <script src="/static/layui.js"></script>
     <style>
+        .layui-layer-right-top.layui-layer-msg {
+            top: 60px !important;
+            background-color: rgba(0,0,0,.6);
+            border: none;
+            color: #fff;
+            /*box-shadow: 0 2px 4px rgba(0,0,0,.12) !important;*/
+        }
+
+        .layui-layer-right-top.layui-layer-msg .layui-layer-content {
+            padding: 8px 15px !important;
+            word-break: break-all;
+        }
+
     </style>
 </head>
 <body>
@@ -56,7 +69,8 @@
     </div>
     <div class="layui-body" style="overflow: hidden;">
         <!-- iframe 内容框架 -->
-        <iframe id="content-frame" src="/dcdn" frameborder="0" style="width: 100%; height: calc(100vh - 105px); border: none; display: block;"></iframe>
+        <iframe id="content-frame" src="/dcdn" frameborder="0"
+                style="width: 100%; height: calc(100vh - 105px); border: none; display: block;"></iframe>
     </div>
     <div class="clear"></div>
     <div class="layui-footer">
@@ -92,13 +106,13 @@
             var $clickedItem = $(elem);
             var $iframe = $('#content-frame');
 
-            if (navText === 'DCDN'){
+            if (navText === 'DCDN') {
                 // 切换到 DCDN 页面
                 $iframe.attr('src', '/dcdn');
                 // 更新导航选中状态
                 $('.layui-nav[lay-filter="nav-filter"] .layui-nav-item').removeClass('layui-this');
                 $clickedItem.addClass('layui-this');
-            }else if (navText === 'DDNS'){
+            } else if (navText === 'DDNS') {
                 // // 切换到 DDNS 页面
                 // $iframe.attr('src', 'ddns_content.html');
                 // // 更新导航选中状态
@@ -121,7 +135,7 @@
                 });
 
                 // 立即恢复 DCDN 选中状态
-                setTimeout(function() {
+                setTimeout(function () {
                     $('.layui-nav[lay-filter="nav-filter"] .layui-nav-item').removeClass('layui-this');
                     $('.layui-nav[lay-filter="nav-filter"] .layui-nav-item').eq(0).addClass('layui-this');
                 }, 10);
@@ -154,7 +168,63 @@
         var logPollingTimer = null;
         var currentLogLayerIndex = null;
         var lastLogCount = 0;
+        var lastLogTimestamp = null; // 记录最后一条日志的时间戳
         var hasCheckedInitialLogs = false;
+
+        // 格式化日志级别显示
+        function formatLogLevel(level) {
+            var levelMap = {
+                'info': '信息',
+                'warn': '警告',
+                'error': '错误'
+            };
+            return levelMap[level] || level;
+        }
+
+        // 格式化日志类型显示
+        function formatLogType(type) {
+            var typeMap = {
+                'system': '系统',
+                'dcdn': 'DCDN',
+                'ddns': 'DDNS'
+            };
+            return typeMap[type] || type;
+        }
+
+        // 逐条显示新日志
+        function showNewLogs(newLogs) {
+            if (newLogs.length === 0) return;
+
+            // 限制一次最多显示5条，避免弹窗过多
+            var logsToShow = newLogs.slice(-5);
+            var delay = 0;
+
+            logsToShow.forEach(function (log, index) {
+                setTimeout(function () {
+                    // var levelIcon = 0;
+                    // if (log.level === 'info') levelIcon = 6;
+                    // else if (log.level === 'warn') levelIcon = 0;
+                    // else if (log.level === 'error') levelIcon = 2;
+
+                    var logTitle = '[' + formatLogType(log.type) + '] ' + formatLogLevel(log.level);
+                    var logContent = log.message;
+
+                    // 如果消息过长，截断显示
+                    if (logContent.length > 100) {
+                        logContent = logContent.substring(0, 100) + '...';
+                    }
+
+                    layer.msg(logTitle + ': ' + logContent, {
+                        // icon: levelIcon,
+                        time: 2000,
+                        anim: 'slideDown',
+                        offset: 'rt', // 使用标准右上角
+                        skin: 'layui-layer-right-top' // 添加自定义皮肤类
+                    });
+                }, delay);
+                delay += 800; // 每条日志间隔800毫秒
+            });
+        }
 
         // 日志轮询函数
         function pollLogs() {
@@ -164,41 +234,66 @@
                     'Content-Type': 'application/json'
                 }
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status && data.data && typeof data.data.count !== 'undefined') {
-                    var currentCount = data.data.count;
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status && data.data && typeof data.data.count !== 'undefined') {
+                        var currentCount = data.data.count;
+                        var latestLogs = data.data.latest || [];
 
-                    // 首次检查,只记录数量不显示红点
-                    if (!hasCheckedInitialLogs) {
-                        lastLogCount = currentCount;
-                        hasCheckedInitialLogs = true;
-                        return;
-                    }
-
-                    // 检查是否有新日志
-                    if (currentCount > lastLogCount) {
-                        // 显示红点
-                        $('#logs .layui-badge-dot').show();
-
-                        // 如果日志弹窗已打开,自动刷新
-                        if (currentLogLayerIndex !== null) {
-                            var layero = $('#layui-layer' + currentLogLayerIndex);
-                            if (layero.length > 0) {
-                                var iframe = layero.find('iframe')[0];
-                                if (iframe) {
-                                    iframe.contentWindow.location.reload();
-                                }
+                        // 首次检查,只记录数量和时间戳不显示红点
+                        if (!hasCheckedInitialLogs) {
+                            lastLogCount = currentCount;
+                            if (latestLogs.length > 0) {
+                                lastLogTimestamp = latestLogs[latestLogs.length - 1].timestamp;
                             }
+                            hasCheckedInitialLogs = true;
+                            return;
                         }
 
-                        lastLogCount = currentCount;
+                        // 检查是否有新日志
+                        if (currentCount > lastLogCount) {
+                            // 显示红点
+                            $('#logs .layui-badge-dot').show();
+
+                            // 找出新增的日志（基于时间戳比对）
+                            var newLogs = [];
+                            if (lastLogTimestamp) {
+                                for (var i = 0; i < latestLogs.length; i++) {
+                                    if (latestLogs[i].timestamp > lastLogTimestamp) {
+                                        newLogs.push(latestLogs[i]);
+                                    }
+                                }
+                            } else {
+                                // 如果没有记录时间戳，则取所有新增的日志
+                                var newCount = currentCount - lastLogCount;
+                                newLogs = latestLogs.slice(-newCount);
+                            }
+
+                            // 逐条显示新日志
+                            if (newLogs.length > 0) {
+                                showNewLogs(newLogs);
+                                // 更新最后一条日志的时间戳
+                                lastLogTimestamp = latestLogs[latestLogs.length - 1].timestamp;
+                            }
+
+                            // 如果日志弹窗已打开,自动刷新
+                            if (currentLogLayerIndex !== null) {
+                                var layero = $('#layui-layer' + currentLogLayerIndex);
+                                if (layero.length > 0) {
+                                    var iframe = layero.find('iframe')[0];
+                                    if (iframe) {
+                                        iframe.contentWindow.location.reload();
+                                    }
+                                }
+                            }
+
+                            lastLogCount = currentCount;
+                        }
                     }
-                }
-            })
-            .catch(error => {
-                console.error('日志轮询失败:', error);
-            });
+                })
+                .catch(error => {
+                    console.error('日志轮询失败:', error);
+                });
         }
 
         // 启动日志轮询(每5秒)
@@ -266,31 +361,32 @@
                         fetch('/logs', {
                             method: 'DELETE'
                         })
-                        .then(response => response.json())
-                        .then(data => {
-                            layer.close(loadIndex);
-                            if (data.status === true) {
-                                layer.msg(data.msg || '日志已清空', {
-                                    icon: 1,
-                                    time: 1500
-                                });
-                                // 重置日志计数
-                                lastLogCount = 0;
-                                // 刷新 iframe 内容
-                                var iframe = layero.find('iframe')[0];
-                                if (iframe) {
-                                    iframe.contentWindow.location.reload();
+                            .then(response => response.json())
+                            .then(data => {
+                                layer.close(loadIndex);
+                                if (data.status === true) {
+                                    layer.msg(data.msg || '日志已清空', {
+                                        icon: 1,
+                                        time: 1500
+                                    });
+                                    // 重置日志计数和时间戳
+                                    lastLogCount = 0;
+                                    lastLogTimestamp = null;
+                                    // 刷新 iframe 内容
+                                    var iframe = layero.find('iframe')[0];
+                                    if (iframe) {
+                                        iframe.contentWindow.location.reload();
+                                    }
+                                } else {
+                                    layer.msg('清空失败: ' + (data.msg || '未知错误'), {icon: 2});
                                 }
-                            } else {
-                                layer.msg('清空失败: ' + (data.msg || '未知错误'), {icon: 2});
-                            }
-                            layer.close(confirmIndex);
-                        })
-                        .catch(error => {
-                            layer.close(loadIndex);
-                            layer.msg('清空失败: ' + error.message, {icon: 2});
-                            layer.close(confirmIndex);
-                        });
+                                layer.close(confirmIndex);
+                            })
+                            .catch(error => {
+                                layer.close(loadIndex);
+                                layer.msg('清空失败: ' + error.message, {icon: 2});
+                                layer.close(confirmIndex);
+                            });
                     });
                     return false; // 阻止默认的关闭行为
                 },

@@ -70,7 +70,7 @@ func handleLogsAPIDelete(writer http.ResponseWriter, request *http.Request) {
 	helper.ReturnSuccess(writer, "日志已清空", nil)
 }
 
-// LogsCount 获取日志数量
+// LogsCount 获取日志数量和最新日志
 func LogsCount(writer http.ResponseWriter, request *http.Request) {
 	if request.Method != http.MethodGet {
 		helper.ReturnError(writer, "不支持的请求方法")
@@ -79,9 +79,23 @@ func LogsCount(writer http.ResponseWriter, request *http.Request) {
 
 	memLogger := helper.GetLogger()
 	count := memLogger.GetCount()
+	logs := memLogger.GetLogs()
 
-	// 返回日志数量
+	// 获取最新的10条日志
+	var latestLogs []helper.LogEntry
+	if len(logs) > 0 {
+		start := 0
+		if len(logs) > 10 {
+			start = len(logs) - 10
+		}
+		latestLogs = logs[start:]
+	} else {
+		latestLogs = []helper.LogEntry{}
+	}
+
+	// 返回日志数量和最新日志
 	helper.ReturnSuccess(writer, "", map[string]interface{}{
-		"count": count,
+		"count":  count,
+		"latest": latestLogs,
 	})
 }
