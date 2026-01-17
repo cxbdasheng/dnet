@@ -166,6 +166,7 @@ func runWebServer() error {
 	http.HandleFunc("/webhook", web.Auth(web.Webhook))
 	http.HandleFunc("/mock", web.Auth(web.Mock))
 	http.HandleFunc("/settings", web.Auth(web.Settings))
+	http.HandleFunc("/logs/count", web.Auth(web.LogsCount))
 	http.HandleFunc("/logs", web.Auth(web.Logs))
 	http.HandleFunc("/login", web.AuthAssert(web.Login))
 	http.HandleFunc("/logout", web.AuthAssert(web.Logout))

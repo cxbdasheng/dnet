@@ -69,3 +69,19 @@ func handleLogsAPIDelete(writer http.ResponseWriter, request *http.Request) {
 	// 返回成功响应
 	helper.ReturnSuccess(writer, "日志已清空", nil)
 }
+
+// LogsCount 获取日志数量
+func LogsCount(writer http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodGet {
+		helper.ReturnError(writer, "不支持的请求方法")
+		return
+	}
+
+	memLogger := helper.GetLogger()
+	count := memLogger.GetCount()
+
+	// 返回日志数量
+	helper.ReturnSuccess(writer, "", map[string]interface{}{
+		"count": count,
+	})
+}

@@ -33,10 +33,11 @@
                     <li class="layui-nav-item layui-hide-xs"><a href="javascript:;">DDNS</a></li>
                 </ul>
             </div>
-            <ul class="layui-nav  layui-layout-right" lay-bar="disabled">
+
+            <ul class="layui-nav  layui-layout-right">
                 <li class="layui-nav-item" lay-unselect>
                     <a href="javascript:;" id="logs">
-                        <button type="button" class="layui-btn">日志</button>
+                        日志<span class="layui-badge-dot"></span>
                     </a>
                 </li>
                 <li class="layui-nav-item" lay-unselect>
@@ -149,9 +150,86 @@
             $('[lay-header-event="menuLeft"] i').removeClass('layui-icon-close').addClass('layui-icon-spread-left');
         });
 
+        // 日志轮询相关变量
+        var logPollingTimer = null;
+        var currentLogLayerIndex = null;
+        var lastLogCount = 0;
+        var hasCheckedInitialLogs = false;
+
+        // 日志轮询函数
+        function pollLogs() {
+            fetch('/logs/count', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status && data.data && typeof data.data.count !== 'undefined') {
+                    var currentCount = data.data.count;
+
+                    // 首次检查,只记录数量不显示红点
+                    if (!hasCheckedInitialLogs) {
+                        lastLogCount = currentCount;
+                        hasCheckedInitialLogs = true;
+                        return;
+                    }
+
+                    // 检查是否有新日志
+                    if (currentCount > lastLogCount) {
+                        // 显示红点
+                        $('#logs .layui-badge-dot').show();
+
+                        // 如果日志弹窗已打开,自动刷新
+                        if (currentLogLayerIndex !== null) {
+                            var layero = $('#layui-layer' + currentLogLayerIndex);
+                            if (layero.length > 0) {
+                                var iframe = layero.find('iframe')[0];
+                                if (iframe) {
+                                    iframe.contentWindow.location.reload();
+                                }
+                            }
+                        }
+
+                        lastLogCount = currentCount;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('日志轮询失败:', error);
+            });
+        }
+
+        // 启动日志轮询(每5秒)
+        function startLogPolling() {
+            // 立即执行一次
+            pollLogs();
+
+            // 设置定时器
+            if (logPollingTimer) {
+                clearInterval(logPollingTimer);
+            }
+            logPollingTimer = setInterval(pollLogs, 5000);
+        }
+
+        // 停止日志轮询
+        function stopLogPolling() {
+            if (logPollingTimer) {
+                clearInterval(logPollingTimer);
+                logPollingTimer = null;
+            }
+        }
+
+        // 页面加载时启动轮询
+        startLogPolling();
+
         // 日志状态
         $('#logs').on('click', function () {
-            layer.open({
+            // 隐藏红点
+            $('#logs .layui-badge-dot').hide();
+
+            currentLogLayerIndex = layer.open({
                 type: 2,
                 title: '系统日志（最近 100 条）',
                 area: function () {
@@ -196,6 +274,8 @@
                                     icon: 1,
                                     time: 1500
                                 });
+                                // 重置日志计数
+                                lastLogCount = 0;
                                 // 刷新 iframe 内容
                                 var iframe = layero.find('iframe')[0];
                                 if (iframe) {
@@ -216,6 +296,10 @@
                 },
                 btn2: function (index, layero) {
                     layer.close(index);
+                },
+                end: function () {
+                    // 弹窗关闭时清除索引
+                    currentLogLayerIndex = null;
                 }
             });
         });
