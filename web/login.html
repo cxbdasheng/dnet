@@ -63,6 +63,38 @@
         margin-bottom: 20px;
         color: #7a7777;
     }
+    /* 底部区域样式 */
+    .layui-footer {
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        line-height: 30px;
+        padding: 20px;
+        text-align: center;
+        box-sizing: border-box;
+        color: rgba(0,0,0,.5);
+    }
+    .layui-footer .layui-container > div {
+        margin: 0;
+    }
+
+    .layui-footer p {
+        margin: 5px 0;
+        font-size: 14px;
+        color: #666;
+    }
+
+    .layui-footer a {
+        color: #1e9fff;
+        text-decoration: none;
+        transition: color 0.3s ease;
+    }
+
+    .layui-footer a:hover {
+        color: #01aaed;
+        text-decoration: underline;
+    }
 </style>
 <form class="layui-form">
     <div class="login-container">
@@ -90,6 +122,23 @@
         </div>
     </div>
 </form>
+<div class="layui-footer">
+    <div class="layui-container">
+        <div style="text-align: center; color: #666; width: 100%;">
+            <p style="margin: 0;">
+                D-NET {{.Version}} &nbsp;|&nbsp;
+                <a href="https://github.com/cxbdasheng/dnet" target="_blank"
+                   style="color: #1e9fff; text-decoration: none;">GitHub</a>
+                &nbsp;|&nbsp;
+                <span>基于 MIT 开源协议</span>
+                &nbsp;|&nbsp;
+                <span>© 2025 D-NET </span>
+            </p>
+        </div>
+    </div>
+</div>
+
+</body>
 <script src="/static/layui.js"></script>
 <script>
     layui.use(function () {
@@ -163,6 +212,4 @@
         });
     });
 </script>
-
-</body>
 </html>
