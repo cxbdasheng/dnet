@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -89,8 +90,10 @@ func handleLoginGet(writer http.ResponseWriter, _ *http.Request) {
 
 	data := struct {
 		EmptyUser bool `json:"empty_user"`
+		Version   string
 	}{
 		EmptyUser: conf.Username == "" || conf.Password == "",
+		Version:   os.Getenv(VersionEnv),
 	}
 
 	if err = tmpl.Execute(writer, data); err != nil {
