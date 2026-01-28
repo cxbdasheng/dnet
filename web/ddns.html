@@ -1,10 +1,120 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>DDNS 配置</title>
+    <link rel="stylesheet" href="/static/css/layui.css">
+    <link rel="stylesheet" href="/static/css/common.css">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <script src="/static/layui.js"></script>
+    <style>
+        body {
+            background-color: #f2f2f2;
+            margin: 0;
+            padding: 0 0 25px 0;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+        html {
+            overflow-x: hidden;
+        }
+    </style>
 </head>
 <body>
+<div class="layui-container" style="padding: 15px;">
+    <form class="layui-form">
+        <div class="layui-card">
+            <div class="layui-card-header">DDNS 设置</div>
+            <div class="layui-card-body">
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="dcdn_enable">是否开启：</label>
+                    <div class="layui-input-inline">
+                        <input type="checkbox" id="ddns_enable" name="ddns_enable" lay-skin="switch"
+                               lay-text="开启|关闭"
+                               checked>
+                    </div>
+                    <div class="layui-form-mid layui-word-aux">
+                        全局开关，关闭后 DDNS 将停用，所有配置失效。
+                    </div>
+                </div>
+                <hr/>
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="config">配置：</label>
+                    <div class="layui-input-inline">
+                        <select id="config" lay-search="{fuzzy: false}" lay-creatable=""
+                                lay-verify="required"
+                                lay-filter="config-select-filter" name="config">
+                            <option value="1">1</option>
+                        </select>
+                    </div>
+                    <div class="layui-input-inline" style="width: 205px;">
+                        <button type="button" class="layui-btn" id="config-add">
+                            <i class="layui-icon layui-icon-add-1"></i>
+                        </button>
+                        <button type="button" class="layui-btn" id="config-rename">
+                            <i class="layui-icon layui-icon-edit"></i>
+                        </button>
+                        <button type="button" class="layui-btn" id="config-remove">
+                            <i class="layui-icon layui-icon-delete"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="domain">域名：</label>
+                    <div class="layui-input-block">
+                        <input type="text" id="domain" name="domain" lay-verify="domain" autocomplete="off" placeholder="请输域名" class="layui-input">
+                        <tip>填写需要加速的域名（如 ddns.example.com），第一次使用可参考 <a style="color: #1e9fff" href="https://github.com/cxbdasheng/dnet/wiki/DDNS-%E4%BD%BF%E7%94%A8%E6%8C%87%E5%8D%97" target="_blank">DDNS 使用指南</a>。</tip>
+                    </div>
+                </div>
+                <div class="layui-row layui-form-item">
+                    <div class="layui-input-block">
+                        <button type="submit" class="layui-btn" lay-submit lay-filter="save">立即提交
+                        </button>
+                        <button type="reset" class="layui-btn layui-btn-primary">重置</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="layui-card">
+            <div class="layui-card-header">DNS 服务商</div>
+            <div class="layui-card-body">
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label"></label>
+                    <div class="layui-input-block" id="service-radio-container">
+                        <!-- CDN提供商单选按钮将通过JavaScript动态生成 -->
+                    </div>
+                    <tip class="tip" id="service-help-link"><a href="">创建 AccessKey</a></tip>
+                </div>
 
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="access_key" id="access-key-label">AccessKey
+                        ID：</label>
+                    <div class="layui-input-block">
+                        <input type="text" id="access_key" name="access_key" lay-verify="access_key" placeholder="请输入AccessKey ID" class="layui-input">
+                    </div>
+                </div>
+
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="access_secret" id="access-secret-label">AccessKey
+                        Secret：</label>
+                    <div class="layui-input-block">
+                        <input type="text" id="access_secret" name="access_secret" lay-verify="access_secret" placeholder="请输入AccessKey Secret" class="layui-input">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="layui-row layui-form-item">
+            <div class="layui-input-block">
+                <button type="submit" class="layui-btn" lay-submit lay-filter="save">立即提交
+                </button>
+                <button type="reset" class="layui-btn layui-btn-primary">重置</button>
+            </div>
+        </div>
+    </form>
+</div>
 </body>
+<script>
+
+</script>
 </html>

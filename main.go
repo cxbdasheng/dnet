@@ -162,6 +162,7 @@ func runWebServer() error {
 
 	http.HandleFunc("/", web.Auth(web.Home))
 	http.HandleFunc("/dcdn", web.Auth(web.DCDN))
+	http.HandleFunc("/ddns", web.Auth(web.DDNS))
 	http.HandleFunc("/api/dcdn/config", web.Auth(web.DCDNConfigAPI))
 	http.HandleFunc("/webhook", web.Auth(web.Webhook))
 	http.HandleFunc("/mock", web.Auth(web.Mock))
