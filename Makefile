@@ -71,6 +71,7 @@ build-linux:
 	@GOOS=linux GOARCH=amd64 $(GOENV) $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(DIR_DIST)/$(BIN_NAME)-linux-amd64 $(DIR_SRC)
 	@GOOS=linux GOARCH=arm64 $(GOENV) $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(DIR_DIST)/$(BIN_NAME)-linux-arm64 $(DIR_SRC)
 	@GOOS=linux GOARCH=arm GOARM=7 $(GOENV) $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(DIR_DIST)/$(BIN_NAME)-linux-armv7 $(DIR_SRC)
+	@GOOS=linux GOARCH=riscv64 $(GOENV) $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(DIR_DIST)/$(BIN_NAME)-linux-riscv64 $(DIR_SRC)
 	@echo "Linux 版本构建完成"
 
 ## build-darwin: 构建 macOS 平台二进制文件

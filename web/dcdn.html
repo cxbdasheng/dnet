@@ -63,9 +63,20 @@
                 <div class="layui-row layui-form-item">
                     <label class="layui-form-label" for="domain">域名：</label>
                     <div class="layui-input-block">
-                        <input type="text" id="domain" name="domain" lay-verify="domain" autocomplete="off"
-                               placeholder="请输域名" class="layui-input">
-<!--                                                            <tip>填写自己部署网站的名称。</tip>-->
+                        <input type="text" id="domain" name="domain" lay-verify="domain" autocomplete="off" placeholder="请输域名" class="layui-input">
+                        <tip>填写需要加速的域名（如 dcdn.example.com），第一次使用可参考 <a style="color: #1e9fff" href="https://github.com/cxbdasheng/dnet/wiki/DCDN-%E4%BD%BF%E7%94%A8%E6%8C%87%E5%8D%97" target="_blank">DCDN 使用指南</a>。</tip>
+                    </div>
+                </div>
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="cname">CNAME：</label>
+                    <div class="layui-input-inline" style="width: 500px;">
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="cname" name="cname" readonly class="layui-input" placeholder="CNAME 记录值将在此显示">
+                            <button type="button" class="layui-btn layui-btn-normal" id="copy-cname">
+                                <i class="layui-icon layui-icon-file"></i> 复制
+                            </button>
+                        </div>
+                        <tip>将此 CNAME 记录添加到您的 DNS 解析中</tip>
                     </div>
                 </div>
                 <div class="layui-row layui-form-item">
@@ -125,8 +136,8 @@
                     <div class="layui-input-inline dnet-form-value" ><p>源站值</p></div>
                     <div class="layui-input-inline dnet-form-priority"><p>优先级</p></div>
                     <div class="layui-input-inline" ><p>权重</p></div>
-                    <div class="layui-input-inline" ><p>端口</p> </div>
-                    <div class="layui-input-inline dnet-form-protocol-header" style="display: none;"><p>协议</p> </div>
+                    <div class="layui-input-inline dnet-form-protocol-header"><p>协议</p> </div>
+                    <div class="layui-input-inline dnet-form-http-ports-header"><p>HTTP 端口/HTTPS 端口</p></div>
                     <div class="layui-input-inline dnet-form-operation">操作</div>
                 </div>
                 <div class="layui-row layui-form-item dnet-form-sources">
@@ -194,14 +205,21 @@
                         <input type="text" name="sources_weight" lay-affix="number" value="10" step="1" max="100" min="1" class="layui-input">
 
                     </div>
-                    <div class="layui-input-inline">
-                        <input type="text" name="sources_port" lay-affix="number" value="80" step="1" max="65535" min="1" class="layui-input">
-                    </div>
                     <div class="layui-input-inline dnet-form-protocol">
-                        <select name="protocol">
+                        <select name="protocol" lay-filter="protocol-filter">
                             <option value="HTTP">HTTP</option>
                             <option value="HTTPS">HTTPS</option>
+                            <option value="AUTO">协议跟随</option>
                         </select>
+                        <tip></tip>
+                    </div>
+                    <div class="dnet-form-http-ports-body">
+                        <div class="layui-input-inline dnet-form-http-port">
+                            <input type="text" name="sources_port" lay-affix="number" value="80" step="1" max="65535" min="1" class="layui-input">
+                        </div>
+                        <div class="layui-input-inline dnet-form-https-port">
+                            <input type="text" name="sources_https_port" lay-affix="number" value="443" step="1" max="65535" min="1" class="layui-input">
+                        </div>
                     </div>
                     <div class="layui-input-inline">
                         <button type="button" class="layui-btn btn-add-source">
@@ -238,6 +256,7 @@
         "sources_type": "dynamic_ipv6_interface",
         "sources_weight":10,
         "sources_port":80,
+        "sources_https_port":443,
         "sources_priority": "main",
         "sources_protocol": "HTTP",
         "sources_dynamic_ipv4_url": "https://myip.ipip.net, https://ddns.oray.com/checkip, https://ip.3322.net, https://4.ipw.cn, https://v4.yinghualuo.cn/bejson",
@@ -321,20 +340,24 @@
             },
             // AccessKey验证
             access_key: function (value, elem) {
+                // 动态获取 label 文本
+                var labelText = $('#access-key-label').text().replace('：', '').trim();
                 if (!value) {
-                    return 'AccessKey 不能为空';
+                    return labelText + ' 不能为空';
                 }
                 if (value.length < 6) {
-                    return 'AccessKey 长度不能少于6位';
+                    return labelText + ' 长度不能少于6位';
                 }
             },
             // AccessSecret验证
             access_secret: function (value, elem) {
+                // 动态获取 label 文本
+                var labelText = $('#access-secret-label').text().replace('：', '').trim();
                 if (!value) {
-                    return 'AccessSecret不能为空';
+                    return labelText + ' 不能为空';
                 }
                 if (value.length < 10) {
-                    return 'AccessSecret长度不能少于10位';
+                    return labelText + ' 长度不能少于10位';
                 }
             },
             // IPv6 验证
@@ -468,10 +491,22 @@
                 success: function (response) {
                     var res = JSON.parse(response)
                     if (res.status){
-                        layer.msg(res.msg, {
-                            icon: 1,
-                            time: 1000
-                        });
+                        // 检查是否开启了 DCDN
+                        const isDCDNEnabled = $('input[name="dcdn_enable"]').is(':checked');
+
+                        if (isDCDNEnabled) {
+                            layer.msg('配置保存成功，正在获取 CNAME...', {
+                                icon: 1,
+                                time: 2000
+                            });
+                            // 启动 CNAME 轮询
+                            startCnamePolling();
+                        } else {
+                            layer.msg('配置保存成功', {
+                                icon: 1,
+                                time: 1000
+                            });
+                        }
                     }else {
                         layer.msg(res.msg, {
                             icon: 2,
@@ -528,6 +563,7 @@
         function clearFormFields() {
             // 使用默认配置填充基本字段
             $('input[name="domain"]').val(defaultConfig.domain || '');
+            $('input[name="cname"]').val(''); // 清空 CNAME 字段
             const defaultProvider = defaultConfig.service || firstCDNProvider;
             $('input[name="service"][value="' + defaultProvider + '"]').prop('checked', true);
             $('input[name="access_key"]').val(defaultConfig.access_key || '');
@@ -572,6 +608,31 @@
             var $select = $row.find('select[name="sources_type"]');
             var initialValue = $select.val();
             toggleSourcesInputs($row, initialValue);
+            // 初始化端口显示
+            updatePortVisibility($row);
+        }
+
+        // 获取当前选择的服务商和类型对应的最大源站数量
+        function getMaxSourcesCount() {
+            const selectedService = $('input[name="service"]:checked').val();
+            const selectedCDNType = $('select[name="cdn_type"]').val();
+
+            if (!selectedService || !CDN_PROVIDERS[selectedService]) {
+                return Infinity; // 如果没有配置，返回无限制
+            }
+
+            const provider = CDN_PROVIDERS[selectedService];
+            if (!provider.maxSources || !provider.typeSelect) {
+                return Infinity; // 如果没有配置 maxSources，返回无限制
+            }
+
+            // 找到当前类型在 typeSelect 中的索引
+            const typeIndex = provider.typeSelect.indexOf(selectedCDNType);
+            if (typeIndex === -1 || typeIndex >= provider.maxSources.length) {
+                return Infinity; // 如果找不到或索引越界，返回无限制
+            }
+
+            return provider.maxSources[typeIndex];
         }
 
         // 监听源站类型选择框的变化
@@ -582,6 +643,28 @@
 
         // 添加源站按钮点击事件
         $(document).on('click', '.btn-add-source', function() {
+            // 获取当前允许的最大源站数量
+            const maxSources = getMaxSourcesCount();
+
+            // 获取当前源站数量（排除标题行）
+            const currentSourcesCount = $('.dnet-form-sources').filter(function() {
+                return !$(this).find('p').length;
+            }).length;
+
+            // 检查是否超过最大源站数量
+            if (currentSourcesCount >= maxSources) {
+                const selectedService = $('input[name="service"]:checked').val();
+                const selectedCDNType = $('select[name="cdn_type"]').val();
+                const provider = CDN_PROVIDERS[selectedService];
+                const providerName = provider ? provider.name : selectedService;
+
+                layer.msg(providerName + ' ' + selectedCDNType + ' 类型最多支持 ' + maxSources + ' 个源站', {
+                    icon: 0,
+                    time: 2500
+                });
+                return false;
+            }
+
             const $currentRow = $(this).closest('.dnet-form-sources');
             const $newRow = $currentRow.clone();
 
@@ -590,6 +673,7 @@
             $newRow.find('textarea').val('');
             $newRow.find('input[name="sources_weight"]').val(defaultConfig.sources_weight||10);
             $newRow.find('input[name="sources_port"]').val(defaultConfig.sources_port||80);
+            $newRow.find('input[name="sources_https_port"]').val(defaultConfig.sources_https_port||443);
             $newRow.find('select[name="sources_type"]').val(defaultConfig.sources_type);
             // 重置网卡选择框为第一个选项
             $newRow.find('select[name="sources_dynamic_ipv4_interface"] option:first').prop('selected', true);
@@ -711,13 +795,15 @@
         function saveCurrentConfig(configName) {
             if (!configName) configName = $('select[name="config"]').val();
             if (!configName) return;
-            // 获取现有配置，保留 name 字段（如果已存在）
+            // 获取现有配置，保留 name 和 cname 字段（如果已存在）
             const existingConfig = getConfigById(configName);
             const customName = existingConfig && existingConfig.name ? existingConfig.name : '';
+            const existingCname = existingConfig && existingConfig.cname ? existingConfig.cname : '';
             const configObj = {
                 id: configName,
                 name: customName, // 只保存自定义的 name，没有则为空字符串
                 domain: $('input[name="domain"]').val(),
+                cname: $('input[name="cname"]').val() || existingCname, // 保存当前 CNAME 或保留旧值
                 service: $('input[name="service"]:checked').val(),
                 access_key: $('input[name="access_key"]').val(),
                 access_secret: $('input[name="access_secret"]').val(),
@@ -746,6 +832,7 @@
                     priority: $row.find('select[name="sources_priority"]').val(),
                     weight: $row.find('input[name="sources_weight"]').val(),
                     port: $row.find('input[name="sources_port"]').val(),
+                    https_port: $row.find('input[name="sources_https_port"]').val(),
                     protocol: $row.find('select[name="protocol"]').val()
                 });
             });
@@ -820,6 +907,7 @@
             const data = config;
             // 恢复基本配置
             $('input[name="domain"]').val(data.domain || '');
+            $('input[name="cname"]').val(data.cname || '');
             $('input[name="service"][value="' + (data.service || firstCDNProvider) + '"]').prop('checked', true);
             $('input[name="access_key"]').val(data.access_key || '');
             $('input[name="access_secret"]').val(data.access_secret || '');
@@ -904,6 +992,7 @@
             $row.find('select[name="sources_priority"]').val(sourceData.priority || defaultConfig.sources_priority);
             $row.find('input[name="sources_weight"]').val(sourceData.weight || defaultConfig.sources_weight);
             $row.find('input[name="sources_port"]').val(sourceData.port || defaultConfig.sources_port);
+            $row.find('input[name="sources_https_port"]').val(sourceData.https_port || defaultConfig.sources_https_port);
             $row.find('select[name="protocol"]').val(sourceData.protocol || defaultConfig.sources_protocol);
         }
 
@@ -918,6 +1007,9 @@
             // 设置权重和端口的默认值（因为上面清空了所有text输入框）
             $row.find('input[name="sources_weight"]').val(defaultConfig.sources_weight);
             $row.find('input[name="sources_port"]').val(defaultConfig.sources_port);
+            $row.find('input[name="sources_https_port"]').val(defaultConfig.sources_https_port);
+            // 重置协议选择框为第一个选项
+            $row.find('select[name="protocol"] option:first').prop('selected', true);
             // 重置网卡选择框为第一个选项
             $row.find('select[name="sources_dynamic_ipv4_interface"] option:first').prop('selected', true);
             $row.find('select[name="sources_dynamic_ipv6_interface"] option:first').prop('selected', true);
@@ -1095,25 +1187,17 @@
             } else {
                 $serviceHelpContainer.html('<a href="">创建 AccessKey</a>');
             }
-            // 根据服务商显示或隐藏协议字段
-            if (providerId === 'baiducloud') {
-                // 百度云显示协议字段
-                $('.dnet-form-protocol-header').show();
-                $('.dnet-form-protocol').show();
-            } else {
-                // 其他服务商隐藏协议字段
-                $('.dnet-form-protocol-header').hide();
-                $('.dnet-form-protocol').hide();
-            }
-            // 重新渲染表单
             form.render('select');
+
+            // 更新协议提示信息
+            updateProtocolTip();
         }
         // 表单字段显示/隐藏辅助函数
         function updateFormField(labelId, fieldName, labelText, fieldId) {
             const $row = $('#' + labelId).parent();
             if (labelText && labelText.trim()) {
                 $('#' + labelId).text(labelText);
-                const placeholder = '请输入' + labelText.replace('：', '');
+                const placeholder = '请输入 ' + labelText.replace('：', '');
 
                 if ($row.is(':hidden') || $row.find('input[name="' + fieldName + '"]').length === 0) {
                     $row.find('.layui-input-block').html(
@@ -1127,9 +1211,184 @@
                 $row.hide();
             }
         }
+        // 更新协议提示信息
+        function updateProtocolTip() {
+            const selectedService = $('input[name="service"]:checked').val();
+            const selectedCDNType = $('select[name="cdn_type"]').val();
+
+            if (!selectedService || !CDN_PROVIDERS[selectedService]) {
+                $('.dnet-form-protocol tip').html('');
+                return;
+            }
+
+            const provider = CDN_PROVIDERS[selectedService];
+
+            // 如果提供商有 protocolTipHtml 配置，则显示提示信息
+            if (provider.protocolTipHtml) {
+                let tipHtml = '';
+
+                // 如果 protocolTipHtml 是数组，根据 CDN 类型索引获取对应的提示
+                if (Array.isArray(provider.protocolTipHtml)) {
+                    // 找到当前类型在 typeSelect 中的索引
+                    const typeIndex = provider.typeSelect ? provider.typeSelect.indexOf(selectedCDNType) : -1;
+                    if (typeIndex !== -1 && typeIndex < provider.protocolTipHtml.length) {
+                        tipHtml = provider.protocolTipHtml[typeIndex];
+                    }
+                } else {
+                    // 如果是字符串，直接使用
+                    tipHtml = provider.protocolTipHtml;
+                }
+
+                // 提取 tipHtml 的内部内容，避免嵌套 tip 标签
+                if (tipHtml) {
+                    const tipContent = $(tipHtml).html() || tipHtml;
+                    $('.dnet-form-protocol tip').html(tipContent);
+                } else {
+                    $('.dnet-form-protocol tip').html('');
+                }
+            } else {
+                $('.dnet-form-protocol tip').html('');
+            }
+        }
+
+        // 设置端口输入框及其layui affix按钮的禁用状态
+        function setPortInputDisabled(portInputName, disabled) {
+            $('input[name="' + portInputName + '"]').each(function() {
+                if (disabled) {
+                    $(this).prop('disabled', true).addClass('layui-disabled');
+                    // 给 layui affix 按钮中的 i 标签添加 layui-disabled 类
+                    $(this).siblings('.layui-input-affix').find('i').addClass('layui-disabled');
+                    $(this).parent().find('.layui-input-affix i').addClass('layui-disabled');
+                } else {
+                    $(this).prop('disabled', false).removeClass('layui-disabled');
+                    // 移除 layui affix 按钮中的 i 标签的 layui-disabled 类
+                    $(this).siblings('.layui-input-affix').find('i').removeClass('layui-disabled');
+                    $(this).parent().find('.layui-input-affix i').removeClass('layui-disabled');
+                }
+            });
+        }
+
+        // 更新端口输入框状态
+        function updatePortInputStatus() {
+            const selectedService = $('input[name="service"]:checked').val();
+            const selectedCDNType = $('select[name="cdn_type"]').val();
+            const selectedProtocol = $('select[name="protocol"]').val();
+            if (selectedService === 'aliyun' && selectedCDNType === 'ESA') {
+                // 阿里云 ESA 类型禁用端口输入框
+                setPortInputDisabled('sources_port', true);
+                setPortInputDisabled('sources_https_port', true);
+            } else if (selectedService === 'aliyun' && (selectedCDNType === 'CDN' || selectedCDNType === 'DCDN')) {
+                setPortInputDisabled('sources_port', false);
+                setPortInputDisabled('sources_https_port', true);
+            } else if (selectedService === 'tencent' && selectedCDNType === 'CDN' && selectedProtocol === 'AUTO') {
+                setPortInputDisabled('sources_port', true);
+                setPortInputDisabled('sources_https_port', true);
+            } else {
+                // 其他情况启用端口输入框
+                setPortInputDisabled('sources_port', false);
+                setPortInputDisabled('sources_https_port', false);
+            }
+        }
+
+
+        // 更新单个源站行的端口显示状态（根据协议选择）
+        function updatePortVisibility($row) {
+            const protocol = $row.find('select[name="protocol"]').val();
+            const $httpPort = $row.find('.dnet-form-http-port');
+            const $httpsPort = $row.find('.dnet-form-https-port');
+
+            if (protocol === 'HTTP') {
+                // HTTP: 只显示 HTTP 端口
+                $httpPort.show();
+                $httpsPort.hide();
+            } else if (protocol === 'HTTPS') {
+                // HTTPS: 只显示 HTTPS 端口
+                $httpPort.hide();
+                $httpsPort.show();
+            } else {
+                // AUTO 协议跟随: 显示两个端口
+                $httpPort.show();
+                $httpsPort.show();
+            }
+        }
+
+        // 监听协议选择变化
+        form.on('select(protocol-filter)', function(data) {
+            const $row = $(data.elem).closest('.dnet-form-sources');
+            updatePortVisibility($row);
+            // 更新端口输入框状态
+            updatePortInputStatus();
+        });
+
         // 监听CDN提供商选择变化
         form.on('radio(service)', function (data) {
             updateFormBasedOnProvider(data.value);
+            updatePortInputStatus();
+
+            // 检查当前源站数量是否超过新服务商的限制
+            const selectedService = data.value;
+            const selectedCDNType = $('select[name="cdn_type"]').val();
+            const maxSources = getMaxSourcesCount();
+
+            // 获取当前所有源站行（排除标题行）
+            const $sourceRows = $('.dnet-form-sources').filter(function() {
+                return !$(this).find('p').length;
+            });
+
+            // 如果当前源站数量超过最大限制，删除多余的并提示用户
+            if ($sourceRows.length > maxSources) {
+                const provider = CDN_PROVIDERS[selectedService];
+                const providerName = provider ? provider.name : selectedService;
+
+                layer.msg(providerName + ' ' + selectedCDNType + ' 类型最多支持 ' + maxSources + ' 个源站，已自动保留前 ' + maxSources + ' 个源站', {
+                    icon: 0,
+                    time: 3000
+                });
+
+                // 删除超过限制的源站行
+                $sourceRows.each(function(index) {
+                    if (index >= maxSources) {
+                        $(this).remove();
+                    }
+                });
+            }
+        });
+
+        // 监听 CDN 类型选择变化
+        form.on('select(cdn-type-filter)', function(data) {
+            const selectedService = $('input[name="service"]:checked').val();
+            const selectedCDNType = data.value;
+
+            // 获取当前类型的最大源站数量
+            const maxSources = getMaxSourcesCount();
+
+            // 获取当前所有源站行（排除标题行）
+            const $sourceRows = $('.dnet-form-sources').filter(function() {
+                return !$(this).find('p').length;
+            });
+
+            // 如果当前源站数量超过最大限制，删除多余的并提示用户
+            if ($sourceRows.length > maxSources) {
+                const provider = CDN_PROVIDERS[selectedService];
+                const providerName = provider ? provider.name : selectedService;
+
+                layer.msg(providerName + ' ' + selectedCDNType + ' 类型最多支持 ' + maxSources + ' 个源站，已自动保留前 ' + maxSources + ' 个源站', {
+                    icon: 0,
+                    time: 3000
+                });
+
+                // 删除超过限制的源站行
+                $sourceRows.each(function(index) {
+                    if (index >= maxSources) {
+                        $(this).remove();
+                    }
+                });
+            }
+
+            // 更新端口输入框状态
+            updatePortInputStatus();
+            // 更新协议提示信息
+            updateProtocolTip();
         });
 
         // 初始化CDN提供商选择
@@ -1140,6 +1399,172 @@
         if (typeof configData.dcdn_enable !== 'undefined') {
             $('input[name="dcdn_enable"]').prop('checked', configData.dcdn_enable);
             form.render('checkbox');
+        }
+        // 初始化端口输入框状态
+        updatePortInputStatus();
+        // 初始化协议提示信息
+        updateProtocolTip();
+
+        // 复制 CNAME 按钮点击事件
+        $('#copy-cname').on('click', function() {
+            const cnameValue = $('#cname').val();
+            if (!cnameValue) {
+                layer.msg('CNAME 记录为空，无法复制', {
+                    icon: 0,
+                    time: 2000
+                });
+                return false;
+            }
+
+            // 使用现代浏览器的 Clipboard API
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(cnameValue).then(function() {
+                    layer.msg('CNAME 已复制到剪贴板', {
+                        icon: 1,
+                        time: 1500
+                    });
+                }).catch(function(err) {
+                    // 失败时使用传统方法
+                    copyToClipboardFallback(cnameValue);
+                });
+            } else {
+                // 不支持现代 API，使用传统方法
+                copyToClipboardFallback(cnameValue);
+            }
+        });
+
+        // 传统复制方法（兼容旧浏览器）
+        function copyToClipboardFallback(text) {
+            const $temp = $('<textarea>');
+            $('body').append($temp);
+            $temp.val(text).select();
+            try {
+                document.execCommand('copy');
+                layer.msg('CNAME 已复制到剪贴板', {
+                    icon: 1,
+                    time: 1500
+                });
+            } catch (err) {
+                layer.msg('复制失败，请手动复制', {
+                    icon: 2,
+                    time: 2000
+                });
+            }
+            $temp.remove();
+        }
+
+        // CNAME 轮询相关变量
+        let cnamePollingTimer = null;
+        let cnamePollingCount = 0;
+        let initialCname = ''; // 记录轮询开始时的 CNAME
+        const maxPollingCount = 30; // 最多轮询30次（约60秒）
+        const pollingInterval = 2000; // 每2秒轮询一次
+        const stableCheckCount = 2; // 如果 CNAME 稳定（没变化）2次，认为后端处理完成
+
+        // 启动 CNAME 轮询
+        function startCnamePolling() {
+            // 清除之前的轮询定时器
+            stopCnamePolling();
+            cnamePollingCount = 0;
+            // 记录轮询开始时的 CNAME
+            initialCname = $('input[name="cname"]').val();
+
+            // 立即执行一次轮询
+            checkCnameUpdate();
+        }
+
+        // 停止 CNAME 轮询
+        function stopCnamePolling() {
+            if (cnamePollingTimer) {
+                clearTimeout(cnamePollingTimer);
+                cnamePollingTimer = null;
+            }
+            cnamePollingCount = 0;
+        }
+
+        // 检查 CNAME 更新
+        function checkCnameUpdate() {
+            cnamePollingCount++;
+
+            // 超过最大轮询次数，停止轮询
+            if (cnamePollingCount > maxPollingCount) {
+                stopCnamePolling();
+                layer.msg('CNAME 获取超时，请稍后刷新页面查看', {
+                    icon: 0,
+                    time: 3000
+                });
+                return;
+            }
+
+            // 直接请求配置 API 获取最新配置
+            $.ajax({
+                type: 'GET',
+                url: '/api/dcdn/config',
+                dataType: 'json',
+                success: function(newConfigData) {
+                    // 检查当前配置的 CNAME 是否已更新
+                    if (newConfigData.dcdn && newConfigData.dcdn.length > 0) {
+                        const currentId = currentSelectedConfig;
+                        const currentConfig = newConfigData.dcdn.find(function(cfg) {
+                            return cfg.id === currentId;
+                        });
+
+                        if (currentConfig) {
+                            const newCname = currentConfig.cname || '';
+
+                            // 情况1: CNAME 发生了变化（不管是从有到有，从无到有，还是从有到无）
+                            if (newCname !== initialCname) {
+                                // 更新页面显示
+                                $('input[name="cname"]').val(newCname);
+                                // 更新 configData
+                                configData = newConfigData;
+                                // 更新当前配置的 cname
+                                const localConfig = getConfigById(currentId);
+                                if (localConfig) {
+                                    localConfig.cname = newCname;
+                                }
+
+                                stopCnamePolling();
+                                if (newCname) {
+                                    layer.msg('CNAME 已获取: ' + newCname, {
+                                        icon: 1,
+                                        time: 3000
+                                    });
+                                }
+                                // else {
+                                //     layer.msg('CNAME 已清空', {
+                                //         icon: 1,
+                                //         time: 2000
+                                //     });
+                                // }
+                                return;
+                            }
+
+                            // 情况2: CNAME 没有变化，但已经轮询了 stableCheckCount 次
+                            // 如果初始就有 CNAME，说明后端处理完成但没有变化
+                            if (initialCname && cnamePollingCount >= stableCheckCount) {
+                                stopCnamePolling();
+                                layer.msg('配置已保存，CNAME 无变化', {
+                                    icon: 1,
+                                    time: 2000
+                                });
+                                return;
+                            }
+                        }
+                    }
+
+                    // CNAME 未更新，继续轮询
+                    cnamePollingTimer = setTimeout(checkCnameUpdate, pollingInterval);
+                },
+                error: function() {
+                    // 请求失败，停止轮询
+                    stopCnamePolling();
+                    layer.msg('获取配置失败，请手动刷新页面', {
+                        icon: 2,
+                        time: 2000
+                    });
+                }
+            });
         }
     });
 

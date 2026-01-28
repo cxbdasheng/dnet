@@ -1,6 +1,7 @@
 package signer
 
 import (
+	"net/http"
 	"net/url"
 	"strings"
 	"testing"
@@ -244,7 +245,7 @@ func TestAliyunSigner(t *testing.T) {
 				params[k] = v
 			}
 
-			AliyunSigner(tt.accessKeyID, tt.accessSecret, &params)
+			AliyunSigner(tt.accessKeyID, tt.accessSecret, &params, http.MethodGet)
 
 			// 验证必需的公共参数
 			requiredParams := []string{
@@ -305,11 +306,11 @@ func TestAliyunSigner_UniqueNonce(t *testing.T) {
 	accessSecret := "test-secret"
 
 	params1 := make(url.Values)
-	AliyunSigner(accessKeyID, accessSecret, &params1)
+	AliyunSigner(accessKeyID, accessSecret, &params1, http.MethodGet)
 
 	// 等待一纳秒确保时间不同
 	params2 := make(url.Values)
-	AliyunSigner(accessKeyID, accessSecret, &params2)
+	AliyunSigner(accessKeyID, accessSecret, &params2, http.MethodGet)
 
 	nonce1 := params1.Get("SignatureNonce")
 	nonce2 := params2.Get("SignatureNonce")
@@ -330,7 +331,7 @@ func TestAliyunSigner_PreserveUserParams(t *testing.T) {
 		"DomainName": []string{"example.com"},
 	}
 
-	AliyunSigner(accessKeyID, accessSecret, &params)
+	AliyunSigner(accessKeyID, accessSecret, &params, http.MethodGet)
 
 	// 验证用户参数仍然存在
 	if params.Get("Action") != "DescribeCdnService" {
@@ -400,6 +401,6 @@ func BenchmarkAliyunSigner(b *testing.B) {
 		for k, v := range params {
 			p[k] = v
 		}
-		AliyunSigner("test-key", "test-secret", &p)
+		AliyunSigner("test-key", "test-secret", &p, http.MethodGet)
 	}
 }

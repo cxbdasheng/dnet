@@ -1,0 +1,31 @@
+name: test.yml
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goarch: [amd64, arm64, riscv64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Test
+        run: |
+          if [ "${{ matrix.goarch }}" = "amd64" ]; then
+            make build test
+          else
+            GOARCH=${{ matrix.goarch }} make build
+          fi
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: dnet_${{ matrix.goarch }}
+          path: dnet

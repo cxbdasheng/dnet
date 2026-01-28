@@ -4,11 +4,13 @@ import (
 	"embed"
 	"errors"
 	"flag"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -16,12 +18,16 @@ import (
 	"github.com/cxbdasheng/dnet/config"
 	"github.com/cxbdasheng/dnet/dcdn"
 	"github.com/cxbdasheng/dnet/helper"
+	"github.com/cxbdasheng/dnet/helper/update"
 	"github.com/cxbdasheng/dnet/web"
 	"github.com/kardianos/service"
 )
 
 // 配置文件路径
 var configFilePath = flag.String("c", config.GetConfigFilePathDefault(), "Custom configuration file path")
+
+// 更新 D-NET
+var updateFlag = flag.Bool("u", false, "Upgrade D-NET to the latest version")
 
 // 监听地址
 var listen = flag.String("l", ":9877", "Listen address")
@@ -44,6 +50,9 @@ var noWebService = flag.Bool("noweb", false, "No web service")
 // 缓存次数
 var dcdnCacheTimes = flag.Int("dcdnCacheTimes", 5, "dcdn Cache times")
 
+// D-NET 版本
+var showVersion = flag.Bool("v", false, "D-NET version")
+
 //go:embed static
 var staticEmbeddedFiles embed.FS
 
@@ -56,10 +65,25 @@ var version = "DEV"
 func main() {
 	helper.InitLoggerWithConsole(helper.MaxSize, true)
 	flag.Parse()
+
+	// 显示版本
+	if *showVersion {
+		fmt.Println(version)
+		return
+	}
+	// 更新 D-NET
+	if *updateFlag {
+		updateDNET()
+		return
+	}
 	// 设置配置文件路径
 	if *configFilePath != "" {
 		absPath, _ := filepath.Abs(*configFilePath)
 		os.Setenv(config.PathENV, absPath)
+	}
+
+	if runtime.GOOS == "android" {
+		helper.FixTimezone()
 	}
 
 	// 检查监听地址，查看是否合法
@@ -138,9 +162,11 @@ func runWebServer() error {
 
 	http.HandleFunc("/", web.Auth(web.Home))
 	http.HandleFunc("/dcdn", web.Auth(web.DCDN))
+	http.HandleFunc("/api/dcdn/config", web.Auth(web.DCDNConfigAPI))
 	http.HandleFunc("/webhook", web.Auth(web.Webhook))
 	http.HandleFunc("/mock", web.Auth(web.Mock))
 	http.HandleFunc("/settings", web.Auth(web.Settings))
+	http.HandleFunc("/logs/count", web.Auth(web.LogsCount))
 	http.HandleFunc("/logs", web.Auth(web.Logs))
 	http.HandleFunc("/login", web.AuthAssert(web.Login))
 	http.HandleFunc("/logout", web.AuthAssert(web.Logout))
@@ -434,3 +460,11 @@ esac
 
 exit 0
 `
+
+// https://github.com/creativeprojects/go-selfupdate
+// updateDNET 更新 D-NET 到最新版本
+func updateDNET() {
+	if err := update.CheckAndUpdate(version, false); err != nil {
+		helper.Fatalf(helper.LogTypeSystem, "更新过程出错: %v", err)
+	}
+}

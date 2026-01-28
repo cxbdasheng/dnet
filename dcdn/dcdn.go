@@ -38,9 +38,11 @@ const (
 
 const (
 	// CDN 类型常量
-	CDNTypeCDN   string = "CDN"
-	CDNTypeDCDN  string = "DCDN"
-	CDNTypeDRCDN string = "DRCDN"
+	CDNTypeCDN     string = "CDN"
+	CDNTypeDCDN    string = "DCDN"
+	CDNTypeDRCDN   string = "DRCDN"
+	CDNTypeESA     string = "ESA"
+	CDNTypeEdgeOne string = "EdgeOne"
 )
 
 type Cache struct {
@@ -57,6 +59,7 @@ type CDN interface {
 	ShouldSendWebhook() bool
 	GetServiceStatus() string
 	GetServiceName() string
+	ConfigChanged() bool // 检查配置是否发生变化（需要保存）
 }
 
 // NewCache 创建新的缓存实例
@@ -74,6 +77,11 @@ func NewCache() Cache {
 // IsDynamicType 判断 source 类型是否为动态类型
 func IsDynamicType(sourceType string) bool {
 	return dynamicTypes[sourceType]
+}
+
+// IsDomainType 判断 sourceType 是否为域名类型
+func IsDomainType(sourceType string) bool {
+	return sourceType == "domain"
 }
 
 // CheckIPChanged 检查动态 IP 是否发生变化

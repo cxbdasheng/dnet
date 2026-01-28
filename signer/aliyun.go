@@ -97,7 +97,7 @@ func specialUrlEncode(in <-chan *strToEnc, w io.Writer) {
 }
 
 // AliyunSigner AliyunSigner
-func AliyunSigner(accessKeyID, accessSecret string, params *url.Values) {
+func AliyunSigner(accessKeyID, accessSecret string, params *url.Values, httpMethod string) {
 	// 公共参数（不包括 Version，由调用方设置）
 	params.Set("SignatureMethod", "HMAC-SHA1")
 	params.Set("SignatureNonce", strconv.FormatInt(time.Now().UnixNano(), 10))
@@ -106,5 +106,5 @@ func AliyunSigner(accessKeyID, accessSecret string, params *url.Values) {
 	params.Set("Timestamp", time.Now().UTC().Format("2006-01-02T15:04:05Z"))
 	params.Set("Format", "JSON")
 	// Signature 最后设置，因为它基于所有其他参数计算
-	params.Set("Signature", HmacSignToB64("HMAC-SHA1", "GET", accessSecret, *params))
+	params.Set("Signature", HmacSignToB64("HMAC-SHA1", httpMethod, accessSecret, *params))
 }

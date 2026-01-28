@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/cxbdasheng/dnet/bootstrap"
 	"github.com/cxbdasheng/dnet/config"
 	"github.com/cxbdasheng/dnet/dcdn"
 	"github.com/cxbdasheng/dnet/helper"
@@ -78,15 +79,48 @@ func handleDCDNPost(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
+	// 恢复脱敏字段的原始值（如果前端发送的是脱敏数据）
+	configData = config.RestoreSensitiveFields(configData, conf.DCDNConfig)
+
 	// 更新 DCDN 配置
 	conf.DCDNConfig = configData
-	dcdn.ForceCompareGlobal = true
-	// 保存配置
+
+	// 保存用户提交的配置
 	if err := conf.SaveConfig(); err != nil {
 		helper.Error(helper.LogTypeDCDN, "保存配置失败: %v", err)
 		helper.ReturnError(writer, "保存配置失败")
 		return
 	}
 
+	// 然后异步获取并更新 CNAME（如果有变化会再保存一次）
+	dcdn.ForceCompareGlobal = true
+	go func() {
+		// 重新加载最新配置，避免使用旧的缓存
+		freshConf, err := config.GetConfigCached()
+		if err != nil {
+			helper.Error(helper.LogTypeDCDN, "加载配置失败: %v", err)
+			return
+		}
+		bootstrap.ProcessDCDNServices(&freshConf)
+	}()
+
 	helper.ReturnSuccess(writer, "配置保存成功", nil)
+}
+
+// DCDNConfigAPI 返回 DCDN 配置的 JSON 数据
+func DCDNConfigAPI(writer http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodGet {
+		helper.ReturnError(writer, "不支持的请求方法")
+		return
+	}
+
+	conf, err := config.GetConfigCached()
+	if err != nil {
+		helper.Error(helper.LogTypeDCDN, "获取配置失败: %v", err)
+		helper.ReturnError(writer, "获取配置失败")
+		return
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	writer.Write([]byte(config.GetDCDNConfigJSON(conf.DCDNConfig)))
 }

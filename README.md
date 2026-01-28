@@ -1,8 +1,7 @@
 <div align="center">
 
 # D-NET 动态网络解析管理系统
-
-一款轻量级动态网络管理工具，支持多平台的 CDN、DNS 和 内网穿透自动化管理与监控
+一款轻量级动态网络管理工具，支持多平台的 CDN、DNS 和 内网穿透自动化管理与监控。
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.23.0-blue.svg)](https://golang.org/)
@@ -11,47 +10,25 @@
 [![Docker Pulls](https://img.shields.io/docker/pulls/cxbdasheng/dnet)](https://hub.docker.com/r/cxbdasheng/dnet)
 [![GitHub Downloads](https://img.shields.io/github/downloads/cxbdasheng/dnet/total)](https://github.com/cxbdasheng/dnet/releases)
 
-[功能特性](#功能特性) • [快速开始](#快速开始) • [使用文档](#使用文档)
+[主要功能](#主要功能) • [快速开始](#快速开始) • [Wiki 文档](https://github.com/cxbdasheng/dnet/wiki)
 </div>
 
 ---
 
-## 项目介绍
-### 主要功能
+## 主要功能
 
-- **动态 CDN 管理 (DCDN)** - 自动更新 CDN 源站配置，支持多家服务商，让动态 IPv6 实现稳定的 IPv4/IPv4 双栈访问
-- **动态 DNS 管理 (DDNS)** - 自动更新域名解析记录，让家庭宽带动态 IP 也能稳定访问（V2 版本规划中）
-- **内网穿透管理** - 无公网 IP 也能从外网访问内网服务（V3 版本规划中）
-- **Webhook 通知** - 支持多种通知方式，实时推送 IP 变更和更新信息
-- **Web 管理界面** - 提供直观的 Web 管理界面，无需命令行操作
+- **动态 CDN 管理 (DCDN)：** 支持阿里云（CDN、DCDN、ESA）、腾讯云（CDN、EdgeOne）、百度云（CDN、DRCDN）
+- **动态 DNS 管理 (DDNS)：** 自动更新域名解析记录（V2 版本规划中）
+- **内网穿透管理：** 从外网访问内网服务（V3 版本规划中）
+- **Webhook 通知：** 实时推送 IP 变更通知
+- **Web 管理界面：** 可视化配置和管理
 
-### 设计初衷
-项目起源于一个实际需求：国内运营商分配的动态公网 IPv6 地址经常变化，无法直接支持 IPv4 访问。尝试使用 Cloudflare CDN 套壳后，发现国内访问速度慢且不稳定。在寻找国内 CDN 替代方案的过程中，D-NET 应运而生。
-
-随着使用场景的扩展，新的问题出现了：如果只需要 DDNS 功能怎么办？如果只有 IPv4 私网地址需要内网穿透呢？市面上虽有 DDNS、FRP 等成熟方案，但都需要单独部署。于是 D-NET 规划朝着一体化集成方案的方向演进，目标是用一个轻量级工具解决所有动态网络管理需求。
 ### 界面
 ![界面](https://raw.githubusercontent.com/cxbdasheng/dnet/refs/heads/main/dnet.png)
 
-## 功能特性
-
-### 核心功能
-
-- **多平台支持** - Linux、Windows、macOS、Docker 全平台支持
-- **系统服务** - 支持作为系统服务运行，开机自启
-- **自动更新** - 定时检测 IP 变化并自动更新 DNS 记录
-- **配置管理** - 基于 YAML 的配置文件，简单易用
-- **日志系统** - 完善的日志记录，便于问题排查
-- **安全认证** - 内置用户认证系统，保护管理界面
-
-### Web 管理界面
-
-- 仪表盘 - 实时监控系统状态
-- DCDN 管理 - 统一管理多家 CDN 服务
-- Webhook 配置 - 灵活的通知方式设置
-- 系统设置 - 可视化配置管理
-- 日志查看 - 在线查看运行日志
-
 ## 快速开始
+
+> 更多使用示例和详细配置说明见 [Wiki](https://github.com/cxbdasheng/dnet/wiki)，常见问题见 [FAQ](https://github.com/cxbdasheng/dnet/wiki/FAQ)。
 
 ### 方式一：使用二进制文件
 
@@ -66,30 +43,26 @@
 sudo ./dnet -s install
 ```
 
-**Windows:**
-
-以管理员身份打开命令提示符（cmd），然后执行：
+**Windows（管理员权限）：**
 ```bash
 .\dnet.exe -s install
 ```
 
 #### 3. 访问 Web 界面
 
-打开浏览器访问 `http://localhost:9877` 进行初始化配置。
+浏览器访问 `http://localhost:9877` 进行配置。
 
 #### 服务管理
 
-**卸载服务：**
+```bash
+# 卸载服务
+sudo ./dnet -s uninstall          # Mac/Linux
+.\dnet.exe -s uninstall           # Windows (管理员)
 
-Mac/Linux: `sudo ./dnet -s uninstall`
-
-Windows: `.\dnet.exe -s uninstall`（以管理员身份运行）
-
-**重启服务：**
-
-Mac/Linux: `sudo ./dnet -s restart`
-
-Windows: `.\dnet.exe -s restart`（以管理员身份运行）
+# 重启服务
+sudo ./dnet -s restart            # Mac/Linux
+.\dnet.exe -s restart             # Windows (管理员)
+```
 
 #### 高级选项
 
@@ -99,205 +72,77 @@ Windows: `.\dnet.exe -s restart`（以管理员身份运行）
 |------|------|---------------------------|
 | `-l` | 监听地址 | `-l :9877`                |
 | `-f` | 同步间隔时间（秒） | `-f 600`                  |
-| `-dcdnCacheTimes` | 间隔 N 次与服务商比对 | `-dcdnCacheTimes 10`      |
 | `-c` | 自定义配置文件路径 | `-c /path/to/config.yaml` |
+| `-u`              | 升级当前 D-NET 版本 | `-u`                      |
 | `-noweb` | 不启动 Web 服务 | `-noweb`                  |
 | `-skipVerify` | 跳过 HTTPS 证书验证 | `-skipVerify`             |
 | `-dns` | 自定义 DNS 服务器 | `-dns 8.8.8.8`            |
+| `-dcdnCacheTimes` | 间隔 N 次与服务商比对 | `-dcdnCacheTimes 10`      |
 | `-resetPassword` | 重置密码 | `-resetPassword newpass`  |
 
+> 更多使用参数，请查看 [Wiki 文档 - D‐NET 使用指南](https://github.com/cxbdasheng/dnet/wiki/D%E2%80%90NET-%E4%BD%BF%E7%94%A8%E6%8C%87%E5%8D%97#%E5%91%BD%E4%BB%A4%E5%8F%82%E6%95%B0)。
+
 **使用示例：**
-
 ```bash
-# 10 分钟同步一次，并指定配置文件路径
-./dnet -s install -f 600 -c /Users/name/.dnet_config.yaml
-
-# 每 10 秒检查 IP 变化，每 30 分钟（180 次）与服务商比对一次
-# 实现即时响应且避免服务商限流
-./dnet -s install -f 10 -dcdnCacheTimes 180
+# 自定义同步间隔和配置文件路径
+./dnet -s install -f 600 -c /path/to/config.yaml
 
 # 重置密码
 ./dnet -resetPassword 123456
-./dnet -resetPassword 123456 -c /Users/name/.dnet_config.yaml
 ```
-
 ### 方式二：使用 Docker
 
-#### 基本用法
-
+**Linux（推荐 Host 模式）：**
 ```bash
-# 拉取镜像
-docker pull cxbdasheng/dnet:latest
-
-# 运行容器（推荐方式）
-docker run -d \
-  --name dnet \
-  -p 9877:9877 \
-  -v $(pwd)/config:/root \
-  --restart unless-stopped \
-  cxbdasheng/dnet:latest
-
-# 访问 Web 界面
-# 在浏览器中打开 http://localhost:9877
+docker run -d --name dnet --net=host -v /opt/dnet:/root --restart=always cxbdasheng/dnet:latest
 ```
 
-#### 使用 GitHub 容器镜像
-
-如果 Docker Hub 访问不畅，可以使用 GitHub Container Registry：
-
+**macOS / Windows（端口映射）：**
 ```bash
-docker pull ghcr.io/cxbdasheng/dnet:latest
-
-docker run -d \
-  --name dnet \
-  --restart=always \
-  --net=host \
-  -v /opt/dnet:/root \
-  ghcr.io/cxbdasheng/dnet:latest
+docker run -d --name dnet -p 9877:9877 -v /opt/dnet:/root --restart=always cxbdasheng/dnet:latest
 ```
 
-#### Docker 高级选项
+> **说明：** Host 模式支持 IPv6 地址检测（仅 Linux）；**端口映射无法直接获取宿主机的网卡信息，可能无法检测 IPv6**。
 
-**使用 host 网络模式：**
-
+**常用命令：**
 ```bash
-docker run -d \
-  --name dnet \
-  --restart=always \
-  --net=host \
-  -v /opt/dnet:/root \
-  cxbdasheng/dnet:latest
+# 重置密码
+docker exec dnet ./dnet -resetPassword 123456 && docker restart dnet
+
+# 查看日志
+docker logs -f dnet
+```
+### 方式三：从源码构建
+```bash
+make build                              # 构建当前平台
+goreleaser build --snapshot --clean     # 构建所有平台
+go run main.go                          # 直接运行
 ```
 
-**自定义参数启动：**
+## Webhook 通知
 
-```bash
-# 自定义监听地址和同步间隔
-docker run -d \
-  --name dnet \
-  --restart=always \
-  --net=host \
-  -v /opt/dnet:/root \
-  cxbdasheng/dnet:latest \
-  -l :9877 -f 600
-```
-
-**重置密码：**
-
-```bash
-docker exec dnet ./dnet -resetPassword 123456
-docker restart dnet
-```
-## 使用文档
-
-### 命令行参数
-
-```bash
-./dnet [选项]
-
-选项：
-  -l string
-        监听地址（默认 ":9877"）
-  -c string
-        配置文件路径（默认 "~/.dnet_config.yaml"）
-  -f int
-        更新频率，单位秒（默认 300）
-  -s string
-        服务管理（install|uninstall|restart）
-  -dns string
-        自定义 DNS 服务器地址，例如：8.8.8.8
-  -noweb
-        禁用 Web 服务
-  -resetPassword string
-        重置密码
-  -dcdnCacheTimes int
-        DCDN 缓存次数（默认 5）
-```
-### Webhook 通知配置
-
-D-NET 支持 Webhook 通知功能。当域名更新成功或失败时，会向配置的 URL 发送通知。
-
-#### 支持的变量
-
-在 Webhook URL 或 RequestBody 中可以使用以下变量：
-
-| 变量名 | 说明 | 示例值 |
-|--------|------|--------|
-| `#{serviceType}` | 服务类型 | DCDN、DDNS |
-| `#{serviceName}` | 服务名称 | www.example.com |
-| `#{serviceStatus}` | 更新结果 | 未改变、失败、成功 |
-
-#### 请求方式
-
-- 如果 RequestBody 为空，则发送 GET 请求
-- 如果 RequestBody 不为空，则发送 POST 请求
-
-#### 配置示例
+支持的变量：`#{serviceType}`（服务类型）、`#{serviceName}`（服务名称）、`#{serviceStatus}`（更新结果）
 
 <details>
-<summary>Server酱</summary>
+<summary>配置示例</summary>
 
-直接在 URL 中使用变量：
-
+**Server酱：**
 ```
-https://sctapi.ftqq.com/[SendKey].send?title=DNET通知&desp=服务：#{serviceName}，服务类型：#{serviceType}，结果：#{serviceStatus}
+https://sctapi.ftqq.com/[SendKey].send?title=DNET通知&desp=#{serviceName} - #{serviceStatus}
 ```
 
-</details>
-
-<details>
-<summary>钉钉群机器人</summary>
-
-**配置步骤：**
-
-1. 钉钉电脑端 → 群设置 → 智能群助手 → 添加机器人 → 自定义
-2. 只勾选 `自定义关键词`，输入关键词（必须包含在 RequestBody 的 content 中），例如：`DNET 通知`
-3. 在 D-NET 的 Webhook URL 中输入钉钉提供的 Webhook 地址
-4. 在 RequestBody 中输入以下内容：
-
+**钉钉机器人：**
 ```json
 {
   "msgtype": "markdown",
   "markdown": {
     "title": "DNET 通知",
-    "text": "您的服务：#{serviceName}，服务类型：#{serviceType}，结果：#{serviceStatus}"
+    "text": "#{serviceName} - #{serviceStatus}"
   }
 }
 ```
-
 </details>
 
-## 从源码构建
-```bash
-# 或使用 Make（如果可用）
-make build
-# 构建所有平台（使用 GoReleaser）
-goreleaser build --snapshot --clean
-# 运行测试
-go test ./...
-# 直接运行
-go run main.go
-```
-## 贡献指南
-如果您想为 D-NET 贡献代码、报告问题或提出建议，请阅读我们的 [贡献指南](CONTRIBUTING.md)。
+## 贡献与许可
 
-## 版本规划
-### 即将推出
-- **DDNS 支持** - 完整的动态 DNS 解析功能，支持主流 DNS 服务商
-- **多语言支持** - 国际化支持，提供中文、英文等多语言界面
-- **更多 CDN 服务商** - 支持更多 CDN 平台
-- **监控告警** - IP 变化监控和异常告警通知
-
-
-欢迎通过 [Issues](https://github.com/cxbdasheng/dnet/issues) 提出您的功能建议！
-
-## 许可证
-本项目采用 [MIT](LICENSE) 许可证
-
-## 致谢
-
-感谢以下开源项目为 D-NET 提供支持：
-
-- [kardianos/service](https://github.com/kardianos/service) - 跨平台系统服务管理
-- [go-yaml/yaml](https://github.com/go-yaml/yaml) - YAML 配置文件解析
-- [GoReleaser](https://goreleaser.com/) - 自动化构建和发布工具
+欢迎贡献代码或提出建议，详见 [贡献指南](CONTRIBUTING.md)。本项目采用 [MIT](LICENSE) 许可证。
