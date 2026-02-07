@@ -2,6 +2,7 @@ package dcdn
 
 import (
 	"bytes"
+	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -111,6 +112,8 @@ type DescribeUserDomainsResponse struct {
 	RequestId  string `json:"RequestId"`
 	PageSize   int    `json:"PageSize"`
 	PageNumber int    `json:"PageNumber"`
+	Code       string `json:"Code,omitempty"`    // 错误码
+	Message    string `json:"Message,omitempty"` // 错误消息
 }
 
 // ESARecordInfo ESA 记录信息
@@ -165,6 +168,8 @@ type DescribeESARecordsResponse struct {
 	PageSize   int             `json:"PageSize"`
 	PageNumber int             `json:"PageNumber"`
 	Records    []ESARecordInfo `json:"Records"`
+	Code       string          `json:"Code,omitempty"`    // 错误码
+	Message    string          `json:"Message,omitempty"` // 错误消息
 }
 
 // ESASiteInfo ESA 站点信息
@@ -193,6 +198,8 @@ type DescribeESASitesResponse struct {
 	PageSize   int           `json:"PageSize"`
 	PageNumber int           `json:"PageNumber"`
 	Sites      []ESASiteInfo `json:"Sites"`
+	Code       string        `json:"Code,omitempty"`    // 错误码
+	Message    string        `json:"Message,omitempty"` // 错误消息
 }
 
 // getCDNTypeName 获取 CDN 类型的显示名称
@@ -867,6 +874,37 @@ func (aliyun *Aliyun) request(method string, params url.Values, result interface
 	client := helper.CreateHTTPClient()
 	resp, err := client.Do(req)
 	err = helper.GetHTTPResponse(resp, err, result)
+
+	// 检查阿里云 API 错误
+	if err == nil {
+		var code, message string
+		// 使用类型断言检查是否有 Code 字段
+		if v, ok := result.(*DescribeUserDomainsResponse); ok && v.Code != "" {
+			code = v.Code
+			message = v.Message
+		} else if v, ok := result.(*DescribeESARecordsResponse); ok && v.Code != "" {
+			code = v.Code
+			message = v.Message
+		} else if v, ok := result.(*DescribeESASitesResponse); ok && v.Code != "" {
+			code = v.Code
+			message = v.Message
+		}
+
+		// 如果存在错误码，记录日志并返回错误
+		if code != "" {
+			err = errors.New(code + ": " + message)
+			// 根据错误类型打印不同级别的日志
+			if strings.HasPrefix(code, "InvalidAccessKeyId") {
+				helper.Error(helper.LogTypeDCDN, "阿里云 API 认证失败：AccessKey 配置错误 [错误码=%s, 消息=%s]", code, message)
+			} else if strings.HasPrefix(code, "SignatureDoesNotMatch") {
+				helper.Error(helper.LogTypeDCDN, "阿里云 API 认证失败：签名错误，请检查 AccessSecret 配置 [错误码=%s, 消息=%s]", code, message)
+			} else if strings.HasPrefix(code, "Forbidden") || strings.HasPrefix(code, "InvalidAccessKeyId.Inactive") {
+				helper.Error(helper.LogTypeDCDN, "阿里云 API 权限不足 [错误码=%s, 消息=%s]", code, message)
+			} else {
+				helper.Warn(helper.LogTypeDCDN, "阿里云 API 调用失败 [错误码=%s, 消息=%s]", code, message)
+			}
+		}
+	}
 
 	return
 }

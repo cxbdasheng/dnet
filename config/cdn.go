@@ -43,6 +43,7 @@ func (c *CDN) GetRootDomain() string {
 	return parts[len(parts)-2] + "." + parts[len(parts)-1]
 }
 
+// Source 源站配置
 type Source struct {
 	Type      string `json:"type"`
 	Value     string `json:"value"`

@@ -90,6 +90,10 @@ type TencentResponse struct {
 // DescribeDomainsResponse 查询域名列表响应
 type DescribeDomainsResponse struct {
 	Response struct {
+		Error *struct {
+			Code    string `json:"Code"`
+			Message string `json:"Message"`
+		} `json:"Error,omitempty"`
 		Domains     []TencentDomainInfo `json:"Domains"`
 		TotalNumber int                 `json:"TotalNumber"`
 		RequestId   string              `json:"RequestId"`
@@ -109,6 +113,10 @@ type EdgeOneZoneInfo struct {
 // DescribeZonesResponse EdgeOne 查询站点响应
 type DescribeZonesResponse struct {
 	Response struct {
+		Error *struct {
+			Code    string `json:"Code"`
+			Message string `json:"Message"`
+		} `json:"Error,omitempty"`
 		Zones      []EdgeOneZoneInfo `json:"Zones"`
 		TotalCount int               `json:"TotalCount"`
 		RequestId  string            `json:"RequestId"`
@@ -141,6 +149,10 @@ type EdgeOneDomainInfo struct {
 // DescribeAccelerationDomainsResponse EdgeOne 查询加速域名响应
 type DescribeAccelerationDomainsResponse struct {
 	Response struct {
+		Error *struct {
+			Code    string `json:"Code"`
+			Message string `json:"Message"`
+		} `json:"Error,omitempty"`
 		AccelerationDomains []EdgeOneDomainInfo `json:"AccelerationDomains"`
 		TotalCount          int                 `json:"TotalCount"`
 		RequestId           string              `json:"RequestId"`
@@ -756,11 +768,35 @@ func (tencent *Tencent) request(action string, body interface{}, result interfac
 
 	// 检查腾讯云 API 错误
 	if err == nil {
+		var code, message string
 		// 使用类型断言检查是否有 Error 字段
 		if v, ok := result.(*TencentResponse); ok && v.Response.Error != nil {
-			err = errors.New(v.Response.Error.Code + ": " + v.Response.Error.Message)
-		} else if v, ok := result.(*DescribeDomainsResponse); ok && v.Response.RequestId != "" {
-			// 查询接口成功，无需额外处理
+			code = v.Response.Error.Code
+			message = v.Response.Error.Message
+		} else if v, ok := result.(*DescribeDomainsResponse); ok && v.Response.Error != nil {
+			code = v.Response.Error.Code
+			message = v.Response.Error.Message
+		} else if v, ok := result.(*DescribeZonesResponse); ok && v.Response.Error != nil {
+			code = v.Response.Error.Code
+			message = v.Response.Error.Message
+		} else if v, ok := result.(*DescribeAccelerationDomainsResponse); ok && v.Response.Error != nil {
+			code = v.Response.Error.Code
+			message = v.Response.Error.Message
+		}
+
+		// 如果存在错误码，记录日志并返回错误
+		if code != "" {
+			err = errors.New(code + ": " + message)
+			// 根据错误类型打印不同级别的日志
+			if strings.HasPrefix(code, "AuthFailure") {
+				helper.Error(helper.LogTypeDCDN, "腾讯云 API 认证失败：请检查 AccessKey 和 AccessSecret 配置 [错误码=%s, 消息=%s]", code, message)
+			} else if strings.HasPrefix(code, "UnauthorizedOperation") || strings.HasPrefix(code, "Forbidden") {
+				helper.Error(helper.LogTypeDCDN, "腾讯云 API 权限不足 [错误码=%s, 消息=%s]", code, message)
+			} else if strings.HasPrefix(code, "InvalidParameter") {
+				helper.Warn(helper.LogTypeDCDN, "腾讯云 API 参数错误 [错误码=%s, 消息=%s]", code, message)
+			} else {
+				helper.Warn(helper.LogTypeDCDN, "腾讯云 API 调用失败 [错误码=%s, 消息=%s]", code, message)
+			}
 		}
 	}
 

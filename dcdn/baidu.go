@@ -3,6 +3,7 @@ package dcdn
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -86,12 +87,18 @@ type BaiduDomainInfo struct {
 	Form         string        `json:"form"`
 	Origin       []BaiduSource `json:"origin"` // 查询时返回的字段名是 origin
 	CacheTTL     []interface{} `json:"cacheTTL"`
-	CacheFullUrl interface{}   `json:"cacheFullUrl"` // 可能是 bool 或 string
+	CacheFullUrl interface{}   `json:"cacheFullUrl"`        // 可能是 bool 或 string
+	Code         string        `json:"code,omitempty"`      // 错误码
+	Message      string        `json:"message,omitempty"`   // 错误消息
+	RequestId    string        `json:"requestId,omitempty"` // 请求 ID
 }
 
 // BaiduDomainListResponse 百度云域名列表响应
 type BaiduDomainListResponse struct {
-	Domains []BaiduDomainInfo `json:"domains"`
+	Domains   []BaiduDomainInfo `json:"domains"`
+	Code      string            `json:"code,omitempty"`      // 错误码
+	Message   string            `json:"message,omitempty"`   // 错误消息
+	RequestId string            `json:"requestId,omitempty"` // 请求 ID
 }
 
 func (baidu *Baidu) Init(cdnConfig *config.CDN, cache *Cache) {
@@ -557,6 +564,46 @@ func (baidu *Baidu) request(method, path string, body interface{}, result interf
 	client := helper.CreateHTTPClient()
 	resp, err := client.Do(req)
 	err = helper.GetHTTPResponse(resp, err, result)
+
+	// 检查百度云 API 错误
+	if err == nil {
+		var code, message string
+		// 使用类型断言检查是否有 code 字段
+		if v, ok := result.(*BaiduDomainInfo); ok && v.Code != "" {
+			code = v.Code
+			message = v.Message
+		} else if v, ok := result.(*BaiduDomainListResponse); ok && v.Code != "" {
+			code = v.Code
+			message = v.Message
+		} else if v, ok := result.(*map[string]interface{}); ok {
+			// 对于 map 类型，检查是否包含 code 字段
+			if codeVal, exists := (*v)["code"]; exists {
+				if codeStr, isStr := codeVal.(string); isStr && codeStr != "" {
+					code = codeStr
+					if msgVal, msgExists := (*v)["message"]; msgExists {
+						if msgStr, isMsgStr := msgVal.(string); isMsgStr {
+							message = msgStr
+						}
+					}
+				}
+			}
+		}
+
+		// 如果存在错误码，记录日志并返回错误
+		if code != "" {
+			err = errors.New(code + ": " + message)
+			// 根据错误类型打印不同级别的日志
+			if strings.Contains(code, "AccessDenied") || strings.Contains(code, "InvalidAccessKeyId") {
+				helper.Error(helper.LogTypeDCDN, "百度云 API 认证失败：请检查 AccessKey 和 AccessSecret 配置 [错误码=%s, 消息=%s]", code, message)
+			} else if strings.Contains(code, "SignatureDoesNotMatch") {
+				helper.Error(helper.LogTypeDCDN, "百度云 API 签名错误：请检查 AccessSecret 配置 [错误码=%s, 消息=%s]", code, message)
+			} else if strings.Contains(code, "Forbidden") || strings.Contains(code, "Unauthorized") {
+				helper.Error(helper.LogTypeDCDN, "百度云 API 权限不足 [错误码=%s, 消息=%s]", code, message)
+			} else {
+				helper.Warn(helper.LogTypeDCDN, "百度云 API 调用失败 [错误码=%s, 消息=%s]", code, message)
+			}
+		}
+	}
 
 	return err
 }
