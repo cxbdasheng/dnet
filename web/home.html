@@ -21,7 +21,18 @@
             padding: 8px 15px !important;
             word-break: break-all;
         }
+        .layui-layer-right-top-error.layui-layer-msg {
+            top: 60px !important;
+            background-color: rgba(0,0,0,.6);
+            border: none;
+            color: #9d0808;
+            /*box-shadow: 0 2px 4px rgba(0,0,0,.12) !important;*/
+        }
 
+        .layui-layer-right-top-error.layui-layer-msg .layui-layer-content {
+            padding: 8px 15px !important;
+            word-break: break-all;
+        }
     </style>
 </head>
 <body>
@@ -213,13 +224,16 @@
                     if (logContent.length > 100) {
                         logContent = logContent.substring(0, 100) + '...';
                     }
-
+                    var skin = 'layui-layer-right-top';
+                    if (log.level === 'error'|| log.level === 'ERROR'){
+                        skin = 'layui-layer-right-top-error';
+                    }
                     layer.msg(logTitle + ': ' + logContent, {
                         // icon: levelIcon,
                         time: 2000,
                         anim: 'slideDown',
                         offset: 'rt', // 使用标准右上角
-                        skin: 'layui-layer-right-top' // 添加自定义皮肤类
+                        skin: skin // 添加自定义皮肤类
                     });
                 }, delay);
                 delay += 800; // 每条日志间隔800毫秒
