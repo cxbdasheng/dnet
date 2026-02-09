@@ -104,6 +104,70 @@ func RestoreSensitiveFields(newConf, oldConf DCDNConfig) DCDNConfig {
 	return newConf
 }
 
+// GetDDNSConfigJSON 将 DDNS 配置转换为 JSON 字符串（敏感信息脱敏）
+func GetDDNSConfigJSON(DDNSConf DDNSConfig) string {
+	// 如果 DDNS 数组为空，初始化为空数组而不是 null
+	if DDNSConf.DDNS == nil {
+		DDNSConf.DDNS = []DNS{}
+	}
+
+	// 创建副本以避免修改原始配置
+	maskedConf := DDNSConfig{
+		DDNSEnabled: DDNSConf.DDNSEnabled,
+		DDNS:        make([]DNS, len(DDNSConf.DDNS)),
+	}
+
+	// 复制并脱敏每个 DNS 配置
+	for i, dns := range DDNSConf.DDNS {
+		maskedConf.DDNS[i] = DNS{
+			ID:           dns.ID,
+			Name:         dns.Name,
+			Domain:       dns.Domain,
+			Service:      dns.Service,
+			AccessKey:    maskSensitiveString(dns.AccessKey),
+			AccessSecret: maskSensitiveString(dns.AccessSecret),
+			TTL:          dns.TTL,
+		}
+	}
+
+	data, err := json.Marshal(maskedConf)
+	if err != nil {
+		helper.Error(helper.LogTypeDDNS, "序列化DDNS配置失败: %v", err)
+		// 返回包含空数组的默认配置
+		return `{"ddns_enable":false,"ddns":[]}`
+	}
+	return string(data)
+}
+
+// RestoreSensitiveFieldsForDDNS 恢复 DDNS 脱敏字段的原始值
+// 通过比对新值与旧值的脱敏结果，判断用户是否真正修改了敏感字段
+// 只有当新值与旧值脱敏后完全一致时，才使用旧值的原始值
+func RestoreSensitiveFieldsForDDNS(newConf, oldConf DDNSConfig) DDNSConfig {
+	// 创建映射以快速查找旧配置
+	oldDNSMap := make(map[string]DNS)
+	for _, dns := range oldConf.DDNS {
+		oldDNSMap[dns.ID] = dns
+	}
+
+	// 恢复每个 DNS 配置的敏感字段
+	for i := range newConf.DDNS {
+		if oldDNS, exists := oldDNSMap[newConf.DDNS[i].ID]; exists {
+			// 检查 AccessKey：如果新值与旧值脱敏后完全一致，说明未修改，恢复原始值
+			oldAccessKeyMasked := maskSensitiveString(oldDNS.AccessKey)
+			if newConf.DDNS[i].AccessKey == oldAccessKeyMasked {
+				newConf.DDNS[i].AccessKey = oldDNS.AccessKey
+			}
+			// 检查 AccessSecret：如果新值与旧值脱敏后完全一致，说明未修改，恢复原始值
+			oldAccessSecretMasked := maskSensitiveString(oldDNS.AccessSecret)
+			if newConf.DDNS[i].AccessSecret == oldAccessSecretMasked {
+				newConf.DDNS[i].AccessSecret = oldDNS.AccessSecret
+			}
+		}
+	}
+
+	return newConf
+}
+
 // GetDCDNConfigJSON 将 DCDN 配置转换为 JSON 字符串（敏感信息脱敏）
 func GetDCDNConfigJSON(DCDNConf DCDNConfig) string {
 	// 如果 DCDN 数组为空，初始化为空数组而不是 null

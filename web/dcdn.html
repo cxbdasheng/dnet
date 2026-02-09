@@ -30,9 +30,7 @@
                 <div class="layui-row layui-form-item">
                     <label class="layui-form-label" for="dcdn_enable">是否开启：</label>
                     <div class="layui-input-inline">
-                        <input type="checkbox" id="dcdn_enable" name="dcdn_enable" lay-skin="switch"
-                               lay-text="开启|关闭"
-                               checked>
+                        <input type="checkbox" id="dcdn_enable" name="dcdn_enable" lay-skin="switch" lay-text="开启|关闭" checked>
                     </div>
                     <div class="layui-form-mid layui-word-aux">
                         全局开关，关闭后 DCDN 将停用，所有配置失效。
@@ -164,6 +162,7 @@
                     <div class="layui-input-inline dnet-form-value" data-type="sources_type_ipv6">
                         <input type="text" lay-verify="ipv6" name="sources_type_ipv6" class="layui-input" placeholder="请输入静态 IPv6 地址">
                     </div>
+                    <!--IPv4-->
                     <div class="layui-input-inline dnet-form-value" data-type="sources_dynamic_ipv4_url">
                         <textarea name="sources_dynamic_ipv4_url" placeholder="请输入 IPv4 获取地址" class="layui-textarea"></textarea>
                     </div>
@@ -179,7 +178,7 @@
                     <div class="layui-input-inline dnet-form-value" data-type="sources_dynamic_ipv4_command">
                         <textarea name="sources_dynamic_ipv4_command" placeholder="请输入命令内容" class="layui-textarea"></textarea>
                     </div>
-                    <!--Pv6-->
+                    <!--IPv6-->
                     <div class="layui-input-inline dnet-form-value" data-type="sources_dynamic_ipv6_url">
                         <textarea name="sources_dynamic_ipv6_url" placeholder="请输入 IPv6 获取地址" class="layui-textarea"></textarea>
                     </div>
@@ -195,6 +194,7 @@
                     <div class="layui-input-inline dnet-form-value" data-type="sources_dynamic_ipv6_command">
                         <textarea name="sources_dynamic_ipv6_command" placeholder="请输入命令内容" class="layui-textarea"></textarea>
                     </div>
+                    <!--协议-->
                     <div class="layui-input-inline dnet-form-priority">
                         <select  name="sources_priority">
                             <option value="main">主站</option>
@@ -203,7 +203,6 @@
                     </div>
                     <div class="layui-input-inline">
                         <input type="text" name="sources_weight" lay-affix="number" value="10" step="1" max="100" min="1" class="layui-input">
-
                     </div>
                     <div class="layui-input-inline dnet-form-protocol">
                         <select name="protocol" lay-filter="protocol-filter">
@@ -241,9 +240,9 @@
 </body>
 <script src="/static/cdn.js"></script>
 <script>
-    // 获取第一个CDN提供商作为默认值
+    // 获取第一个 CDN 提供商作为默认值
     const firstCDNProvider = Object.keys(CDN_PROVIDERS)[0] || "aliyun";
-    // 获取第一个CDN提供商的第一个类型作为默认值
+    // 获取第一个 CDN 提供商的第一个类型作为默认值
     const firstCDNType = (CDN_PROVIDERS[firstCDNProvider] && CDN_PROVIDERS[firstCDNProvider].typeSelect && CDN_PROVIDERS[firstCDNProvider].typeSelect[0]) || "CDN";
 
     const defaultConfig = {
@@ -265,7 +264,7 @@
     }
     var configData = {{.DCDNConf}}
 
-    // 当前选中的配置ID
+    // 当前选中的配置 ID
     var currentSelectedConfig = null;
     layui.use(['element', 'layer', 'util', 'form'], function () {
         var element = layui.element;
@@ -1125,7 +1124,7 @@
             return false;
         });
 
-        // CDN提供商动态更新功能
+        // CDN 提供商动态更新功能
         function initCDNProviders() {
             const container = $('#service-radio-container');
             let radioHtml = '';
@@ -1143,20 +1142,20 @@
                     radioHtml += '>';
                 }
             }
-            // 插入HTML
+            // 插入 HTML
             container.html(radioHtml);
             // 重新渲染表单
             form.render('radio');
             // 初始化表单标签和选项
             updateFormBasedOnProvider($('input[name="service"]:checked').val());
         }
-        // 根据选择的CDN提供商更新表单
+        // 根据选择的 CDN 提供商更新表单
         function updateFormBasedOnProvider(providerId) {
             if (!CDN_PROVIDERS[providerId]) return;
 
             const provider = CDN_PROVIDERS[providerId];
 
-            // 更新AccessKey字段
+            // 更新 AccessKey 字段
             updateFormField('access-key-label', 'access_key', provider.idLabel, 'access_key');
             updateFormField('access-secret-label', 'access_secret', provider.secretLabel, 'access_secret');
 
@@ -1180,7 +1179,7 @@
                 $('#type-help-text').html('类型请参考：');
             }
 
-            // 更新创建AccessKey链接
+            // 更新创建 AccessKey 链接
             const $serviceHelpContainer = $('#service-help-link');
             if (provider.idHelpHtml) {
                 $serviceHelpContainer.html(provider.idHelpHtml);
@@ -1320,7 +1319,7 @@
             updatePortInputStatus();
         });
 
-        // 监听CDN提供商选择变化
+        // 监听 CDN 提供商选择变化
         form.on('radio(service)', function (data) {
             updateFormBasedOnProvider(data.value);
             updatePortInputStatus();
@@ -1391,7 +1390,7 @@
             updateProtocolTip();
         });
 
-        // 初始化CDN提供商选择
+        // 初始化 CDN 提供商选择
         initCDNProviders();
         // 初始化配置数据（必须在所有事件绑定完成后调用）
         initConfigData();

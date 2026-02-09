@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"html/template"
 	"net/http"
-	"os"
 
 	"github.com/cxbdasheng/dnet/bootstrap"
 	"github.com/cxbdasheng/dnet/config"
@@ -50,12 +49,10 @@ func handleDCDNGet(writer http.ResponseWriter, request *http.Request) {
 
 	err = tmpl.Execute(writer, struct {
 		DCDNConf template.JS
-		Version  string
 		IPv4     []helper.NetInterface
 		IPv6     []helper.NetInterface
 	}{
 		DCDNConf: template.JS(config.GetDCDNConfigJSON(conf.DCDNConfig)),
-		Version:  os.Getenv(VersionEnv),
 		IPv4:     ipv4,
 		IPv6:     ipv6,
 	})

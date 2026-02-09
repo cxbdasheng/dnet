@@ -16,6 +16,7 @@
             overflow-x: hidden;
             min-height: 100vh;
         }
+
         html {
             overflow-x: hidden;
         }
@@ -28,11 +29,9 @@
             <div class="layui-card-header">DDNS 设置</div>
             <div class="layui-card-body">
                 <div class="layui-row layui-form-item">
-                    <label class="layui-form-label" for="dcdn_enable">是否开启：</label>
+                    <label class="layui-form-label" for="ddns_enable">是否开启：</label>
                     <div class="layui-input-inline">
-                        <input type="checkbox" id="ddns_enable" name="ddns_enable" lay-skin="switch"
-                               lay-text="开启|关闭"
-                               checked>
+                        <input type="checkbox" id="ddns_enable" name="ddns_enable" lay-skin="switch" lay-text="开启|关闭" checked>
                     </div>
                     <div class="layui-form-mid layui-word-aux">
                         全局开关，关闭后 DDNS 将停用，所有配置失效。
@@ -42,9 +41,7 @@
                 <div class="layui-row layui-form-item">
                     <label class="layui-form-label" for="config">配置：</label>
                     <div class="layui-input-inline">
-                        <select id="config" lay-search="{fuzzy: false}" lay-creatable=""
-                                lay-verify="required"
-                                lay-filter="config-select-filter" name="config">
+                        <select id="config" lay-search="{fuzzy: false}" lay-creatable="" lay-verify="required" lay-filter="config-select-filter" name="config">
                             <option value="1">1</option>
                         </select>
                     </div>
@@ -63,14 +60,14 @@
                 <div class="layui-row layui-form-item">
                     <label class="layui-form-label" for="domain">域名：</label>
                     <div class="layui-input-block">
-                        <input type="text" id="domain" name="domain" lay-verify="domain" autocomplete="off" placeholder="请输域名" class="layui-input">
-                        <tip>填写需要加速的域名（如 ddns.example.com），第一次使用可参考 <a style="color: #1e9fff" href="https://github.com/cxbdasheng/dnet/wiki/DDNS-%E4%BD%BF%E7%94%A8%E6%8C%87%E5%8D%97" target="_blank">DDNS 使用指南</a>。</tip>
+                        <input type="text" id="domain" name="domain" lay-verify="domain" autocomplete="off"
+                               placeholder="请输域名" class="layui-input">
+                        <tip>填写需要 DNS 解析的域名（如 ddns.example.com），第一次使用可参考 <a style="color: #1e9fff" href="https://github.com/cxbdasheng/dnet/wiki/DDNS-%E4%BD%BF%E7%94%A8%E6%8C%87%E5%8D%97" target="_blank">DDNS 使用指南</a>。</tip>
                     </div>
                 </div>
                 <div class="layui-row layui-form-item">
                     <div class="layui-input-block">
-                        <button type="submit" class="layui-btn" lay-submit lay-filter="save">立即提交
-                        </button>
+                        <button type="submit" class="layui-btn" lay-submit lay-filter="save">立即提交</button>
                         <button type="reset" class="layui-btn layui-btn-primary">重置</button>
                     </div>
                 </div>
@@ -102,19 +99,462 @@
                         <input type="text" id="access_secret" name="access_secret" lay-verify="access_secret" placeholder="请输入AccessKey Secret" class="layui-input">
                     </div>
                 </div>
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="ttl" id="ttl-label">TTL ：</label>
+                    <div class="layui-input-block">
+                        <select name="ttl" lay-filter="ttl-filter" id="ttl">
+                            <option value="AUTO">自动</option>
+                            <option value="1s">1 秒</option>
+                            <option value="5s">5 秒</option>
+                            <option value="10s">10 秒</option>
+                            <option value="1m">1 分</option>
+                            <option value="2m">2 分</option>
+                            <option value="10m">10 分</option>
+                            <option value="30m">30 分</option>
+                            <option value="1h">1 小时</option>
+                        </select>
+                        <tip>如账号支持更小的 TTL 可修改, 但 IP 有变化时才会更新 TTL</tip>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="layui-card">
+            <div class="layui-card-header">DNS 记录设置</div>
+            <div class="layui-card-body">
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="type" id="type-label">记录类型 ：</label>
+                    <div class="layui-input-block">
+                        <select name="type" lay-filter="type-filter" id="type">
+                            <option value="A">IPv4（A）</option>
+                            <option value="AAAA">IPv6（AAAA）</option>
+                            <option value="CNAME">CNAME</option>
+                            <option value="TXT">TXT</option>
+                        </select>
+                    </div>
+                </div>
+                <!--IPv4-->
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="ipv4_type">IPv4 类型 ：</label>
+                    <div class="layui-input-block">
+                        <select name="ipv4_type" lay-filter="ipv4-type-filter" id="ipv4_type">
+                            <option value="static_ipv4">静态 IPv4</option>
+                            <option value="dynamic_ipv4_url">动态 IPv4：接口获取</option>
+                            <option value="dynamic_ipv4_interface">动态 IPv4：网卡获取</option>
+                            <option value="dynamic_ipv4_command">动态 IPv4：命令获取</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="static_ipv4">静态 IPv4 地址：</label>
+                    <div class="layui-input-block">
+                        <input type="text" name="static_ipv4" id="static_ipv4" class="layui-input"
+                               placeholder="请输入静态 IPv4 地址" lay-verify="ipv4">
+                    </div>
+                </div>
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="dynamic_ipv4_url">接口地址：</label>
+                    <div class="layui-input-block">
+                        <textarea name="dynamic_ipv4_url" placeholder="请输入 IPv4 获取地址" id="dynamic_ipv4_url"
+                                  class="layui-textarea"></textarea>
+                    </div>
+                </div>
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="dynamic_ipv4_interface">网卡：</label>
+                    <div class="layui-input-block">
+                        <select name="dynamic_ipv4_interface" id="dynamic_ipv4_interface">
+                            {{range .IPv4}}
+                            <option value="{{.Name}}">
+                                {{.Name}}{{.Address}}
+                            </option>
+                            {{end}}
+                        </select>
+                        {{if not .IPv4}}
+                        <tip style="color: red">当前系统未检测到 IPv4 网卡，请确保系统已启用 IPv4 支持</tip>
+                        {{end}}
+                    </div>
+                </div>
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="dynamic_ipv4_command">命令：</label>
+                    <div class="layui-input-block">
+                        <textarea name="dynamic_ipv4_command" id="dynamic_ipv4_command" placeholder="请输入命令内容"
+                                  class="layui-textarea"></textarea>
+                        <tip>可参考 <a style="color: #1e9fff" href="https://github.com/cxbdasheng/dnet/wiki/%E9%80%9A%E8%BF%87%E5%91%BD%E4%BB%A4%E8%8E%B7%E5%8F%96-IP-%E5%8F%82%E8%80%83" target="_blank">命令获取 IP </a>，仅使用标准输出(stdout)的第一个匹配的 IPv4 地址</tip>
+                    </div>
+                </div>
+                <!--IPv6-->
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="ipv6_type">IPv6 类型 ：</label>
+                    <div class="layui-input-block">
+                        <select name="ipv6_type" lay-filter="ipv6-type-filter" id="ipv6_type">
+                            <option value="static_ipv6">静态 IPv6</option>
+                            <option value="dynamic_ipv6_url">动态 IPv6：接口获取</option>
+                            <option value="dynamic_ipv6_interface">动态 IPv6：网卡获取</option>
+                            <option value="dynamic_ipv6_command">动态 IPv6：命令获取</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="static_ipv6">静态 IPv6 地址：</label>
+                    <div class="layui-input-block">
+                        <input type="text" name="static_ipv6" id="static_ipv6" class="layui-input" placeholder="请输入静态 IPv6 地址" lay-verify="ipv6">
+                    </div>
+                </div>
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="dynamic_ipv6_url">接口地址：</label>
+                    <div class="layui-input-block">
+                        <textarea name="dynamic_ipv6_url" placeholder="请输入 IPv6 获取地址" id="dynamic_ipv6_url" class="layui-textarea"></textarea>
+                    </div>
+                </div>
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="dynamic_ipv6_interface">网卡：</label>
+                    <div class="layui-input-block">
+                        <select name="dynamic_ipv6_interface" id="dynamic_ipv6_interface">
+                            {{range .IPv6}}
+                            <option value="{{.Name}}">
+                                {{.Name}}{{.Address}}
+                            </option>
+                            {{end}}
+                        </select>
+                        {{if not .IPv6}}
+                        <tip style="color: red">当前系统未检测到 IPv6 网卡，请确保系统已启用 IPv6 支持</tip>
+                        {{end}}
+                    </div>
+                </div>
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="dynamic_ipv6_regex">匹配正则表达式：</label>
+                    <div class="layui-input-block">
+                        <textarea name="dynamic_ipv6_regex" id="dynamic_ipv6_regex" placeholder="请输入正则表达式"
+                                  class="layui-textarea"></textarea>
+                        <tip>可使用 @1 指定第一个 IPv6 地址, @2 指定第二个IPv6地址... 也可使用正则表达式匹配指定的 IPv6 地址, 留空则不启用</tip>
+                    </div>
+                </div>
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="dynamic_ipv6_command">命令：</label>
+                    <div class="layui-input-block">
+                        <textarea name="dynamic_ipv6_command" id="dynamic_ipv6_command" placeholder="请输入命令内容"
+                                  class="layui-textarea"></textarea>
+                        <tip>可参考 <a style="color: #1e9fff" href="https://github.com/cxbdasheng/dnet/wiki/%E9%80%9A%E8%BF%87%E5%91%BD%E4%BB%A4%E8%8E%B7%E5%8F%96-IP-%E5%8F%82%E8%80%83" target="_blank">命令获取 IP </a>，仅使用标准输出(stdout)的第一个匹配的 IPv6 地址</tip>
+                    </div>
+                </div>
+                <!--CNAME-->
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="cname">CNAME 值：</label>
+                    <div class="layui-input-block">
+                        <textarea name="cname" id="cname" placeholder="请输入 CNAME 内容" class="layui-textarea"></textarea>
+                    </div>
+                </div>
+                <!--TXT-->
+                <div class="layui-row layui-form-item">
+                    <label class="layui-form-label" for="txt">TXT 值：</label>
+                    <div class="layui-input-block">
+                        <textarea name="txt" id="txt" placeholder="请输入 TXT 内容" class="layui-textarea"></textarea>
+                    </div>
+                </div>
             </div>
         </div>
         <div class="layui-row layui-form-item">
             <div class="layui-input-block">
-                <button type="submit" class="layui-btn" lay-submit lay-filter="save">立即提交
-                </button>
+                <button type="submit" class="layui-btn" lay-submit lay-filter="save">立即提交</button>
                 <button type="reset" class="layui-btn layui-btn-primary">重置</button>
             </div>
         </div>
     </form>
 </div>
 </body>
+<script src="/static/dns.js"></script>
 <script>
+    // 获取第一个 DNS 提供商作为默认值
+    const firstDNSProvider = Object.keys(DNS_PROVIDERS)[0] || "aliyun";
 
+    const defaultConfig = {
+        "domain": "",
+        "service": firstDNSProvider,
+        "name": "",
+        "access_key": "",
+        "access_secret": "",
+        "type": "AAAA",
+        "ipv6_type": "dynamic_ipv6_interface",
+        "dynamic_ipv6_url": "https://speed.neu6.edu.cn/getIP.php, https://v6.ident.me, https://6.ipw.cn, https://v6.yinghualuo.cn/bejson",
+        "ipv4_type": "dynamic_ipv4_interface",
+        "dynamic_ipv4_url": "https://myip.ipip.net, https://ddns.oray.com/checkip, https://ip.3322.net, https://4.ipw.cn, https://v4.yinghualuo.cn/bejson",
+    }
+    // 当前选中的配置 ID
+    var currentSelectedConfig = null;
+
+    var configData = {}
+
+
+    layui.use(['element', 'layer', 'util', 'form'], function () {
+        var element = layui.element;
+        var layer = layui.layer;
+        var util = layui.util;
+        var form = layui.form;
+        var $ = layui.$;
+
+        function initDNSProviders() {
+            const container = $('#service-radio-container');
+            let radioHtml = '';
+            let isFirst = true;
+            // 生成单选按钮HTML
+            for (const providerId in DNS_PROVIDERS) {
+                if (DNS_PROVIDERS.hasOwnProperty(providerId)) {
+                    const provider = DNS_PROVIDERS[providerId];
+                    radioHtml += '<input type="radio" name="service" lay-filter="service" value="' + providerId + '" title="' + provider.name + '"';
+                    if (isFirst) {
+                        radioHtml += ' checked';
+                        isFirst = false;
+                    }
+                    radioHtml += '>';
+                }
+                // 插入HTML
+                container.html(radioHtml);
+                // 重新渲染表单
+                form.render('radio');
+                // 初始化表单标签和选项
+                updateFormBasedOnProvider($('input[name="service"]:checked').val());
+            }
+        }
+
+        // 根据选择的 DNS 提供商更新表单
+        function updateFormBasedOnProvider(providerId) {
+            if (!DNS_PROVIDERS[providerId]) return;
+            const provider = DNS_PROVIDERS[providerId];
+            // 更新 AccessKey 字段
+            updateFormField('access-key-label', 'access_key', provider.idLabel, 'access_key');
+            updateFormField('access-secret-label', 'access_secret', provider.secretLabel, 'access_secret');
+            // 更新创建 AccessKey 链接
+            const $serviceHelpContainer = $('#service-help-link');
+            if (provider.idHelpHtml) {
+                $serviceHelpContainer.html(provider.idHelpHtml);
+            } else {
+                $serviceHelpContainer.html('<a href="">创建 AccessKey</a>');
+            }
+            form.render('select');
+        }
+
+        // 表单字段显示/隐藏辅助函数
+        function updateFormField(labelId, fieldName, labelText, fieldId) {
+            const $row = $('#' + labelId).parent();
+            if (labelText && labelText.trim()) {
+                $('#' + labelId).text(labelText);
+                const placeholder = '请输入 ' + labelText.replace('：', '');
+
+                if ($row.is(':hidden') || $row.find('input[name="' + fieldName + '"]').length === 0) {
+                    $row.find('.layui-input-block').html(
+                        '<input type="text" id="' + fieldId + '" name="' + fieldName + '"  lay-verify="' + fieldName + '" placeholder="' + placeholder + '" class="layui-input">'
+                    );
+                } else {
+                    $row.find('input[name="' + fieldName + '"]').attr('placeholder', placeholder);
+                }
+                $row.show();
+            } else {
+                $row.hide();
+            }
+        }
+
+        // 监听 DNS 提供商选择变化
+        form.on('radio(service)', function (data) {
+            updateFormBasedOnProvider(data.value);
+        })
+        // 提交事件
+        form.on('submit(save)', function (data) {
+
+        })
+
+        // 初始化配置下拉选项和数据
+        function initConfigData() {
+            // const $select = $('select[name="config"]');
+            // // 如果 configData.ddns 中有数据，初始化下拉选项
+            // if (configData.ddns && configData.ddns.length > 0) {
+            //     // 清空现有选项
+            //     $select.empty();
+            //
+            //     // 根据 configData.ddns 创建选项
+            //     for (let i = 0; i < configData.ddns.length; i++) {
+            //         const config = configData.ddns[i];
+            //         const optionText = getConfigDisplayText(config);
+            //         const isSelected = i === 0 ? ' selected' : '';
+            //         $select.append('<option value="' + config.id + '"' + isSelected + '>' + optionText + '</option>');
+            //     }
+            //
+            //     // 重新渲染下拉框
+            //     form.render('select');
+            //
+            //     // 加载第一个配置的数据
+            //     const firstConfigId = configData.ddns[0].id;
+            //     currentSelectedConfig = firstConfigId;
+            //     loadConfig(firstConfigId);
+            // }else {
+            //     // 没有数据时，使用默认配置
+            //     currentSelectedConfig = $select.val();
+            //     clearFormFields();
+            // }
+        }
+
+
+        // 显示/隐藏 IPv4 相关字段
+        function toggleIPv4Fields(show) {
+            const ipv4Elements = [
+                '#ipv4_type',
+                '#static_ipv4', '#dynamic_ipv4_url',
+                '#dynamic_ipv4_interface', '#dynamic_ipv4_command'
+            ];
+            ipv4Elements.forEach(function (selector) {
+                const $element = $(selector).closest('.layui-form-item');
+                if (show) {
+                    $element.show();
+                } else {
+                    $element.hide();
+                }
+            });
+        }
+
+        // 显示/隐藏 IPv6 相关字段
+        function toggleIPv6Fields(show) {
+            const ipv6Elements = [
+                '#ipv6_type',
+                '#static_ipv6', '#dynamic_ipv6_url',
+                '#dynamic_ipv6_interface', '#dynamic_ipv6_regex', '#dynamic_ipv6_command'
+            ];
+            ipv6Elements.forEach(function (selector) {
+                const $element = $(selector).closest('.layui-form-item');
+                if (show) {
+                    $element.show();
+                } else {
+                    $element.hide();
+                }
+            });
+        }
+
+        // 显示/隐藏 CNAME 字段
+        function toggleCNAMEField(show) {
+            const $cnameElement = $('#cname').closest('.layui-form-item');
+            if (show) {
+                $cnameElement.show();
+            } else {
+                $cnameElement.hide();
+            }
+        }
+
+        // 显示/隐藏 TXT 字段
+        function toggleTXTField(show) {
+            const $txtElement = $('#txt').closest('.layui-form-item');
+            if (show) {
+                $txtElement.show();
+            } else {
+                $txtElement.hide();
+            }
+        }
+
+        // 根据 IPv4 类型显示对应字段
+        function updateIPv4TypeFields(selectedType) {
+            // 隐藏所有 IPv4 输入字段
+            $('#static_ipv4').closest('.layui-form-item').hide();
+            $('#dynamic_ipv4_url').closest('.layui-form-item').hide();
+            $('#dynamic_ipv4_interface').closest('.layui-form-item').hide();
+            $('#dynamic_ipv4_command').closest('.layui-form-item').hide();
+
+            // 根据选择显示对应字段
+            switch (selectedType) {
+                case 'static_ipv4':
+                    $('#static_ipv4').closest('.layui-form-item').show();
+                    break;
+                case 'dynamic_ipv4_url':
+                    $('#dynamic_ipv4_url').closest('.layui-form-item').show();
+                    break;
+                case 'dynamic_ipv4_interface':
+                    $('#dynamic_ipv4_interface').closest('.layui-form-item').show();
+                    break;
+                case 'dynamic_ipv4_command':
+                    $('#dynamic_ipv4_command').closest('.layui-form-item').show();
+                    break;
+            }
+        }
+
+        // 根据 IPv6 类型显示对应字段
+        function updateIPv6TypeFields(selectedType) {
+            // 隐藏所有 IPv6 输入字段
+            $('#static_ipv6').closest('.layui-form-item').hide();
+            $('#dynamic_ipv6_url').closest('.layui-form-item').hide();
+            $('#dynamic_ipv6_interface').closest('.layui-form-item').hide();
+            $('#dynamic_ipv6_regex').closest('.layui-form-item').hide();
+            $('#dynamic_ipv6_command').closest('.layui-form-item').hide();
+
+            // 根据选择显示对应字段
+            switch (selectedType) {
+                case 'static_ipv6':
+                    $('#static_ipv6').closest('.layui-form-item').show();
+                    break;
+                case 'dynamic_ipv6_url':
+                    $('#dynamic_ipv6_url').closest('.layui-form-item').show();
+                    break;
+                case 'dynamic_ipv6_interface':
+                    $('#dynamic_ipv6_interface').closest('.layui-form-item').show();
+                    $('#dynamic_ipv6_regex').closest('.layui-form-item').show();
+                    break;
+                case 'dynamic_ipv6_command':
+                    $('#dynamic_ipv6_command').closest('.layui-form-item').show();
+                    break;
+            }
+        }
+
+        // 根据记录类型显示对应部分
+        function updateRecordTypeFields(recordType) {
+            if (recordType === 'A') {
+                // 显示 IPv4，隐藏其他
+                toggleIPv4Fields(true);
+                toggleIPv6Fields(false);
+                toggleCNAMEField(false);
+                toggleTXTField(false);
+                // 触发 IPv4 类型选择器更新
+                updateIPv4TypeFields($('#ipv4_type').val());
+            } else if (recordType === 'AAAA') {
+                // 显示 IPv6，隐藏其他
+                toggleIPv4Fields(false);
+                toggleIPv6Fields(true);
+                toggleCNAMEField(false);
+                toggleTXTField(false);
+                // 触发 IPv6 类型选择器更新
+                updateIPv6TypeFields($('#ipv6_type').val());
+            } else if (recordType === 'CNAME') {
+                // 显示 CNAME，隐藏其他
+                toggleIPv4Fields(false);
+                toggleIPv6Fields(false);
+                toggleCNAMEField(true);
+                toggleTXTField(false);
+            } else if (recordType === 'TXT') {
+                // 显示 TXT，隐藏其他
+                toggleIPv4Fields(false);
+                toggleIPv6Fields(false);
+                toggleCNAMEField(false);
+                toggleTXTField(true);
+            }
+        }
+
+        // 监听记录类型变化
+        form.on('select(type-filter)', function (data) {
+            updateRecordTypeFields(data.value);
+        });
+
+        // 监听 IPv4 类型变化
+        form.on('select(ipv4-type-filter)', function (data) {
+            updateIPv4TypeFields(data.value);
+        });
+
+        // 监听 IPv6 类型变化
+        form.on('select(ipv6-type-filter)', function (data) {
+            updateIPv6TypeFields(data.value);
+        });
+
+        // 页面加载时初始化显示状态
+        $(function () {
+            var initialRecordType = $('#type').val();
+            updateRecordTypeFields(initialRecordType);
+        });
+
+        // 初始化 DNS 提供商选择
+        initDNSProviders();
+        initConfigData();
+    });
 </script>
 </html>

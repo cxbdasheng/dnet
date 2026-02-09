@@ -42,8 +42,8 @@
             <!-- 头部区域（可配合layui 已有的水平导航） -->
             <div class="ws-header-menu">
                 <ul class="layui-nav layui-layout-left" lay-filter="nav-filter">
-                    <li class="layui-nav-item layui-hide-xs layui-this"><a href="javascript:;">DCDN</a></li>
-                    <li class="layui-nav-item layui-hide-xs"><a href="javascript:;">DDNS</a></li>
+                    <li class="layui-nav-item layui-hide-xs"><a href="javascript:;">DCDN</a></li>
+                    <li class="layui-nav-item layui-hide-xs layui-this"><a href="javascript:;">DDNS</a></li>
                 </ul>
             </div>
 
@@ -69,8 +69,7 @@
     </div>
     <div class="layui-body" style="overflow: hidden;">
         <!-- iframe 内容框架 -->
-        <iframe id="content-frame" src="/dcdn" frameborder="0"
-                style="width: 100%; height: calc(100vh - 105px); border: none; display: block;"></iframe>
+        <iframe id="content-frame" src="/dcdn" frameborder="0" style="width: 100%; height: calc(100vh - 105px); border: none; display: block;"></iframe>
     </div>
     <div class="clear"></div>
     <div class="layui-footer">
@@ -100,6 +99,18 @@
         var form = layui.form;
         var $ = layui.$;
 
+        // 初始化：根据默认选中的菜单项加载对应页面
+        var $defaultNav = $('.layui-nav[lay-filter="nav-filter"] .layui-this a');
+        if ($defaultNav.length > 0) {
+            var defaultNavText = $defaultNav.text().trim();
+            var $iframe = $('#content-frame');
+            if (defaultNavText === 'DCDN') {
+                $iframe.attr('src', '/dcdn');
+            } else if (defaultNavText === 'DDNS') {
+                $iframe.attr('src', 'ddns');
+            }
+        }
+
         // 导航点击事件 - iframe 切换
         element.on('nav(nav-filter)', function (elem) {
             var navText = $(elem).text().trim();
@@ -118,7 +129,6 @@
                 // 更新导航选中状态
                 $('.layui-nav[lay-filter="nav-filter"] .layui-nav-item').removeClass('layui-this');
                 $clickedItem.addClass('layui-this');
-
                 // // 阻止默认行为，先移除当前元素的选中状态
                 // $clickedItem.removeClass('layui-this');
                 //

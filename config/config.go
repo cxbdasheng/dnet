@@ -42,6 +42,7 @@ type Config struct {
 	User
 	Webhook
 	DCDNConfig
+	DDNSConfig
 	// 语言
 	Lang string
 }
