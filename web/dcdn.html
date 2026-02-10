@@ -175,6 +175,9 @@
                             </option>
                             {{end}}
                         </select>
+                        {{if not .IPv4}}
+                        <tip style="color: red">当前系统未检测到 IPv4 网卡，请确保系统已启用 IPv4 支持</tip>
+                        {{end}}
                     </div>
                     <div class="layui-input-inline dnet-form-value" data-type="sources_dynamic_ipv4_command">
                         <textarea name="sources_dynamic_ipv4_command" placeholder="请输入命令内容" class="layui-textarea"></textarea>
@@ -192,7 +195,9 @@
                             </option>
                             {{end}}
                         </select>
-
+                        {{if not .IPv6}}
+                        <tip style="color: red">当前系统未检测到 IPv6 网卡，请确保系统已启用 IPv6 支持</tip>
+                        {{end}}
                     </div>
                     <div class="layui-input-inline dnet-form-value" data-type="sources_dynamic_ipv6_command">
                         <textarea name="sources_dynamic_ipv6_command" placeholder="请输入命令内容" class="layui-textarea"></textarea>
@@ -206,7 +211,6 @@
                     </div>
                     <div class="layui-input-inline">
                         <input type="text" name="sources_weight" lay-affix="number" value="10" step="1" max="100" min="1" class="layui-input">
-
                     </div>
                     <div class="layui-input-inline dnet-form-protocol">
                         <select name="protocol" lay-filter="protocol-filter">
