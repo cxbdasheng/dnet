@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"html/template"
 	"net/http"
+	"strings"
 
 	"github.com/cxbdasheng/dnet/bootstrap"
 	"github.com/cxbdasheng/dnet/config"
@@ -57,7 +58,15 @@ func handleDCDNGet(writer http.ResponseWriter, request *http.Request) {
 		IPv6:     ipv6,
 	})
 	if err != nil {
-		helper.Error(helper.LogTypeDCDN, "渲染模板失败: %v", err)
+		// 检查是否是客户端主动关闭连接（broken pipe 或 connection reset）
+		errStr := strings.ToLower(err.Error())
+		if strings.Contains(errStr, "broken pipe") || strings.Contains(errStr, "connection reset") {
+			// 客户端主动关闭连接（如快速刷新页面），这是正常情况，只记录调试信息
+			helper.Debug(helper.LogTypeDCDN, "客户端关闭连接: %v", err)
+		} else {
+			// 其他错误需要记录
+			helper.Error(helper.LogTypeDCDN, "渲染模板失败: %v", err)
+		}
 	}
 }
 

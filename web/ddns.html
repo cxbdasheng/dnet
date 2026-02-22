@@ -231,8 +231,7 @@
                 <div class="layui-row layui-form-item">
                     <label class="layui-form-label" for="dynamic_ipv6_command">命令：</label>
                     <div class="layui-input-block">
-                        <textarea name="dynamic_ipv6_command" id="dynamic_ipv6_command" placeholder="请输入命令内容"
-                                  class="layui-textarea"></textarea>
+                        <textarea name="dynamic_ipv6_command" id="dynamic_ipv6_command" placeholder="请输入命令内容" class="layui-textarea"></textarea>
                         <tip>可参考 <a style="color: #1e9fff" href="https://github.com/cxbdasheng/dnet/wiki/%E9%80%9A%E8%BF%87%E5%91%BD%E4%BB%A4%E8%8E%B7%E5%8F%96-IP-%E5%8F%82%E8%80%83" target="_blank">命令获取 IP </a>，仅使用标准输出(stdout)的第一个匹配的 IPv6 地址</tip>
                     </div>
                 </div>
@@ -240,14 +239,14 @@
                 <div class="layui-row layui-form-item">
                     <label class="layui-form-label" for="cname">CNAME 值：</label>
                     <div class="layui-input-block">
-                        <textarea name="cname" id="cname" placeholder="请输入 CNAME 内容" class="layui-textarea"></textarea>
+                        <textarea name="cname" id="cname" placeholder="请输入 CNAME 内容" lay-verify="cname" class="layui-textarea"></textarea>
                     </div>
                 </div>
                 <!--TXT-->
                 <div class="layui-row layui-form-item">
                     <label class="layui-form-label" for="txt">TXT 值：</label>
                     <div class="layui-input-block">
-                        <textarea name="txt" id="txt" placeholder="请输入 TXT 内容" class="layui-textarea"></textarea>
+                        <textarea name="txt" id="txt" placeholder="请输入 TXT 内容" lay-verify="txt" class="layui-textarea"></textarea>
                     </div>
                 </div>
             </div>
@@ -278,10 +277,10 @@
         "ipv4_type": "dynamic_ipv4_interface",
         "dynamic_ipv4_url": "https://myip.ipip.net, https://ddns.oray.com/checkip, https://ip.3322.net, https://4.ipw.cn, https://v4.yinghualuo.cn/bejson",
     }
+    var configData = {{.DDNSConf}}
+
     // 当前选中的配置 ID
     var currentSelectedConfig = null;
-
-    var configData = {}
 
 
     layui.use(['element', 'layer', 'util', 'form'], function () {
@@ -290,6 +289,208 @@
         var util = layui.util;
         var form = layui.form;
         var $ = layui.$;
+
+        // 域名验证正则表达式
+        const DOMAIN_REGEX = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/;
+        const ipv4Regex = /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+        // IPv6 完整格式检查
+        const ipv6FullRegex = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
+        // IPv6 压缩格式检查
+        const ipv6CompressedRegex = /^(([0-9a-fA-F]{1,4}:){1,7}:|:((:[0-9a-fA-F]{1,4}){1,7}|:))$/;
+        // IPv6 混合格式检查（包含 ::）
+        const ipv6MixedRegex = /^((([0-9a-fA-F]{1,4}:){1,6}:)|(::))([0-9a-fA-F]{1,4}:){0,5}[0-9a-fA-F]{1,4}$|^::$/;
+
+        // 选择下拉框的第一个选项（如果当前值为空）
+        function selectFirstOption(selector) {
+            const $select = $(selector);
+            if (!$select.val()) {
+                const firstOption = $select.find('option:first').val();
+                if (firstOption) {
+                    $select.val(firstOption);
+                }
+            }
+            return $select.val();
+        }
+
+        // 缓存常用的 DOM 选择器
+        const $cache = {
+            domainInput: $('input[name="domain"]'),
+            configSelect: $('select[name="config"]'),
+            ipv4Type: $('select[name="ipv4_type"]'),
+            ipv6Type: $('select[name="ipv6_type"]'),
+            staticIpv4: $('input[name="static_ipv4"]'),
+            dynamicIpv4Url: $('textarea[name="dynamic_ipv4_url"]'),
+            dynamicIpv4Interface: $('select[name="dynamic_ipv4_interface"]'),
+            dynamicIpv4Command: $('textarea[name="dynamic_ipv4_command"]'),
+            staticIpv6: $('input[name="static_ipv6"]'),
+            dynamicIpv6Url: $('textarea[name="dynamic_ipv6_url"]'),
+            dynamicIpv6Interface: $('select[name="dynamic_ipv6_interface"]'),
+            dynamicIpv6Regex: $('textarea[name="dynamic_ipv6_regex"]'),
+            dynamicIpv6Command: $('textarea[name="dynamic_ipv6_command"]'),
+            cname: $('textarea[name="cname"]'),
+            txt: $('textarea[name="txt"]')
+        };
+
+        // 自定义验证规则
+        form.verify({
+            // 域名验证
+            domain: function (value, elem) {
+                // 如果父容器被隐藏，跳过验证
+                var $parent = $(elem).closest('.layui-form-item');
+                if ($parent.length && $parent.is(':hidden')) {
+                    return; // 跳过验证
+                }
+
+                if (!value) {
+                    return '域名不能为空';
+                }
+
+                // 检查是否为泛解析（通配符域名）
+                var domainToCheck = value;
+                var isWildcard = false;
+                if (value.startsWith('*.')) {
+                    isWildcard = true;
+                    domainToCheck = value.substring(2); // 去掉 '*.' 前缀
+                    if (!domainToCheck) {
+                        return '泛解析域名格式错误，应为 *.example.com';
+                    }
+                }
+
+                // 域名长度检查
+                if (domainToCheck.length < 3 || value.length > 253) {
+                    return '域名长度必须在3-253个字符之间';
+                }
+                if (!DOMAIN_REGEX.test(domainToCheck)) {
+                    return '请输入正确的域名格式，例如：example.com 或 *.example.com';
+                }
+                // 检查是否包含至少一个点（顶级域名）
+                if (domainToCheck.indexOf('.') === -1) {
+                    return '域名必须包含顶级域名';
+                }
+                // 检查标签长度（每个部分不能超过63个字符）
+                const labels = domainToCheck.split('.');
+                for (var i = 0; i < labels.length; i++) {
+                    if (labels[i].length > 63) {
+                        return '域名的每个部分不能超过63个字符';
+                    }
+                }
+            },
+            // IPv4 验证
+            ipv4: function (value, elem) {
+                // 如果父容器被隐藏，跳过验证
+                var $parent = $(elem).closest('.layui-form-item');
+                if ($parent.length && $parent.is(':hidden')) {
+                    return; // 跳过验证
+                }
+
+                if (!value) {
+                    return 'IPv4 地址不能为空';
+                }
+                if (!ipv4Regex.test(value)) {
+                    return '请输入正确的 IPv4 地址格式，例如：192.168.1.1';
+                }
+            },
+            // AccessKey验证
+            access_key: function (value, elem) {
+                var labelText = $('#access-key-label').text().replace('：', '').trim();
+                if (!value) {
+                    return labelText + ' 不能为空';
+                }
+                if (value.length < 6) {
+                    return labelText + ' 长度不能少于6位';
+                }
+            },
+            // AccessSecret验证
+            access_secret: function (value, elem) {
+                var labelText = $('#access-secret-label').text().replace('：', '').trim();
+                if (!value) {
+                    return labelText + ' 不能为空';
+                }
+                if (value.length < 10) {
+                    return labelText + ' 长度不能少于10位';
+                }
+            },
+            // IPv6 验证
+            ipv6: function (value, elem) {
+                // 如果父容器被隐藏，跳过验证
+                var $parent = $(elem).closest('.layui-form-item');
+                if ($parent.length && $parent.is(':hidden')) {
+                    return; // 跳过验证
+                }
+
+                if (!value) {
+                    return 'IPv6 地址不能为空';
+                }
+                if (!ipv6FullRegex.test(value) && !ipv6CompressedRegex.test(value) && !ipv6MixedRegex.test(value)) {
+                    // 简化的 IPv6 验证
+                    var simpleIpv6Regex = /^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}$|^::$/;
+                    if (!simpleIpv6Regex.test(value)) {
+                        return '请输入正确的 IPv6 地址格式，例如：2001:db8::1 或 ::1';
+                    }
+                }
+            },
+            // CNAME 验证
+            cname: function (value, elem) {
+                // 如果父容器被隐藏，跳过验证
+                var $parent = $(elem).closest('.layui-form-item');
+                if ($parent.length && $parent.is(':hidden')) {
+                    return; // 跳过验证
+                }
+                if (!value) {
+                    return 'CNAME 值不能为空';
+                }
+            },
+            // TXT 验证
+            txt: function (value, elem) {
+                // 如果父容器被隐藏，跳过验证
+                var $parent = $(elem).closest('.layui-form-item');
+                if ($parent.length && $parent.is(':hidden')) {
+                    return; // 跳过验证
+                }
+                if (!value) {
+                    return 'TXT 值不能为空';
+                }
+            }
+        });
+
+        // 域名验证函数
+        function isValidDomain(domain) {
+            // 检查是否为泛解析（通配符域名）
+            var domainToCheck = domain;
+            if (domain.startsWith('*.')) {
+                domainToCheck = domain.substring(2); // 去掉 '*.' 前缀
+                if (!domainToCheck) {
+                    return false; // 泛解析域名格式错误
+                }
+            }
+            return DOMAIN_REGEX.test(domainToCheck) && domainToCheck.indexOf('.') !== -1;
+        }
+
+        // 获取配置显示文本
+        function getConfigDisplayText(config) {
+            if (config.name) {
+                return config.name;
+            } else if (config.domain) {
+                return config.id + ' - ' + config.domain;
+            }
+            return config.id;
+        }
+
+        // 辅助函数：根据配置ID查找配置索引
+        function findConfigIndex(configId) {
+            for (let i = 0; i < configData.ddns.length; i++) {
+                if (configData.ddns[i].id === configId) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        // 辅助函数：根据配置ID获取配置对象
+        function getConfigById(configId) {
+            const index = findConfigIndex(configId);
+            return index !== -1 ? configData.ddns[index] : null;
+        }
 
         function initDNSProviders() {
             const container = $('#service-radio-container');
@@ -358,38 +559,513 @@
         })
         // 提交事件
         form.on('submit(save)', function (data) {
+            // 检查当前是否已输入域名
+            const domainValue = $('input[name="domain"]').val().trim();
+            if (!domainValue) {
+                layer.msg('请先输入域名后再提交', {
+                    icon: 0,
+                    time: 2000,
+                    shade: 0.1
+                });
+                $('input[name="domain"]').focus();
+                return false;
+            }
+            // 验证域名格式
+            if (!isValidDomain(domainValue)) {
+                layer.msg('请输入正确的域名格式，例如：www.example.com', {
+                    icon: 2,
+                    time: 3000,
+                    shade: 0.1
+                });
+                $('input[name="domain"]').focus();
+                return false;
+            }
+            // 保存当前配置数据
+            saveCurrentConfig();
+            // 保存 ddns_enable 到 configData 中
+            configData.ddns_enable = $('input[name="ddns_enable"]').is(':checked');
 
+            $.ajax({
+                type: 'POST',
+                url: '/ddns',
+                contentType: 'application/json',
+                data: JSON.stringify(configData),
+                success: function (response) {
+                    var res = JSON.parse(response)
+                    if (res.status) {
+                        layer.msg('配置保存成功', {
+                            icon: 1,
+                            time: 1000
+                        });
+                    } else {
+                        layer.msg(res.msg, {
+                            icon: 2,
+                            time: 1000
+                        });
+                    }
+                },
+                error: function (xhr, status, error) {
+                    layer.msg(error, {
+                        icon: 2,
+                        time: 2000
+                    });
+                }
+            });
+            return false; // 阻止默认 form 跳转
         })
 
         // 初始化配置下拉选项和数据
         function initConfigData() {
-            // const $select = $('select[name="config"]');
-            // // 如果 configData.ddns 中有数据，初始化下拉选项
-            // if (configData.ddns && configData.ddns.length > 0) {
-            //     // 清空现有选项
-            //     $select.empty();
-            //
-            //     // 根据 configData.ddns 创建选项
-            //     for (let i = 0; i < configData.ddns.length; i++) {
-            //         const config = configData.ddns[i];
-            //         const optionText = getConfigDisplayText(config);
-            //         const isSelected = i === 0 ? ' selected' : '';
-            //         $select.append('<option value="' + config.id + '"' + isSelected + '>' + optionText + '</option>');
-            //     }
-            //
-            //     // 重新渲染下拉框
-            //     form.render('select');
-            //
-            //     // 加载第一个配置的数据
-            //     const firstConfigId = configData.ddns[0].id;
-            //     currentSelectedConfig = firstConfigId;
-            //     loadConfig(firstConfigId);
-            // }else {
-            //     // 没有数据时，使用默认配置
-            //     currentSelectedConfig = $select.val();
-            //     clearFormFields();
-            // }
+            const $select = $('select[name="config"]');
+            // 如果 configData.ddns 中有数据，初始化下拉选项
+            if (configData.ddns && configData.ddns.length > 0) {
+                // 清空现有选项
+                $select.empty();
+
+                // 根据 configData.ddns 创建选项
+                for (let i = 0; i < configData.ddns.length; i++) {
+                    const config = configData.ddns[i];
+                    const optionText = getConfigDisplayText(config);
+                    const isSelected = i === 0 ? ' selected' : '';
+                    $select.append('<option value="' + config.id + '"' + isSelected + '>' + optionText + '</option>');
+                }
+
+                // 重新渲染下拉框
+                form.render('select');
+
+                // 加载第一个配置的数据
+                const firstConfigId = configData.ddns[0].id;
+                currentSelectedConfig = firstConfigId;
+                loadConfig(firstConfigId);
+            } else {
+                // 没有数据时，使用默认配置
+                currentSelectedConfig = $select.val();
+                clearFormFields();
+            }
         }
+
+        // 保存指定配置数据
+        function saveCurrentConfig(configName) {
+            if (!configName) configName = $cache.configSelect.val();
+            if (!configName) return;
+
+            // 获取现有配置，保留 name 字段（如果已存在）
+            const existingConfig = getConfigById(configName);
+            const customName = existingConfig && existingConfig.name ? existingConfig.name : '';
+
+            const configObj = {
+                id: configName,
+                name: customName,
+                domain: $cache.domainInput.val(),
+                service: $('input[name="service"]:checked').val(),
+                access_key: $('input[name="access_key"]').val(),
+                access_secret: $('input[name="access_secret"]').val(),
+                ttl: $('select[name="ttl"]').val(),
+                type: $('select[name="type"]').val(),
+                ip_type: '',
+                value: '',
+                regex: ''
+            };
+
+            // 根据记录类型收集对应的字段
+            const recordType = configObj.type;
+            if (recordType === 'A') {
+                const ipv4Type = $cache.ipv4Type.val();
+                configObj.ip_type = ipv4Type;
+                // 根据 IPv4 类型获取对应的值
+                switch(ipv4Type) {
+                    case 'static_ipv4':
+                        configObj.value = $cache.staticIpv4.val();
+                        break;
+                    case 'dynamic_ipv4_url':
+                        configObj.value = $cache.dynamicIpv4Url.val();
+                        break;
+                    case 'dynamic_ipv4_interface':
+                        configObj.value = $cache.dynamicIpv4Interface.val();
+                        break;
+                    case 'dynamic_ipv4_command':
+                        configObj.value = $cache.dynamicIpv4Command.val();
+                        break;
+                }
+            } else if (recordType === 'AAAA') {
+                const ipv6Type = $cache.ipv6Type.val();
+                configObj.ip_type = ipv6Type;
+                // 根据 IPv6 类型获取对应的值
+                switch(ipv6Type) {
+                    case 'static_ipv6':
+                        configObj.value = $cache.staticIpv6.val();
+                        break;
+                    case 'dynamic_ipv6_url':
+                        configObj.value = $cache.dynamicIpv6Url.val();
+                        break;
+                    case 'dynamic_ipv6_interface':
+                        configObj.value = $cache.dynamicIpv6Interface.val();
+                        configObj.regex = $cache.dynamicIpv6Regex.val();
+                        break;
+                    case 'dynamic_ipv6_command':
+                        configObj.value = $cache.dynamicIpv6Command.val();
+                        break;
+                }
+            } else if (recordType === 'CNAME') {
+                configObj.value = $cache.cname.val();
+            } else if (recordType === 'TXT') {
+                configObj.value = $cache.txt.val();
+            }
+
+            // 查找并更新或添加配置
+            const index = findConfigIndex(configName);
+            if (index !== -1) {
+                configData.ddns[index] = configObj;
+            } else {
+                configData.ddns.push(configObj);
+            }
+        }
+
+        // 加载配置数据
+        function loadConfig(configValue) {
+            const config = getConfigById(configValue);
+            if (!config) return;
+
+            // 恢复基本配置
+            $cache.domainInput.val(config.domain || '');
+            $('input[name="service"][value="' + (config.service || firstDNSProvider) + '"]').prop('checked', true);
+            $('input[name="access_key"]').val(config.access_key || '');
+            $('input[name="access_secret"]').val(config.access_secret || '');
+            $('select[name="ttl"]').val(config.ttl || 'AUTO');
+            $('select[name="type"]').val(config.type || 'A');
+
+            // 更新下拉选项显示文本
+            const $option = $cache.configSelect.find('option[value="' + configValue + '"]');
+            if (config.name) {
+                $option.text(config.name);
+            } else if (config.domain) {
+                $option.text(configValue + ' - ' + config.domain);
+            } else {
+                $option.text(configValue);
+            }
+
+            // 更新DNS提供商相关的表单字段
+            updateFormBasedOnProvider(config.service || firstDNSProvider);
+
+            // 恢复记录类型相关的字段
+            if (config.type === 'A') {
+                const ipType = config.ip_type || defaultConfig.ipv4_type;
+                $cache.ipv4Type.val(ipType);
+                // 根据 IP 类型恢复对应的值
+                switch(ipType) {
+                    case 'static_ipv4':
+                        $cache.staticIpv4.val(config.value || '');
+                        break;
+                    case 'dynamic_ipv4_url':
+                        $cache.dynamicIpv4Url.val(config.value || defaultConfig.dynamic_ipv4_url);
+                        break;
+                    case 'dynamic_ipv4_interface':
+                        $cache.dynamicIpv4Interface.val(config.value || selectFirstOption('select[name="dynamic_ipv4_interface"]'));
+                        break;
+                    case 'dynamic_ipv4_command':
+                        $cache.dynamicIpv4Command.val(config.value || '');
+                        break;
+                }
+            } else if (config.type === 'AAAA') {
+                const ipType = config.ip_type || defaultConfig.ipv6_type;
+                $cache.ipv6Type.val(ipType);
+                // 根据 IP 类型恢复对应的值
+                switch(ipType) {
+                    case 'static_ipv6':
+                        $cache.staticIpv6.val(config.value || '');
+                        break;
+                    case 'dynamic_ipv6_url':
+                        $cache.dynamicIpv6Url.val(config.value || defaultConfig.dynamic_ipv6_url);
+                        break;
+                    case 'dynamic_ipv6_interface':
+                        $cache.dynamicIpv6Interface.val(config.value || selectFirstOption('select[name="dynamic_ipv6_interface"]'));
+                        $cache.dynamicIpv6Regex.val(config.regex || '');
+                        break;
+                    case 'dynamic_ipv6_command':
+                        $cache.dynamicIpv6Command.val(config.value || '');
+                        break;
+                }
+            } else if (config.type === 'CNAME') {
+                $cache.cname.val(config.value || '');
+            } else if (config.type === 'TXT') {
+                $cache.txt.val(config.value || '');
+            }
+
+            // 重新渲染表单并更新显示
+            form.render();
+            updateRecordTypeFields(config.type || 'A');
+        }
+
+        // 使用默认配置初始化表单字段
+        function clearFormFields() {
+            // 使用默认配置填充基本字段
+            $cache.domainInput.val(defaultConfig.domain || '');
+            const defaultProvider = defaultConfig.service || firstDNSProvider;
+            $('input[name="service"][value="' + defaultProvider + '"]').prop('checked', true);
+            $('input[name="access_key"]').val(defaultConfig.access_key || '');
+            $('input[name="access_secret"]').val(defaultConfig.access_secret || '');
+            $('select[name="ttl"]').val('AUTO');
+            $('select[name="type"]').val(defaultConfig.type || 'A');
+
+            // 清空 IPv4 字段
+            $cache.ipv4Type.val(defaultConfig.ipv4_type);
+            $cache.staticIpv4.val('');
+            $cache.dynamicIpv4Url.val(defaultConfig.dynamic_ipv4_url);
+            selectFirstOption('select[name="dynamic_ipv4_interface"]');
+            $cache.dynamicIpv4Command.val('');
+
+            // 清空 IPv6 字段
+            $cache.ipv6Type.val(defaultConfig.ipv6_type);
+            $cache.staticIpv6.val('');
+            $cache.dynamicIpv6Url.val(defaultConfig.dynamic_ipv6_url);
+            selectFirstOption('select[name="dynamic_ipv6_interface"]');
+            $cache.dynamicIpv6Regex.val('');
+            $cache.dynamicIpv6Command.val('');
+
+            // 清空 CNAME 和 TXT 字段
+            $cache.cname.val('');
+            $cache.txt.val('');
+
+            // 更新表单以匹配默认服务商
+            updateFormBasedOnProvider(defaultProvider);
+
+            // 重新渲染表单
+            form.render();
+            updateRecordTypeFields(defaultConfig.type || 'A');
+        }
+
+        // 新增配置
+        $('#config-add').on('click', function () {
+            // 使用 Layui 方式进行表单校验
+            let isValid = true;
+            $('.layui-form').find('input[lay-verify], select[lay-verify], textarea[lay-verify]').each(function () {
+                const $this = $(this);
+                const fieldName = $this.attr('name');
+                const verifyType = $this.attr('lay-verify');
+                if (verifyType) {
+                    const value = $this.val();
+                    const verifyRules = verifyType.split('|');
+
+                    for (let i = 0; i < verifyRules.length; i++) {
+                        const rule = verifyRules[i];
+                        if (form.config.verify[rule]) {
+                            const result = form.config.verify[rule](value, this);
+                            if (result) {
+                                layer.msg(result);
+                                $this.focus();
+                                isValid = false;
+                                return false; // 跳出循环
+                            }
+                        }
+                    }
+                }
+                if (!isValid) return false; // 跳出each循环
+            })
+            if (!isValid) {
+                return false;
+            }
+            // 检查当前是否已输入域名
+            const domainValue = $('input[name="domain"]').val().trim();
+            if (!domainValue) {
+                layer.msg('请先输入域名后再添加新配置', {
+                    icon: 0,
+                    time: 2000,
+                    shade: 0.1
+                });
+                $('input[name="domain"]').focus();
+                return false;
+            }
+            // 验证域名格式
+            if (!isValidDomain(domainValue)) {
+                layer.msg('请输入正确的域名格式后再添加新配置，例如：dns.example.com', {
+                    icon: 2,
+                    time: 3000,
+                    shade: 0.1
+                });
+                $('input[name="domain"]').focus();
+                return false;
+            }
+            // 保存当前配置数据
+            saveCurrentConfig();
+
+            // 添加新选项
+            const configSelect = $('select[name="config"]');
+            const newValue = (parseInt(configSelect.find('option:last').val()) || 0) + 1;
+            const newOption = '<option value="' + newValue + '" selected>' + newValue + '</option>';
+            configSelect.append(newOption);
+
+            // 重新渲染表单（Layui 特有）
+            form.render('select');
+
+            // 更新当前选中的配置
+            currentSelectedConfig = String(newValue);
+
+            // 清空所有表单字段，为新配置做准备
+            clearFormFields();
+
+            return false;
+        });
+
+        // 重命名当前配置
+        $('#config-rename').on('click', function () {
+            const $select = $('select[name="config"]');
+            const currentValue = $select.val();
+            const currentDisplayText = $select.find('option[value="' + currentValue + '"]').text();
+
+            if (!currentValue) {
+                layer.msg('请先选择一个配置项', {
+                    icon: 0,
+                    time: 2000
+                });
+                return false;
+            }
+
+            // 弹出输入框
+            layer.prompt({
+                title: '重命名配置 ' + currentValue,
+                formType: 0, // 文本输入框
+                value: currentDisplayText, // 使用当前显示文本作为默认值
+                maxlength: 50
+            }, function (value, index, elem) {
+                // 去除空格
+                value = value.trim();
+
+                if (!value) {
+                    layer.msg('配置名不能为空', {
+                        icon: 2,
+                        time: 2000
+                    });
+                    return false;
+                }
+
+                // 只更新选项的显示文本，保持value不变
+                $select.find('option[value="' + currentValue + '"]').text(value);
+
+                // 更新 configData 中的配置数据的name字段
+                let config = getConfigById(currentValue);
+                if (config) {
+                    config.name = value;
+                } else {
+                    // 如果配置不存在，先保存当前配置，再设置name
+                    saveCurrentConfig(currentValue);
+                    config = getConfigById(currentValue);
+                    if (config) {
+                        config.name = value;
+                    }
+                }
+
+                // 重新渲染表单
+                form.render('select');
+
+                layer.close(index);
+                layer.msg('重命名成功', {
+                    icon: 1,
+                    time: 1500
+                });
+            });
+            return false;
+        });
+
+        // 删除当前配置
+        $('#config-remove').on('click', function () {
+            const $select = $('select[name="config"]');
+            const currentValue = $select.val();
+            const currentDisplayText = $select.find('option[value="' + currentValue + '"]').text();
+
+            // 检查是否有选中的值且选项数量大于1
+            if (currentValue && $select.find('option').length > 1) {
+                // 弹出确认框，显示选项的显示文本
+                layer.confirm('确定要删除配置 "' + currentDisplayText + '" 吗？', {
+                    btn: ['确定', '取消']
+                }, function (index) {
+                    // 确定删除
+                    // 删除 configData 中对应的数据
+                    const configIndex = findConfigIndex(currentValue);
+                    if (configIndex !== -1) {
+                        configData.ddns.splice(configIndex, 1);
+                    }
+
+                    // 移除当前选中的选项
+                    $select.find('option[value="' + currentValue + '"]').remove();
+
+                    // 选择最后一个剩余的选项
+                    $select.find('option:last').prop('selected', true);
+                    // 更新当前选中的配置
+                    currentSelectedConfig = $select.find('option:last').val();
+
+                    // 重新渲染表单
+                    form.render('select');
+
+                    // 加载新选中配置的数据
+                    const existingConfig = getConfigById(currentSelectedConfig);
+                    if (existingConfig) {
+                        loadConfig(currentSelectedConfig);
+                    } else {
+                        clearFormFields();
+                    }
+
+                    layer.close(index);
+                });
+            } else {
+                layer.msg('至少需要保留一个配置项');
+            }
+            return false;
+        });
+
+        // 域名输入监听
+        $('input[name="domain"]').on('blur', function () {
+            const domainValue = $(this).val().trim();
+            const $select = $('select[name="config"]');
+            const currentValue = $select.val();
+
+            // 检查当前配置是否存在 name 字段（已被重命名）
+            const currentConfig = getConfigById(currentValue);
+            const hasCustomName = currentConfig && currentConfig.name;
+            if (hasCustomName) {
+                // 如果配置已被重命名，则不更新显示
+                return;
+            }
+            if (domainValue) {
+                // 验证域名格式
+                if (isValidDomain(domainValue)) {
+                    // 域名格式正确，更新当前选中的配置项显示
+                    const newDisplayText = currentValue + ' - ' + domainValue;
+                    $select.find('option[value="' + currentValue + '"]').text(newDisplayText);
+
+                    // 重新渲染select
+                    form.render('select');
+                } else {
+                    // 域名格式错误
+                    layer.msg('域名格式不正确，请输入正确格式，例如：ddns.example.com', {
+                        icon: 2,
+                        time: 3000,
+                        shade: 0.1
+                    });
+                }
+            } else {
+                // 域名为空时，恢复显示为纯序号（仅当未重命名时）
+                $select.find('option[value="' + currentValue + '"]').text(currentValue);
+                form.render('select');
+            }
+        });
+
+        // 配置项切换监听
+        form.on('select(config-select-filter)', function (data) {
+            if (data.elem.name === 'config') {
+                // 保存切换前的配置数据
+                if (currentSelectedConfig) {
+                    saveCurrentConfig(currentSelectedConfig);
+                }
+                // 更新当前选中的配置
+                currentSelectedConfig = data.value;
+                // 加载新选择的配置数据，如果没有保存的数据则清空表单
+                if (getConfigById(data.value)) {
+                    loadConfig(data.value);
+                } else {
+                    clearFormFields();
+                }
+            }
+        });
 
 
         // 显示/隐藏 IPv4 相关字段
@@ -449,24 +1125,31 @@
         // 根据 IPv4 类型显示对应字段
         function updateIPv4TypeFields(selectedType) {
             // 隐藏所有 IPv4 输入字段
-            $('#static_ipv4').closest('.layui-form-item').hide();
-            $('#dynamic_ipv4_url').closest('.layui-form-item').hide();
-            $('#dynamic_ipv4_interface').closest('.layui-form-item').hide();
-            $('#dynamic_ipv4_command').closest('.layui-form-item').hide();
+            $cache.staticIpv4.closest('.layui-form-item').hide();
+            $cache.dynamicIpv4Url.closest('.layui-form-item').hide();
+            $cache.dynamicIpv4Interface.closest('.layui-form-item').hide();
+            $cache.dynamicIpv4Command.closest('.layui-form-item').hide();
 
             // 根据选择显示对应字段
             switch (selectedType) {
                 case 'static_ipv4':
-                    $('#static_ipv4').closest('.layui-form-item').show();
+                    $cache.staticIpv4.closest('.layui-form-item').show();
                     break;
                 case 'dynamic_ipv4_url':
-                    $('#dynamic_ipv4_url').closest('.layui-form-item').show();
+                    $cache.dynamicIpv4Url.closest('.layui-form-item').show();
+                    // 如果输入框为空，填充默认值
+                    if (!$cache.dynamicIpv4Url.val()) {
+                        $cache.dynamicIpv4Url.val(defaultConfig.dynamic_ipv4_url);
+                    }
                     break;
                 case 'dynamic_ipv4_interface':
-                    $('#dynamic_ipv4_interface').closest('.layui-form-item').show();
+                    $cache.dynamicIpv4Interface.closest('.layui-form-item').show();
+                    // 如果当前值为空，默认选择第一个网卡
+                    selectFirstOption('select[name="dynamic_ipv4_interface"]');
+                    form.render('select');
                     break;
                 case 'dynamic_ipv4_command':
-                    $('#dynamic_ipv4_command').closest('.layui-form-item').show();
+                    $cache.dynamicIpv4Command.closest('.layui-form-item').show();
                     break;
             }
         }
@@ -474,26 +1157,33 @@
         // 根据 IPv6 类型显示对应字段
         function updateIPv6TypeFields(selectedType) {
             // 隐藏所有 IPv6 输入字段
-            $('#static_ipv6').closest('.layui-form-item').hide();
-            $('#dynamic_ipv6_url').closest('.layui-form-item').hide();
-            $('#dynamic_ipv6_interface').closest('.layui-form-item').hide();
-            $('#dynamic_ipv6_regex').closest('.layui-form-item').hide();
-            $('#dynamic_ipv6_command').closest('.layui-form-item').hide();
+            $cache.staticIpv6.closest('.layui-form-item').hide();
+            $cache.dynamicIpv6Url.closest('.layui-form-item').hide();
+            $cache.dynamicIpv6Interface.closest('.layui-form-item').hide();
+            $cache.dynamicIpv6Regex.closest('.layui-form-item').hide();
+            $cache.dynamicIpv6Command.closest('.layui-form-item').hide();
 
             // 根据选择显示对应字段
             switch (selectedType) {
                 case 'static_ipv6':
-                    $('#static_ipv6').closest('.layui-form-item').show();
+                    $cache.staticIpv6.closest('.layui-form-item').show();
                     break;
                 case 'dynamic_ipv6_url':
-                    $('#dynamic_ipv6_url').closest('.layui-form-item').show();
+                    $cache.dynamicIpv6Url.closest('.layui-form-item').show();
+                    // 如果输入框为空，填充默认值
+                    if (!$cache.dynamicIpv6Url.val()) {
+                        $cache.dynamicIpv6Url.val(defaultConfig.dynamic_ipv6_url);
+                    }
                     break;
                 case 'dynamic_ipv6_interface':
-                    $('#dynamic_ipv6_interface').closest('.layui-form-item').show();
-                    $('#dynamic_ipv6_regex').closest('.layui-form-item').show();
+                    $cache.dynamicIpv6Interface.closest('.layui-form-item').show();
+                    $cache.dynamicIpv6Regex.closest('.layui-form-item').show();
+                    // 如果当前值为空，默认选择第一个网卡
+                    selectFirstOption('select[name="dynamic_ipv6_interface"]');
+                    form.render('select');
                     break;
                 case 'dynamic_ipv6_command':
-                    $('#dynamic_ipv6_command').closest('.layui-form-item').show();
+                    $cache.dynamicIpv6Command.closest('.layui-form-item').show();
                     break;
             }
         }
@@ -554,7 +1244,13 @@
 
         // 初始化 DNS 提供商选择
         initDNSProviders();
+        // 初始化配置数据（必须在所有事件绑定完成后调用）
         initConfigData();
+        // 恢复 ddns_enable 状态
+        if (typeof configData.ddns_enable !== 'undefined') {
+            $('input[name="ddns_enable"]').prop('checked', configData.ddns_enable);
+            form.render('checkbox');
+        }
     });
 </script>
 </html>

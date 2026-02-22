@@ -127,6 +127,10 @@ func GetDDNSConfigJSON(DDNSConf DDNSConfig) string {
 			AccessKey:    maskSensitiveString(dns.AccessKey),
 			AccessSecret: maskSensitiveString(dns.AccessSecret),
 			TTL:          dns.TTL,
+			Type:         dns.Type,
+			IPType:       dns.IPType,
+			Value:        dns.Value,
+			Regex:        dns.Regex,
 		}
 	}
 
