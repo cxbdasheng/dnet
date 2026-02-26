@@ -347,6 +347,12 @@
             },
             // AccessKey验证
             access_key: function (value, elem) {
+                // 如果父容器被隐藏，跳过验证
+                var $parent = $(elem).closest('.dnet-form-value');
+                if ($parent.length && $parent.is(':hidden')) {
+                    return; // 跳过验证
+                }
+
                 // 动态获取 label 文本
                 var labelText = $('#access-key-label').text().replace('：', '').trim();
                 if (!value) {
@@ -358,6 +364,12 @@
             },
             // AccessSecret验证
             access_secret: function (value, elem) {
+                // 如果父容器被隐藏，跳过验证
+                var $parent = $(elem).closest('.dnet-form-value');
+                if ($parent.length && $parent.is(':hidden')) {
+                    return; // 跳过验证
+                }
+
                 // 动态获取 label 文本
                 var labelText = $('#access-secret-label').text().replace('：', '').trim();
                 if (!value) {
