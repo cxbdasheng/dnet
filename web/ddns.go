@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/cxbdasheng/dnet/bootstrap"
 	"github.com/cxbdasheng/dnet/config"
+	"github.com/cxbdasheng/dnet/ddns"
 	"github.com/cxbdasheng/dnet/helper"
 )
 
@@ -98,6 +100,17 @@ func handleDDNSPost(writer http.ResponseWriter, request *http.Request) {
 		helper.ReturnError(writer, "保存配置失败")
 		return
 	}
+	// 设置为强制比较
+	ddns.ForceCompareGlobal = true
+	go func() {
+		// 重新加载最新配置，避免使用旧的缓存
+		freshConf, err := config.GetConfigCached()
+		if err != nil {
+			helper.Error(helper.LogTypeDDNS, "加载配置失败: %v", err)
+			return
+		}
+		bootstrap.ProcessDDNSServices(&freshConf)
+	}()
 
 	helper.ReturnSuccess(writer, "配置保存成功", nil)
 }
