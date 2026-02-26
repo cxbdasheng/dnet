@@ -392,6 +392,12 @@
             },
             // AccessKey验证
             access_key: function (value, elem) {
+                // 如果父容器被隐藏，跳过验证
+                var $parent = $(elem).closest('.layui-form-item');
+                if ($parent.length && $parent.is(':hidden')) {
+                    return; // 跳过验证
+                }
+
                 var labelText = $('#access-key-label').text().replace('：', '').trim();
                 if (!value) {
                     return labelText + ' 不能为空';
@@ -402,6 +408,12 @@
             },
             // AccessSecret验证
             access_secret: function (value, elem) {
+                // 如果父容器被隐藏，跳过验证
+                var $parent = $(elem).closest('.layui-form-item');
+                if ($parent.length && $parent.is(':hidden')) {
+                    return; // 跳过验证
+                }
+
                 var labelText = $('#access-secret-label').text().replace('：', '').trim();
                 if (!value) {
                     return labelText + ' 不能为空';
