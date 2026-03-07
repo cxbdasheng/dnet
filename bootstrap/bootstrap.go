@@ -40,6 +40,22 @@ func ProcessDCDNServices(conf *config.Config) {
 	}
 	configChanged := false
 	for i := range conf.DCDNConfig.DCDN {
+		// 过滤空配置：跳过域名为空或没有有效源站的配置
+		if conf.DCDNConfig.DCDN[i].Domain == "" {
+			continue
+		}
+		// 检查是否有至少一个有效的源站
+		hasValidSource := false
+		for _, source := range conf.DCDNConfig.DCDN[i].Sources {
+			if source.Value != "" {
+				hasValidSource = true
+				break
+			}
+		}
+		if !hasValidSource {
+			continue
+		}
+
 		var cdnSelected dcdn.CDN
 		switch conf.DCDNConfig.DCDN[i].Service {
 		case "aliyun":

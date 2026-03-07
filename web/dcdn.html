@@ -156,7 +156,7 @@
                         </select>
                     </div>
                     <div class="layui-input-inline dnet-form-value" data-type="sources_type_domain">
-                        <input type="text"  name="sources_type_domain" class="layui-input" placeholder="请输入域名内容" lay-verify="domain">
+                        <input type="text"  name="sources_type_domain" lay-verify="domain" class="layui-input" placeholder="请输入域名内容" lay-verify="domain">
                     </div>
                     <div class="layui-input-inline dnet-form-value" data-type="sources_type_ipv4">
                         <input type="text"  name="sources_type_ipv4" class="layui-input" placeholder="请输入静态 IPv4 地址" lay-verify="ipv4">
@@ -165,7 +165,7 @@
                         <input type="text" lay-verify="ipv6" name="sources_type_ipv6" class="layui-input" placeholder="请输入静态 IPv6 地址">
                     </div>
                     <div class="layui-input-inline dnet-form-value" data-type="sources_dynamic_ipv4_url">
-                        <textarea name="sources_dynamic_ipv4_url" placeholder="请输入 IPv4 获取地址" class="layui-textarea"></textarea>
+                        <textarea name="sources_dynamic_ipv4_url" lay-verify="interface" placeholder="请输入 IPv4 获取地址" class="layui-textarea"></textarea>
                     </div>
                     <div class="layui-input-inline dnet-form-value" data-type="sources_dynamic_ipv4_interface">
                         <select name="sources_dynamic_ipv4_interface">
@@ -180,12 +180,12 @@
                         {{end}}
                     </div>
                     <div class="layui-input-inline dnet-form-value" data-type="sources_dynamic_ipv4_command">
-                        <textarea name="sources_dynamic_ipv4_command" placeholder="请输入命令内容" class="layui-textarea"></textarea>
+                        <textarea name="sources_dynamic_ipv4_command" lay-verify="command" placeholder="请输入命令内容" class="layui-textarea"></textarea>
                         <tip>可参考 <a style="color: #1e9fff" href="https://github.com/cxbdasheng/dnet/wiki/%E9%80%9A%E8%BF%87%E5%91%BD%E4%BB%A4%E8%8E%B7%E5%8F%96-IP-%E5%8F%82%E8%80%83" target="_blank">命令获取 IP </a>，仅使用标准输出(stdout)的第一个匹配的 IPv4 地址 </tip>
                     </div>
                     <!--Pv6-->
                     <div class="layui-input-inline dnet-form-value" data-type="sources_dynamic_ipv6_url">
-                        <textarea name="sources_dynamic_ipv6_url" placeholder="请输入 IPv6 获取地址" class="layui-textarea"></textarea>
+                        <textarea name="sources_dynamic_ipv6_url"  lay-verify="interface" placeholder="请输入 IPv6 获取地址" class="layui-textarea"></textarea>
                     </div>
                     <div class="layui-input-inline dnet-form-value" data-type="sources_dynamic_ipv6_interface">
                         <select name="sources_dynamic_ipv6_interface">
@@ -200,7 +200,7 @@
                         {{end}}
                     </div>
                     <div class="layui-input-inline dnet-form-value" data-type="sources_dynamic_ipv6_command">
-                        <textarea name="sources_dynamic_ipv6_command" placeholder="请输入命令内容" class="layui-textarea"></textarea>
+                        <textarea name="sources_dynamic_ipv6_command" placeholder="请输入命令内容" lay-verify="command" class="layui-textarea"></textarea>
                         <tip>可参考 <a style="color: #1e9fff" href="https://github.com/cxbdasheng/dnet/wiki/%E9%80%9A%E8%BF%87%E5%91%BD%E4%BB%A4%E8%8E%B7%E5%8F%96-IP-%E5%8F%82%E8%80%83" target="_blank">命令获取 IP </a>，仅使用标准输出（stdout）的第一个匹配的 IPv6 地址。</tip>
                     </div>
                     <div class="layui-input-inline dnet-form-priority">
@@ -341,6 +341,12 @@
             },
             // 权重验证
             weight: function (value, elem) {
+                // 如果父容器被隐藏，跳过验证
+                var $parent = $(elem).closest('.dnet-form-value');
+                if ($parent.length && $parent.is(':hidden')) {
+                    return; // 跳过验证
+                }
+
                 if (value && (isNaN(value) || parseInt(value) < 1 || parseInt(value) > 100)) {
                     return '权重必须是1-100之间的数字';
                 }
@@ -397,6 +403,32 @@
                     if (!simpleIpv6Regex.test(value)) {
                         return '请输入正确的 IPv6 地址格式，例如：2001:db8::1 或 ::1';
                     }
+                }
+            },
+            // 命令获取
+            command: function (value, elem) {
+                // 如果父容器被隐藏，跳过验证
+                var $parent = $(elem).closest('.dnet-form-value');
+                if ($parent.length && $parent.is(':hidden')) {
+                    return; // 跳过验证
+                }
+
+                if (!value) {
+                    // return;
+                    return '命令内容不能为空';
+                }
+            },
+            // 接口获取
+            interface: function (value, elem) {
+                // 如果父容器被隐藏，跳过验证
+                var $parent = $(elem).closest('.dnet-form-value');
+                if ($parent.length && $parent.is(':hidden')) {
+                    return; // 跳过验证
+                }
+
+                if (!value) {
+                    // return;
+                    return '接口地址不能为空';
                 }
             }
         });
@@ -502,11 +534,45 @@
             saveCurrentConfig();
             // 保存 dcdn_enable 到 configData 中（使用key方式）
             configData.dcdn_enable = $('input[name="dcdn_enable"]').is(':checked');
+
+            // 创建一个副本用于提交，过滤掉空配置
+            var submitData = {
+                dcdn_enable: configData.dcdn_enable,
+                dcdn: []
+            };
+
+            // 过滤掉空配置：域名为空或源站列表为空的配置
+            if (configData.dcdn && configData.dcdn.length > 0) {
+                submitData.dcdn = configData.dcdn.filter(function(config) {
+                    // 检查域名是否为空
+                    if (!config.domain || config.domain.trim() === '') {
+                        return false;
+                    }
+                    // 检查源站列表是否有有效源站
+                    var hasValidSources = false;
+                    if (config.sources && config.sources.length > 0) {
+                        hasValidSources = config.sources.some(function(source) {
+                            return source.value && source.value.trim() !== '';
+                        });
+                    }
+                    return hasValidSources;
+                }).map(function(config) {
+                    // 创建配置的副本，并过滤掉空的源站
+                    var configCopy = JSON.parse(JSON.stringify(config));
+                    if (configCopy.sources && configCopy.sources.length > 0) {
+                        configCopy.sources = configCopy.sources.filter(function(source) {
+                            return source.value && source.value.trim() !== '';
+                        });
+                    }
+                    return configCopy;
+                });
+            }
+
             $.ajax({
                 type: 'POST',
                 url: '/dcdn',
                 contentType: 'application/json',
-                data: JSON.stringify(configData),
+                data: JSON.stringify(submitData),
                 success: function (response) {
                     var res = JSON.parse(response)
                     if (res.status){
