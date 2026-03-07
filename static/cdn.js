@@ -49,5 +49,21 @@ const CDN_PROVIDERS = {
             "<tip></tip>",
             "<tip>协议跟随时，不允许自定义端口号</tip>",
         ]
-    }
+    },
+    cloudflare: {
+        name: "Cloudflare",
+        idLabel: "API Token：",
+        secretLabel: "",
+        typeSelect: [
+            "CDN",
+            "DNS",
+        ],
+        idHelpHtml: "<a target='_blank' href='https://dash.cloudflare.com/profile/api-tokens'>创建 API 令牌 -> 编辑区域 DNS (使用模板)</a>",
+        typeHelpHtml: "<strong>CDN</strong>：开启代理，流量经过 Cloudflare 加速；<strong>DNS</strong>：仅 DNS 解析，流量不经过 Cloudflare",
+        maxSources: [1, 1],
+        protocolTipHtml: [
+            "<tip>Cloudflare 仅支持单个源站</tip>",
+            "<tip>Cloudflare 仅支持单个源站</tip>",
+        ]
+    },
 }

@@ -578,8 +578,16 @@
                     if (res.status){
                         // 检查是否开启了 DCDN
                         const isDCDNEnabled = $('input[name="dcdn_enable"]').is(':checked');
+                        // 获取当前服务商
+                        const currentService = $('input[name="service"]:checked').val();
 
-                        if (isDCDNEnabled) {
+                        // Cloudflare 不需要获取 CNAME，直接显示成功
+                        if (currentService === 'cloudflare') {
+                            layer.msg('配置保存成功', {
+                                icon: 1,
+                                time: 1000
+                            });
+                        } else if (isDCDNEnabled) {
                             layer.msg('配置保存成功，正在获取 CNAME...', {
                                 icon: 1,
                                 time: 2000
@@ -1307,6 +1315,12 @@
                 }
                 $row.show();
             } else {
+                // 隐藏字段时，移除输入框或清空验证规则，避免验证被触发
+                const $input = $row.find('input[name="' + fieldName + '"]');
+                if ($input.length > 0) {
+                    $input.removeAttr('lay-verify');
+                    $input.val(''); // 清空值
+                }
                 $row.hide();
             }
         }
