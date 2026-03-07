@@ -597,11 +597,32 @@
             // 保存 ddns_enable 到 configData 中
             configData.ddns_enable = $('input[name="ddns_enable"]').is(':checked');
 
+            // 创建一个副本用于提交，过滤掉空配置
+            var submitData = {
+                ddns_enable: configData.ddns_enable,
+                ddns: []
+            };
+
+            // 过滤掉空配置：域名为空或 Value 为空的配置
+            if (configData.ddns && configData.ddns.length > 0) {
+                submitData.ddns = configData.ddns.filter(function(config) {
+                    // 检查域名是否为空
+                    if (!config.domain || config.domain.trim() === '') {
+                        return false;
+                    }
+                    // 检查 Value 是否为空
+                    if (!config.value || config.value.trim() === '') {
+                        return false;
+                    }
+                    return true;
+                });
+            }
+
             $.ajax({
                 type: 'POST',
                 url: '/ddns',
                 contentType: 'application/json',
-                data: JSON.stringify(configData),
+                data: JSON.stringify(submitData),
                 success: function (response) {
                     var res = JSON.parse(response)
                     if (res.status) {

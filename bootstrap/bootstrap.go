@@ -89,6 +89,14 @@ func ProcessDDNSServices(conf *config.Config) {
 	}
 
 	for i := range conf.DDNSConfig.DDNS {
+		// 过滤空配置：跳过域名为空或 Value 为空的配置
+		if conf.DDNSConfig.DDNS[i].Domain == "" {
+			continue
+		}
+		if conf.DDNSConfig.DDNS[i].Value == "" {
+			continue
+		}
+
 		var dnsSelected ddns.DNS
 
 		// 根据服务提供商选择对应的实现
