@@ -17,6 +17,7 @@ import (
 	"github.com/cxbdasheng/dnet/bootstrap"
 	"github.com/cxbdasheng/dnet/config"
 	"github.com/cxbdasheng/dnet/dcdn"
+	"github.com/cxbdasheng/dnet/ddns"
 	"github.com/cxbdasheng/dnet/helper"
 	"github.com/cxbdasheng/dnet/helper/update"
 	"github.com/cxbdasheng/dnet/web"
@@ -49,6 +50,8 @@ var noWebService = flag.Bool("noweb", false, "No web service")
 
 // 缓存次数
 var dcdnCacheTimes = flag.Int("dcdnCacheTimes", 5, "dcdn Cache times")
+
+var ddnsCacheTimes = flag.Int("ddnsCacheTimes", 5, "ddns Cache times")
 
 // D-NET 版本
 var showVersion = flag.Bool("v", false, "D-NET version")
@@ -117,6 +120,7 @@ func main() {
 	}
 	// 设置缓存次数
 	os.Setenv(dcdn.CacheTimesENV, strconv.Itoa(*dcdnCacheTimes))
+	os.Setenv(ddns.CacheTimesENV, strconv.Itoa(*ddnsCacheTimes))
 
 	switch *serviceType {
 	case "install":
