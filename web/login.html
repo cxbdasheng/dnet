@@ -95,6 +95,13 @@
         color: #01aaed;
         text-decoration: underline;
     }
+
+    /* 媒体查询：屏幕高度较小时隐藏 footer */
+    @media (max-height: 650px) {
+        .layui-footer {
+            display: none;
+        }
+    }
 </style>
 <form class="layui-form">
     <div class="login-container">

@@ -1016,8 +1016,6 @@
             $('input[name="domain"]').val(data.domain || '');
             $('input[name="cname"]').val(data.cname || '');
             $('input[name="service"][value="' + (data.service || firstCDNProvider) + '"]').prop('checked', true);
-            $('input[name="access_key"]').val(data.access_key || '');
-            $('input[name="access_secret"]').val(data.access_secret || '');
 
             // 更新下拉选项显示文本
             const $select = $('select[name="config"]');
@@ -1032,8 +1030,12 @@
                 // 如果都没有，只显示 id
                 $option.text(configValue);
             }
-            // 先更新CDN提供商相关的表单字段，然后再设置cdn_type
+            // 先更新CDN提供商相关的表单字段（确保字段正确显示/隐藏），然后再设置值
             updateFormBasedOnProvider(data.service || firstCDNProvider);
+
+            // 在字段正确显示后，再设置 access_key 和 access_secret 的值
+            $('input[name="access_key"]').val(data.access_key || '');
+            $('input[name="access_secret"]').val(data.access_secret || '');
 
             // 设置cdn_type，如果该值在当前提供商的选项中不存在，则使用第一个选项
             const cdnTypeValue = data.cdn_type || '';
@@ -1315,11 +1317,10 @@
                 }
                 $row.show();
             } else {
-                // 隐藏字段时，移除输入框或清空验证规则，避免验证被触发
+                // 隐藏字段时，只移除验证规则，不清空值（数据保存在 configData 中）
                 const $input = $row.find('input[name="' + fieldName + '"]');
                 if ($input.length > 0) {
                     $input.removeAttr('lay-verify');
-                    $input.val(''); // 清空值
                 }
                 $row.hide();
             }
