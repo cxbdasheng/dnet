@@ -1081,6 +1081,19 @@
 
             // 重新渲染表单并初始化所有源站行
             renderAndInitSourceRows();
+
+            // 切换配置后，如果开关开启且 CNAME 为空，则启动 CNAME 轮询
+            const isDCDNEnabled = $('input[name="dcdn_enable"]').is(':checked');
+            const currentCname = data.cname || '';
+            const currentService = data.service || firstCDNProvider;
+
+            // Cloudflare 不需要轮询 CNAME
+            if (isDCDNEnabled && !currentCname && currentService !== 'cloudflare') {
+                // 延迟500ms启动轮询，确保表单已完全加载
+                setTimeout(function() {
+                    startCnamePolling();
+                }, 500);
+            }
         }
 
         // 加载源站数据到指定行
