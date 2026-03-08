@@ -88,6 +88,11 @@ type ModifyRecordRequest struct {
 	TTL        uint64 `json:"TTL"`
 }
 
+type DeleteRecordRequest struct {
+	Domain   string `json:"Domain"`
+	RecordId uint64 `json:"RecordId"`
+}
+
 func (t *TencentCloud) GetServiceStatus() string {
 	return string(t.Status)
 }
@@ -213,31 +218,75 @@ func (t *TencentCloud) UpdateOrCreateRecord() bool {
 		}
 	}
 
-	// 3. 查询现有记录
-	record, err := t.describeDomainRecords()
+	// 3. 查询该子域下的所有记录（所有类型）
+	allRecords, err := t.describeAllDomainRecords()
 	if err != nil {
 		t.Status = UpdatedFailed
-		helper.Error(helper.LogTypeDDNS, "[%s] 查询 DNS 记录失败: %v", t.GetServiceName(), err)
+		helper.Error(helper.LogTypeDDNS, "[%s] 查询所有 DNS 记录失败: %v", t.GetServiceName(), err)
 		return false
 	}
 
-	// 4. 更新或创建
+	// 4. 处理记录类型变更（特殊处理 CNAME 类型冲突）
 	var updateErr error
-	if record != nil {
-		// 记录存在，检查值是否需要更新
-		if record.Value == currentValue {
-			// 值完全相同，跳过更新
-			helper.Info(helper.LogTypeDDNS, "[%s] 记录值未变化，无需更新 [RecordId=%d, 值=%s]", t.GetServiceName(), record.RecordId, currentValue)
-			updateErr = nil
-		} else {
-			// 值不同，执行更新
-			helper.Info(helper.LogTypeDDNS, "[%s] 记录已存在 [RecordId=%d, 旧值=%s]", t.GetServiceName(), record.RecordId, record.Value)
-			updateErr = t.updateDomainRecord(record.RecordId, currentValue)
+
+	// 如果目标类型是 CNAME，需要先删除该子域下的所有其他类型记录
+	if t.DNS.Type == RecordTypeCNAME {
+		if len(allRecords) > 0 {
+			helper.Info(helper.LogTypeDDNS, "[%s] 创建 CNAME 记录前，需要删除该子域下的所有现有记录 [数量=%d]", t.GetServiceName(), len(allRecords))
+			for _, rec := range allRecords {
+				if deleteErr := t.deleteDomainRecord(rec.RecordId); deleteErr != nil {
+					t.Status = UpdatedFailed
+					helper.Error(helper.LogTypeDDNS, "[%s] 删除 DNS 记录失败 [RecordId=%d, 类型=%s, 错误=%v]", t.GetServiceName(), rec.RecordId, rec.Type, deleteErr)
+					return false
+				}
+				helper.Info(helper.LogTypeDDNS, "[%s] 已删除 DNS 记录 [RecordId=%d, 类型=%s, 值=%s]", t.GetServiceName(), rec.RecordId, rec.Type, rec.Value)
+			}
 		}
-	} else {
-		// 记录不存在，创建
-		helper.Info(helper.LogTypeDDNS, "[%s] 记录不存在，创建新记录", t.GetServiceName())
+
+		helper.Info(helper.LogTypeDDNS, "[%s] 创建新的 CNAME 记录", t.GetServiceName())
 		updateErr = t.addDomainRecord(currentValue)
+	} else {
+		// 创建非 CNAME 类型记录，需要确保同子域下没有 CNAME 记录
+		var cnameRecords []TencentCloudRecord
+		var targetRecord *TencentCloudRecord
+
+		for i := range allRecords {
+			if allRecords[i].Type == RecordTypeCNAME {
+				cnameRecords = append(cnameRecords, allRecords[i])
+			} else if allRecords[i].Type == t.DNS.Type && targetRecord == nil {
+				record := allRecords[i]
+				targetRecord = &record
+			}
+		}
+
+		// 如果存在 CNAME 记录，需要先删除
+		if len(cnameRecords) > 0 {
+			helper.Info(helper.LogTypeDDNS, "[%s] 创建 %s 记录前，检测到 CNAME 记录，需要删除 [数量=%d]", t.GetServiceName(), t.DNS.Type, len(cnameRecords))
+			for _, rec := range cnameRecords {
+				if deleteErr := t.deleteDomainRecord(rec.RecordId); deleteErr != nil {
+					t.Status = UpdatedFailed
+					helper.Error(helper.LogTypeDDNS, "[%s] 删除 CNAME 记录失败 [RecordId=%d, 错误=%v]", t.GetServiceName(), rec.RecordId, deleteErr)
+					return false
+				}
+				helper.Info(helper.LogTypeDDNS, "[%s] 已删除 CNAME 记录 [RecordId=%d, 值=%s]", t.GetServiceName(), rec.RecordId, rec.Value)
+			}
+			// 删除 CNAME 后，目标记录应该重新创建（不能使用旧的 targetRecord）
+			targetRecord = nil
+		}
+
+		// 处理目标类型记录
+		if targetRecord != nil {
+			if targetRecord.Value == currentValue {
+				helper.Info(helper.LogTypeDDNS, "[%s] 记录值未变化，无需更新 [RecordId=%d, 值=%s]", t.GetServiceName(), targetRecord.RecordId, currentValue)
+				updateErr = nil
+			} else {
+				helper.Info(helper.LogTypeDDNS, "[%s] 记录已存在 [RecordId=%d, 类型=%s, 旧值=%s]", t.GetServiceName(), targetRecord.RecordId, targetRecord.Type, targetRecord.Value)
+				updateErr = t.updateDomainRecord(targetRecord.RecordId, currentValue)
+			}
+		} else {
+			helper.Info(helper.LogTypeDDNS, "[%s] 记录不存在，创建新记录", t.GetServiceName())
+			updateErr = t.addDomainRecord(currentValue)
+		}
 	}
 
 	if updateErr != nil {
@@ -284,6 +333,22 @@ func (t *TencentCloud) describeDomainRecords() (*TencentCloudRecord, error) {
 	return nil, nil
 }
 
+// describeAllDomainRecords 查询指定主机记录的所有 DNS 记录（所有类型）
+func (t *TencentCloud) describeAllDomainRecords() ([]TencentCloudRecord, error) {
+	requestBody := map[string]string{
+		"Domain":    t.getRootDomain(),
+		"Subdomain": t.getHostRecord(),
+	}
+
+	var response DescribeRecordListResponse
+	err := t.request("DescribeRecordList", requestBody, &response)
+	if err != nil {
+		return nil, err
+	}
+
+	return response.Response.RecordList, nil
+}
+
 // updateDomainRecord 更新 DNS 记录
 func (t *TencentCloud) updateDomainRecord(recordId uint64, value string) error {
 	requestBody := ModifyRecordRequest{
@@ -326,6 +391,24 @@ func (t *TencentCloud) addDomainRecord(value string) error {
 	}
 
 	helper.Info(helper.LogTypeDDNS, "[%s] 创建 DNS 记录成功 [值=%s]", t.GetServiceName(), value)
+	return nil
+}
+
+// deleteDomainRecord 删除 DNS 记录
+func (t *TencentCloud) deleteDomainRecord(recordId uint64) error {
+	requestBody := DeleteRecordRequest{
+		Domain:   t.getRootDomain(),
+		RecordId: recordId,
+	}
+
+	var response TencentCloudAPIResponse
+	err := t.request("DeleteRecord", requestBody, &response)
+	if err != nil {
+		helper.Error(helper.LogTypeDDNS, "[%s] 删除 DNS 记录失败 [RecordId=%d, 错误=%v]", t.GetServiceName(), recordId, err)
+		return err
+	}
+
+	helper.Info(helper.LogTypeDDNS, "[%s] 删除 DNS 记录成功 [RecordId=%d]", t.GetServiceName(), recordId)
 	return nil
 }
 
