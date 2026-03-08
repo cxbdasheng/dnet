@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"strings"
 
@@ -16,11 +15,67 @@ import (
 const cloudflareAPIEndpoint = "https://api.cloudflare.com/client/v4"
 
 type Cloudflare struct {
-	DNS           *config.DNS
-	Cache         *Cache
-	Status        statusType
-	configChanged bool   // 标记配置是否发生变化（用于触发保存）
-	zoneID        string // Zone ID 缓存
+	DNS    *config.DNS
+	Cache  *Cache
+	Status statusType
+	zoneID string // Zone ID 缓存
+}
+
+// cloudflareRequest 封装 Cloudflare API 请求
+func (cf *Cloudflare) cloudflareRequest(method, urlPath string, body interface{}, result interface{}) error {
+	apiToken := strings.TrimSpace(cf.DNS.AccessKey)
+	if apiToken == "" {
+		return fmt.Errorf("API Token 为空")
+	}
+
+	url := cloudflareAPIEndpoint + urlPath
+
+	var reqBody io.Reader
+	if body != nil {
+		jsonData, err := json.Marshal(body)
+		if err != nil {
+			return fmt.Errorf("序列化请求数据失败: %v", err)
+		}
+		reqBody = bytes.NewBuffer(jsonData)
+		helper.Debug(helper.LogTypeDDNS, "请求 [%s %s] 数据: %s", method, urlPath, string(jsonData))
+	} else {
+		helper.Debug(helper.LogTypeDDNS, "请求 [%s %s]", method, urlPath)
+	}
+
+	req, err := http.NewRequest(method, url, reqBody)
+	if err != nil {
+		return fmt.Errorf("创建请求失败: %v", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+apiToken)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := helper.CreateHTTPClient()
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("请求失败: %v", err)
+	}
+	defer resp.Body.Close()
+
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("读取响应失败: %v", err)
+	}
+
+	helper.Debug(helper.LogTypeDDNS, "响应 [状态码=%d, 长度=%d]", resp.StatusCode, len(responseBody))
+
+	if resp.StatusCode != 200 {
+		helper.Warn(helper.LogTypeDDNS, "API 响应状态码异常 [状态码=%d, 响应=%s]", resp.StatusCode, string(responseBody))
+		return fmt.Errorf("请求失败 [状态码=%d]", resp.StatusCode)
+	}
+
+	if err := json.Unmarshal(responseBody, result); err != nil {
+		helper.Error(helper.LogTypeDDNS, "解析响应失败: %v", err)
+		helper.Debug(helper.LogTypeDDNS, "响应内容: %s", string(responseBody))
+		return fmt.Errorf("解析响应失败: %v", err)
+	}
+
+	return nil
 }
 
 // CloudflareAPIError Cloudflare API 错误
@@ -104,8 +159,39 @@ func (cf *Cloudflare) GetServiceName() string {
 	return cf.DNS.Domain
 }
 
+// getProviderName 获取服务商名称（统一日志输出风格）
+func (cf *Cloudflare) getProviderName() string {
+	return "Cloudflare"
+}
+
+// getCacheKey 获取缓存键（支持正则表达式）
+func (cf *Cloudflare) getCacheKey() string {
+	if cf.DNS.IPType == helper.DynamicIPv6Interface && cf.DNS.Regex != "" {
+		return helper.GetIPCacheKeyWithRegex(cf.DNS.IPType, cf.DNS.Value, cf.DNS.Regex)
+	}
+	return helper.GetIPCacheKey(cf.DNS.IPType, cf.DNS.Value)
+}
+
 func (cf *Cloudflare) ShouldSendWebhook() bool {
-	return cf.Status == UpdatedSuccess || cf.Status == UpdatedFailed
+	// 更新成功，重置失败计数器并发送 webhook
+	if cf.Status == UpdatedSuccess {
+		cf.Cache.TimesFailed = 0
+		return true
+	}
+
+	// 更新失败，累计失败次数
+	if cf.Status == UpdatedFailed {
+		cf.Cache.TimesFailed++
+		if cf.Cache.TimesFailed >= 3 {
+			helper.Warn(helper.LogTypeDDNS, "连续更新失败 %d 次，触发 Webhook 通知 [域名=%s]", cf.Cache.TimesFailed, cf.GetServiceName())
+			cf.Cache.TimesFailed = 0
+			return true
+		}
+		helper.Warn(helper.LogTypeDDNS, "更新失败，将不会触发 Webhook，仅在连续失败 3 次时触发，当前失败次数：%d [域名=%s]", cf.Cache.TimesFailed, cf.GetServiceName())
+		return false
+	}
+
+	return false
 }
 
 // Init 初始化 Cloudflare DDNS
@@ -116,7 +202,7 @@ func (cf *Cloudflare) Init(dnsConfig *config.DNS, cache *Cache) {
 	// 验证配置
 	if err := cf.validateConfig(); err != nil {
 		cf.Status = InitFailed
-		helper.Error(helper.LogTypeDDNS, "[%s] 初始化失败：%v", cf.GetServiceName(), err)
+		helper.Error(helper.LogTypeDDNS, "[%s] 初始化失败: %v", cf.GetServiceName(), err)
 		return
 	}
 
@@ -124,13 +210,16 @@ func (cf *Cloudflare) Init(dnsConfig *config.DNS, cache *Cache) {
 	zoneID, err := cf.getZoneID()
 	if err != nil {
 		cf.Status = InitFailed
-		helper.Error(helper.LogTypeDDNS, "[%s] 获取 Zone ID 失败：%v", cf.GetServiceName(), err)
+		helper.Error(helper.LogTypeDDNS, "[%s] 获取 Zone ID 失败: %v", cf.GetServiceName(), err)
 		return
 	}
 	cf.zoneID = zoneID
 
 	cf.Status = InitSuccess
-	helper.Info(helper.LogTypeDDNS, "[%s] 初始化成功 [ZoneID=%s]", cf.GetServiceName(), zoneID)
+	// 只在第一次初始化时打印日志
+	if !cf.Cache.HasRun {
+		helper.Info(helper.LogTypeDDNS, "[%s] 初始化成功 [ZoneID=%s]", cf.GetServiceName(), zoneID)
+	}
 }
 
 // validateConfig 验证配置
@@ -178,37 +267,40 @@ func (cf *Cloudflare) UpdateOrCreateRecord() bool {
 		// CNAME 或 TXT 记录，直接使用配置值
 		currentValue = cf.DNS.Value
 	default:
-		helper.Error(helper.LogTypeDDNS, "[%s] 不支持的记录类型：%s", cf.GetServiceName(), cf.DNS.Type)
+		helper.Error(helper.LogTypeDDNS, "[%s] 不支持的记录类型: %s", cf.GetServiceName(), cf.DNS.Type)
 		cf.Status = UpdatedFailed
 		return false
 	}
 
 	// 2. 检查值是否变化（仅对动态类型检查）
 	if IsDynamicType(cf.DNS.IPType) {
-		// 使用正则感知的缓存键（用于 IPv6 接口类型）
-		var cacheKey string
-		if cf.DNS.IPType == helper.DynamicIPv6Interface && cf.DNS.Regex != "" {
-			cacheKey = helper.GetIPCacheKeyWithRegex(cf.DNS.IPType, cf.DNS.Value, cf.DNS.Regex)
-		} else {
-			cacheKey = helper.GetIPCacheKey(cf.DNS.IPType, cf.DNS.Value)
-		}
+		cacheKey := cf.getCacheKey()
 		valueChanged, oldValue := cf.Cache.CheckIPChanged(cacheKey, currentValue)
 
-		// 如果没有变化且已经运行过，跳过更新
-		if !valueChanged && cf.Cache.HasRun && !ForceCompareGlobal {
+		// 检查是否需要强制更新（次数耗尽）
+		forceUpdate := cf.Cache.Times <= 0
+
+		// 如果没有变化且已经运行过且不需要强制更新，跳过更新
+		if !valueChanged && cf.Cache.HasRun && !ForceCompareGlobal && !forceUpdate {
+			// 减少剩余次数
+			cf.Cache.Times--
 			cf.Status = UpdatedNothing
-			helper.Debug(helper.LogTypeDDNS, "[%s] 值未变化，跳过更新 [当前=%s]", cf.GetServiceName(), currentValue)
+			helper.Debug(helper.LogTypeDDNS, "[%s] 值未变化，跳过更新 [当前=%s, 剩余次数=%d]", cf.GetServiceName(), currentValue, cf.Cache.Times)
 			return false
 		}
 
-		helper.Info(helper.LogTypeDDNS, "[%s] 检测到值变化 [旧值=%s, 新值=%s]", cf.GetServiceName(), oldValue, currentValue)
+		if valueChanged {
+			helper.Info(helper.LogTypeDDNS, "[%s] 检测到值变化 [旧值=%s, 新值=%s]", cf.GetServiceName(), oldValue, currentValue)
+		} else if forceUpdate {
+			helper.Info(helper.LogTypeDDNS, "[%s] 达到强制更新阈值，即使值未变化也执行更新 [当前=%s]", cf.GetServiceName(), currentValue)
+		}
 	}
 
 	// 3. 查询现有记录（先按当前类型查询）
 	record, err := cf.getDNSRecord()
 	if err != nil {
 		cf.Status = UpdatedFailed
-		helper.Error(helper.LogTypeDDNS, "[%s] 查询DNS记录失败：%v", cf.GetServiceName(), err)
+		helper.Error(helper.LogTypeDDNS, "[%s] 查询 DNS 记录失败: %v", cf.GetServiceName(), err)
 		return false
 	}
 
@@ -218,7 +310,7 @@ func (cf *Cloudflare) UpdateOrCreateRecord() bool {
 		allRecords, err = cf.getAllDNSRecords()
 		if err != nil {
 			cf.Status = UpdatedFailed
-			helper.Error(helper.LogTypeDDNS, "[%s] 查询所有DNS记录失败：%v", cf.GetServiceName(), err)
+			helper.Error(helper.LogTypeDDNS, "[%s] 查询所有 DNS 记录失败: %v", cf.GetServiceName(), err)
 			return false
 		}
 	}
@@ -226,22 +318,48 @@ func (cf *Cloudflare) UpdateOrCreateRecord() bool {
 	// 5. 更新或创建
 	var updateErr error
 	if record != nil {
-		// 记录存在且类型匹配，直接更新
-		helper.Info(helper.LogTypeDDNS, "[%s] 记录已存在 [RecordID=%s, 类型=%s, 旧值=%s]", cf.GetServiceName(), record.ID, record.Type, record.Content)
-		updateErr = cf.updateDNSRecord(record.ID, currentValue)
+		// 记录存在且类型匹配，检查值是否需要更新
+		if record.Content == currentValue {
+			// 值完全相同，跳过更新
+			helper.Info(helper.LogTypeDDNS, "[%s] 记录值未变化，无需更新 [RecordID=%s, 值=%s]", cf.GetServiceName(), record.ID, currentValue)
+			updateErr = nil
+		} else {
+			// 值不同，执行更新
+			helper.Info(helper.LogTypeDDNS, "[%s] 记录已存在 [RecordID=%s, 类型=%s, 旧值=%s]", cf.GetServiceName(), record.ID, record.Type, record.Content)
+			updateErr = cf.updateDNSRecord(record.ID, currentValue)
+		}
 	} else if len(allRecords) > 0 {
-		// 域名存在但类型不同，直接修改记录类型和内容
+		// 域名存在但类型不同，需要处理类型变更
 		oldRecord := allRecords[0] // 使用第一条记录
 		helper.Info(helper.LogTypeDDNS, "[%s] 检测到记录类型变更 [RecordID=%s, 旧类型=%s->新类型=%s]", cf.GetServiceName(), oldRecord.ID, oldRecord.Type, cf.DNS.Type)
-		updateErr = cf.updateDNSRecord(oldRecord.ID, currentValue)
 
-		// 如果有多条记录，删除其余的（避免冲突）
-		if len(allRecords) > 1 {
-			helper.Info(helper.LogTypeDDNS, "[%s] 发现多条记录，清理多余记录", cf.GetServiceName())
-			for i := 1; i < len(allRecords); i++ {
-				helper.Info(helper.LogTypeDDNS, "[%s] 删除多余记录 [RecordID=%s, 类型=%s]", cf.GetServiceName(), allRecords[i].ID, allRecords[i].Type)
-				if err := cf.deleteDNSRecord(allRecords[i].ID); err != nil {
-					helper.Warn(helper.LogTypeDDNS, "[%s] 删除多余记录失败：%v", cf.GetServiceName(), err)
+		// 判断是否要修改为 CNAME
+		if cf.DNS.Type == RecordTypeCNAME {
+			// 修改为 CNAME：删除所有现有记录，然后创建新的 CNAME 记录
+			helper.Info(helper.LogTypeDDNS, "[%s] 修改为 CNAME，需要删除所有现有记录", cf.GetServiceName())
+			for _, existingRecord := range allRecords {
+				helper.Info(helper.LogTypeDDNS, "[%s] 删除现有记录 [RecordID=%s, 类型=%s]", cf.GetServiceName(), existingRecord.ID, existingRecord.Type)
+				if err := cf.deleteDNSRecord(existingRecord.ID); err != nil {
+					helper.Error(helper.LogTypeDDNS, "[%s] 删除记录失败: %v", cf.GetServiceName(), err)
+					cf.Status = UpdatedFailed
+					return false
+				}
+			}
+			// 创建新的 CNAME 记录
+			updateErr = cf.createDNSRecord(currentValue)
+		} else {
+			// 修改为非 CNAME 类型：直接修改第一条记录，保留其他记录
+			helper.Info(helper.LogTypeDDNS, "[%s] 修改为非 CNAME 类型，直接修改第一条记录", cf.GetServiceName())
+			updateErr = cf.updateDNSRecord(oldRecord.ID, currentValue)
+
+			// 如果旧记录是 CNAME，且有多条记录（理论上不应该），清理多余的
+			if oldRecord.Type == RecordTypeCNAME && len(allRecords) > 1 {
+				helper.Info(helper.LogTypeDDNS, "[%s] 旧记录是 CNAME 但有多条，清理多余记录", cf.GetServiceName())
+				for i := 1; i < len(allRecords); i++ {
+					helper.Info(helper.LogTypeDDNS, "[%s] 删除多余记录 [RecordID=%s, 类型=%s]", cf.GetServiceName(), allRecords[i].ID, allRecords[i].Type)
+					if err := cf.deleteDNSRecord(allRecords[i].ID); err != nil {
+						helper.Warn(helper.LogTypeDDNS, "[%s] 删除多余记录失败: %v", cf.GetServiceName(), err)
+					}
 				}
 			}
 		}
@@ -258,21 +376,14 @@ func (cf *Cloudflare) UpdateOrCreateRecord() bool {
 
 	// 5. 更新缓存
 	if IsDynamicType(cf.DNS.IPType) {
-		// 使用正则感知的缓存键（用于 IPv6 接口类型）
-		var cacheKey string
-		if cf.DNS.IPType == helper.DynamicIPv6Interface && cf.DNS.Regex != "" {
-			cacheKey = helper.GetIPCacheKeyWithRegex(cf.DNS.IPType, cf.DNS.Value, cf.DNS.Regex)
-		} else {
-			cacheKey = helper.GetIPCacheKey(cf.DNS.IPType, cf.DNS.Value)
-		}
+		cacheKey := cf.getCacheKey()
 		cf.Cache.UpdateDynamicIP(cacheKey, currentValue)
 	}
 
+	// 更新成功，重置计数器和标志
 	cf.Cache.HasRun = true
-	cf.Cache.TimesFailed = 0
+	cf.Cache.ResetTimes()
 	cf.Status = UpdatedSuccess
-	cf.configChanged = true
-
 	helper.Info(helper.LogTypeDDNS, "[%s] DNS 记录更新成功 [类型=%s, 值=%s]", cf.GetServiceName(), cf.DNS.Type, currentValue)
 	return true
 }
@@ -282,41 +393,11 @@ func (cf *Cloudflare) getZoneID() (string, error) {
 	// 从域名中提取根域名
 	rootDomain := cf.getRootDomain()
 
-	apiToken := strings.TrimSpace(cf.DNS.AccessKey)
-	if apiToken == "" {
-		return "", fmt.Errorf("API Token 为空")
-	}
-
-	url := fmt.Sprintf("%s/zones?name=%s", cloudflareAPIEndpoint, rootDomain)
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return "", err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+apiToken)
-	req.Header.Set("Content-Type", "application/json")
-
 	helper.Debug(helper.LogTypeDDNS, "正在获取 Zone ID [域名=%s, 根域名=%s]", cf.DNS.Domain, rootDomain)
 
-	client := helper.CreateHTTPClient()
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("请求失败 [错误=%v]", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("读取响应失败 [错误=%v]", err)
-	}
-
-	if resp.StatusCode != 200 {
-		helper.Warn(helper.LogTypeDDNS, "Cloudflare API 响应状态码异常 [状态码=%d, 响应=%s]", resp.StatusCode, string(body))
-	}
-
 	var zonesResp CloudflareZonesResponse
-	if err := json.Unmarshal(body, &zonesResp); err != nil {
-		return "", fmt.Errorf("解析响应失败 [错误=%v, 响应=%s]", err, string(body))
+	if err := cf.cloudflareRequest("GET", fmt.Sprintf("/zones?name=%s", rootDomain), nil, &zonesResp); err != nil {
+		return "", err
 	}
 
 	if !zonesResp.Success {
@@ -335,43 +416,11 @@ func (cf *Cloudflare) getZoneID() (string, error) {
 
 // getAllDNSRecords 获取指定域名的所有 DNS 记录（不限类型）
 func (cf *Cloudflare) getAllDNSRecords() ([]CloudflareDNSRecord, error) {
-	apiToken := strings.TrimSpace(cf.DNS.AccessKey)
-	if apiToken == "" {
-		return nil, fmt.Errorf("API Token 为空")
-	}
-
-	url := fmt.Sprintf("%s/zones/%s/dns_records?name=%s",
-		cloudflareAPIEndpoint, cf.zoneID, cf.DNS.Domain)
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+apiToken)
-	req.Header.Set("Content-Type", "application/json")
-
 	helper.Debug(helper.LogTypeDDNS, "正在查询所有 DNS 记录 [域名=%s]", cf.DNS.Domain)
 
-	client := helper.CreateHTTPClient()
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("请求失败 [错误=%v]", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("读取响应失败 [错误=%v]", err)
-	}
-
-	if resp.StatusCode != 200 {
-		helper.Warn(helper.LogTypeDDNS, "Cloudflare API 响应状态码异常 [状态码=%d, 响应=%s]", resp.StatusCode, string(body))
-	}
-
 	var recordsResp CloudflareDNSRecordsResponse
-	if err := json.Unmarshal(body, &recordsResp); err != nil {
-		return nil, fmt.Errorf("解析响应失败 [错误=%v, 响应=%s]", err, string(body))
+	if err := cf.cloudflareRequest("GET", fmt.Sprintf("/zones/%s/dns_records?name=%s", cf.zoneID, cf.DNS.Domain), nil, &recordsResp); err != nil {
+		return nil, err
 	}
 
 	if !recordsResp.Success {
@@ -386,43 +435,11 @@ func (cf *Cloudflare) getAllDNSRecords() ([]CloudflareDNSRecord, error) {
 
 // getDNSRecord 获取 DNS 记录
 func (cf *Cloudflare) getDNSRecord() (*CloudflareDNSRecord, error) {
-	apiToken := strings.TrimSpace(cf.DNS.AccessKey)
-	if apiToken == "" {
-		return nil, fmt.Errorf("API Token 为空")
-	}
-
-	url := fmt.Sprintf("%s/zones/%s/dns_records?type=%s&name=%s",
-		cloudflareAPIEndpoint, cf.zoneID, cf.DNS.Type, cf.DNS.Domain)
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+apiToken)
-	req.Header.Set("Content-Type", "application/json")
-
 	helper.Debug(helper.LogTypeDDNS, "正在查询 DNS 记录 [域名=%s, 类型=%s]", cf.DNS.Domain, cf.DNS.Type)
 
-	client := helper.CreateHTTPClient()
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("请求失败 [错误=%v]", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("读取响应失败 [错误=%v]", err)
-	}
-
-	if resp.StatusCode != 200 {
-		helper.Warn(helper.LogTypeDDNS, "Cloudflare API 响应状态码异常 [状态码=%d, 响应=%s]", resp.StatusCode, string(body))
-	}
-
 	var recordsResp CloudflareDNSRecordsResponse
-	if err := json.Unmarshal(body, &recordsResp); err != nil {
-		return nil, fmt.Errorf("解析响应失败 [错误=%v, 响应=%s]", err, string(body))
+	if err := cf.cloudflareRequest("GET", fmt.Sprintf("/zones/%s/dns_records?type=%s&name=%s", cf.zoneID, cf.DNS.Type, cf.DNS.Domain), nil, &recordsResp); err != nil {
+		return nil, err
 	}
 
 	if !recordsResp.Success {
@@ -441,10 +458,7 @@ func (cf *Cloudflare) getDNSRecord() (*CloudflareDNSRecord, error) {
 
 // createDNSRecord 创建 DNS 记录
 func (cf *Cloudflare) createDNSRecord(content string) error {
-	apiToken := strings.TrimSpace(cf.DNS.AccessKey)
-	if apiToken == "" {
-		return fmt.Errorf("API Token 为空")
-	}
+	helper.Debug(helper.LogTypeDDNS, "正在创建 DNS 记录 [域名=%s, 类型=%s, 内容=%s]", cf.DNS.Domain, cf.DNS.Type, content)
 
 	data := map[string]interface{}{
 		"type":    cf.DNS.Type,
@@ -454,41 +468,9 @@ func (cf *Cloudflare) createDNSRecord(content string) error {
 		"proxied": false, // DDNS 一般不开启代理
 	}
 
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-
-	url := fmt.Sprintf("%s/zones/%s/dns_records", cloudflareAPIEndpoint, cf.zoneID)
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+apiToken)
-	req.Header.Set("Content-Type", "application/json")
-
-	helper.Debug(helper.LogTypeDDNS, "正在创建 DNS 记录 [域名=%s, 类型=%s, 内容=%s]", cf.DNS.Domain, cf.DNS.Type, content)
-
-	client := helper.CreateHTTPClient()
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("创建 DNS 记录请求失败 [错误=%v]", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("读取响应失败 [错误=%v]", err)
-	}
-
-	if resp.StatusCode != 200 {
-		helper.Warn(helper.LogTypeDDNS, "Cloudflare API 响应状态码异常 [状态码=%d, 响应=%s]", resp.StatusCode, string(body))
-	}
-
 	var recordResp CloudflareDNSRecordResponse
-	if err := json.Unmarshal(body, &recordResp); err != nil {
-		return fmt.Errorf("解析响应失败 [错误=%v, 响应=%s]", err, string(body))
+	if err := cf.cloudflareRequest("POST", fmt.Sprintf("/zones/%s/dns_records", cf.zoneID), data, &recordResp); err != nil {
+		return err
 	}
 
 	if !recordResp.Success {
@@ -504,41 +486,11 @@ func (cf *Cloudflare) createDNSRecord(content string) error {
 
 // deleteDNSRecord 删除 DNS 记录
 func (cf *Cloudflare) deleteDNSRecord(recordID string) error {
-	apiToken := strings.TrimSpace(cf.DNS.AccessKey)
-	if apiToken == "" {
-		return fmt.Errorf("API Token 为空")
-	}
-
-	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", cloudflareAPIEndpoint, cf.zoneID, recordID)
-	req, err := http.NewRequest("DELETE", url, nil)
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+apiToken)
-	req.Header.Set("Content-Type", "application/json")
-
 	helper.Debug(helper.LogTypeDDNS, "正在删除 DNS 记录 [域名=%s, 记录ID=%s]", cf.DNS.Domain, recordID)
 
-	client := helper.CreateHTTPClient()
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("删除 DNS 记录请求失败 [错误=%v]", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("读取响应失败 [错误=%v]", err)
-	}
-
-	if resp.StatusCode != 200 {
-		helper.Warn(helper.LogTypeDDNS, "Cloudflare API 响应状态码异常 [状态码=%d, 响应=%s]", resp.StatusCode, string(body))
-	}
-
 	var recordResp CloudflareDNSRecordResponse
-	if err := json.Unmarshal(body, &recordResp); err != nil {
-		return fmt.Errorf("解析响应失败 [错误=%v, 响应=%s]", err, string(body))
+	if err := cf.cloudflareRequest("DELETE", fmt.Sprintf("/zones/%s/dns_records/%s", cf.zoneID, recordID), nil, &recordResp); err != nil {
+		return err
 	}
 
 	if !recordResp.Success {
@@ -554,10 +506,7 @@ func (cf *Cloudflare) deleteDNSRecord(recordID string) error {
 
 // updateDNSRecord 更新 DNS 记录
 func (cf *Cloudflare) updateDNSRecord(recordID string, content string) error {
-	apiToken := strings.TrimSpace(cf.DNS.AccessKey)
-	if apiToken == "" {
-		return fmt.Errorf("API Token 为空")
-	}
+	helper.Debug(helper.LogTypeDDNS, "正在更新 DNS 记录 [域名=%s, 记录ID=%s, 类型=%s, 内容=%s]", cf.DNS.Domain, recordID, cf.DNS.Type, content)
 
 	data := map[string]interface{}{
 		"type":    cf.DNS.Type,
@@ -567,46 +516,9 @@ func (cf *Cloudflare) updateDNSRecord(recordID string, content string) error {
 		"proxied": false, // DDNS 一般不开启代理
 	}
 
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-
-	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", cloudflareAPIEndpoint, cf.zoneID, recordID)
-	req, err := http.NewRequest("PUT", url, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+apiToken)
-	req.Header.Set("Content-Type", "application/json")
-
-	helper.Debug(helper.LogTypeDDNS, "正在更新 DNS 记录 [域名=%s, 记录ID=%s, 类型=%s, 内容=%s]", cf.DNS.Domain, recordID, cf.DNS.Type, content)
-
-	client := helper.CreateHTTPClient()
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("更新 DNS 记录请求失败 [错误=%v]", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("读取响应失败 [错误=%v]", err)
-	}
-
-	helper.Debug(helper.LogTypeDDNS, "Cloudflare API 响应 [状态码=%d, 响应长度=%d]", resp.StatusCode, len(body))
-
-	if resp.StatusCode != 200 {
-		helper.Warn(helper.LogTypeDDNS, "Cloudflare API 响应状态码异常 [状态码=%d, 响应=%s]", resp.StatusCode, string(body))
-		return fmt.Errorf("更新 DNS 记录失败 [状态码=%d]", resp.StatusCode)
-	}
-
 	var recordResp CloudflareDNSRecordResponse
-	if err := json.Unmarshal(body, &recordResp); err != nil {
-		helper.Error(helper.LogTypeDDNS, "解析 JSON 失败 [错误=%v]", err)
-		helper.Debug(helper.LogTypeDDNS, "响应内容: %s", string(body))
-		return fmt.Errorf("解析响应失败 [错误=%v, 响应=%s]", err, string(body))
+	if err := cf.cloudflareRequest("PUT", fmt.Sprintf("/zones/%s/dns_records/%s", cf.zoneID, recordID), data, &recordResp); err != nil {
+		return err
 	}
 
 	helper.Debug(helper.LogTypeDDNS, "解析结果 [Success=%v, Errors数量=%d, Messages数量=%d]", recordResp.Success, len(recordResp.Errors), len(recordResp.Messages))
@@ -672,16 +584,4 @@ func (cf *Cloudflare) parseTTL() int {
 	}
 
 	return 1 // 默认自动 TTL
-}
-
-// isIPv4 判断是否为 IPv4 地址
-func isIPv4(ip string) bool {
-	parsedIP := net.ParseIP(ip)
-	return parsedIP != nil && parsedIP.To4() != nil
-}
-
-// isIPv6 判断是否为 IPv6 地址
-func isIPv6(ip string) bool {
-	parsedIP := net.ParseIP(ip)
-	return parsedIP != nil && parsedIP.To4() == nil
 }

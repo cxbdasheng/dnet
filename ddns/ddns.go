@@ -115,3 +115,12 @@ func (c *Cache) GetDynamicIP(cacheKey string) (string, bool) {
 	ip, exists := c.DynamicIPs[cacheKey]
 	return ip, exists
 }
+
+// ResetTimes 重置计数器
+func (c *Cache) ResetTimes() {
+	times, err := strconv.Atoi(os.Getenv(CacheTimesENV))
+	if err != nil {
+		times = 5
+	}
+	c.Times = times
+}

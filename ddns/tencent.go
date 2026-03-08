@@ -102,8 +102,34 @@ func (t *TencentCloud) GetServiceName() string {
 	return t.DNS.Domain
 }
 
+// getCacheKey 获取缓存键（支持正则表达式）
+func (t *TencentCloud) getCacheKey() string {
+	if t.DNS.IPType == helper.DynamicIPv6Interface && t.DNS.Regex != "" {
+		return helper.GetIPCacheKeyWithRegex(t.DNS.IPType, t.DNS.Value, t.DNS.Regex)
+	}
+	return helper.GetIPCacheKey(t.DNS.IPType, t.DNS.Value)
+}
+
 func (t *TencentCloud) ShouldSendWebhook() bool {
-	return t.Status == UpdatedSuccess || t.Status == UpdatedFailed
+	// 成功时重置失败计数并发送通知
+	if t.Status == UpdatedSuccess {
+		t.Cache.TimesFailed = 0
+		return true
+	}
+
+	// 失败时累计失败次数
+	if t.Status == UpdatedFailed {
+		t.Cache.TimesFailed++
+		// 连续失败 3 次才发送 Webhook，避免频繁通知
+		if t.Cache.TimesFailed >= 3 {
+			helper.Warn(helper.LogTypeDDNS, "[%s] 连续失败 %d 次，发送 Webhook 通知", t.GetServiceName(), t.Cache.TimesFailed)
+			return true
+		}
+		helper.Debug(helper.LogTypeDDNS, "[%s] 失败 %d 次，未达到通知阈值", t.GetServiceName(), t.Cache.TimesFailed)
+		return false
+	}
+
+	return false
 }
 
 // Init 初始化腾讯云 DDNS
@@ -114,12 +140,15 @@ func (t *TencentCloud) Init(dnsConfig *config.DNS, cache *Cache) {
 	// 验证配置
 	if t.DNS.Domain == "" || t.DNS.AccessKey == "" || t.DNS.AccessSecret == "" {
 		t.Status = InitFailed
-		helper.Error(helper.LogTypeDDNS, "[%s] 初始化失败：配置不完整", t.GetServiceName())
+		helper.Error(helper.LogTypeDDNS, "[%s] 初始化失败: 配置不完整", t.GetServiceName())
 		return
 	}
 
 	t.Status = InitSuccess
-	helper.Info(helper.LogTypeDDNS, "[%s] 初始化成功", t.GetServiceName())
+	// 只在第一次初始化时打印日志
+	if !t.Cache.HasRun {
+		helper.Info(helper.LogTypeDDNS, "[%s] 初始化成功", t.GetServiceName())
+	}
 }
 
 // UpdateOrCreateRecord 更新或创建 DNS 记录
@@ -156,46 +185,55 @@ func (t *TencentCloud) UpdateOrCreateRecord() bool {
 		// CNAME 或 TXT 记录，直接使用配置值
 		currentValue = t.DNS.Value
 	default:
-		helper.Error(helper.LogTypeDDNS, "[%s] 不支持的记录类型：%s", t.GetServiceName(), t.DNS.Type)
+		helper.Error(helper.LogTypeDDNS, "[%s] 不支持的记录类型: %s", t.GetServiceName(), t.DNS.Type)
 		t.Status = UpdatedFailed
 		return false
 	}
 
 	// 2. 检查值是否变化（仅对动态类型检查）
 	if IsDynamicType(t.DNS.IPType) {
-		// 使用正则感知的缓存键（用于 IPv6 接口类型）
-		var cacheKey string
-		if t.DNS.IPType == helper.DynamicIPv6Interface && t.DNS.Regex != "" {
-			cacheKey = helper.GetIPCacheKeyWithRegex(t.DNS.IPType, t.DNS.Value, t.DNS.Regex)
-		} else {
-			cacheKey = helper.GetIPCacheKey(t.DNS.IPType, t.DNS.Value)
-		}
+		cacheKey := t.getCacheKey()
 		valueChanged, oldValue := t.Cache.CheckIPChanged(cacheKey, currentValue)
 
-		// 如果没有变化且已经运行过，跳过更新
-		if !valueChanged && t.Cache.HasRun && !ForceCompareGlobal {
+		// 检查是否需要强制更新（计数器归零）
+		forceUpdate := t.Cache.Times <= 0
+
+		// 如果没有变化且已经运行过且不需要强制更新，跳过更新
+		if !valueChanged && t.Cache.HasRun && !ForceCompareGlobal && !forceUpdate {
 			t.Status = UpdatedNothing
-			helper.Debug(helper.LogTypeDDNS, "[%s] 值未变化，跳过更新 [当前=%s]", t.GetServiceName(), currentValue)
+			t.Cache.Times--
+			helper.Debug(helper.LogTypeDDNS, "[%s] 值未变化，跳过更新 [当前=%s, 剩余次数=%d]", t.GetServiceName(), currentValue, t.Cache.Times)
 			return false
 		}
 
-		helper.Info(helper.LogTypeDDNS, "[%s] 检测到值变化 [旧值=%s, 新值=%s]", t.GetServiceName(), oldValue, currentValue)
+		if forceUpdate && !valueChanged {
+			helper.Info(helper.LogTypeDDNS, "[%s] 达到强制更新阈值，执行更新 [值=%s]", t.GetServiceName(), currentValue)
+		} else if valueChanged {
+			helper.Info(helper.LogTypeDDNS, "[%s] 检测到值变化 [旧值=%s, 新值=%s]", t.GetServiceName(), oldValue, currentValue)
+		}
 	}
 
 	// 3. 查询现有记录
 	record, err := t.describeDomainRecords()
 	if err != nil {
 		t.Status = UpdatedFailed
-		helper.Error(helper.LogTypeDDNS, "[%s] 查询DNS记录失败：%v", t.GetServiceName(), err)
+		helper.Error(helper.LogTypeDDNS, "[%s] 查询 DNS 记录失败: %v", t.GetServiceName(), err)
 		return false
 	}
 
 	// 4. 更新或创建
 	var updateErr error
 	if record != nil {
-		// 记录存在，更新
-		helper.Info(helper.LogTypeDDNS, "[%s] 记录已存在 [RecordId=%d, 旧值=%s]", t.GetServiceName(), record.RecordId, record.Value)
-		updateErr = t.updateDomainRecord(record.RecordId, currentValue)
+		// 记录存在，检查值是否需要更新
+		if record.Value == currentValue {
+			// 值完全相同，跳过更新
+			helper.Info(helper.LogTypeDDNS, "[%s] 记录值未变化，无需更新 [RecordId=%d, 值=%s]", t.GetServiceName(), record.RecordId, currentValue)
+			updateErr = nil
+		} else {
+			// 值不同，执行更新
+			helper.Info(helper.LogTypeDDNS, "[%s] 记录已存在 [RecordId=%d, 旧值=%s]", t.GetServiceName(), record.RecordId, record.Value)
+			updateErr = t.updateDomainRecord(record.RecordId, currentValue)
+		}
 	} else {
 		// 记录不存在，创建
 		helper.Info(helper.LogTypeDDNS, "[%s] 记录不存在，创建新记录", t.GetServiceName())
@@ -209,18 +247,13 @@ func (t *TencentCloud) UpdateOrCreateRecord() bool {
 
 	// 5. 更新缓存
 	if IsDynamicType(t.DNS.IPType) {
-		// 使用正则感知的缓存键（用于 IPv6 接口类型）
-		var cacheKey string
-		if t.DNS.IPType == helper.DynamicIPv6Interface && t.DNS.Regex != "" {
-			cacheKey = helper.GetIPCacheKeyWithRegex(t.DNS.IPType, t.DNS.Value, t.DNS.Regex)
-		} else {
-			cacheKey = helper.GetIPCacheKey(t.DNS.IPType, t.DNS.Value)
-		}
+		cacheKey := t.getCacheKey()
 		t.Cache.UpdateDynamicIP(cacheKey, currentValue)
 	}
 
 	t.Cache.HasRun = true
 	t.Cache.TimesFailed = 0
+	t.Cache.ResetTimes()
 	t.Status = UpdatedSuccess
 	t.configChanged = true
 
@@ -266,11 +299,11 @@ func (t *TencentCloud) updateDomainRecord(recordId uint64, value string) error {
 	var response TencentCloudAPIResponse
 	err := t.request("ModifyRecord", requestBody, &response)
 	if err != nil {
-		helper.Error(helper.LogTypeDDNS, "[%s] 更新DNS记录失败 [RecordId=%d, 错误=%v]", t.GetServiceName(), recordId, err)
+		helper.Error(helper.LogTypeDDNS, "[%s] 更新 DNS 记录失败 [RecordId=%d, 错误=%v]", t.GetServiceName(), recordId, err)
 		return err
 	}
 
-	helper.Info(helper.LogTypeDDNS, "[%s] 更新DNS记录成功 [RecordId=%d, 新值=%s]", t.GetServiceName(), recordId, value)
+	helper.Info(helper.LogTypeDDNS, "[%s] 更新 DNS 记录成功 [RecordId=%d, 新值=%s]", t.GetServiceName(), recordId, value)
 	return nil
 }
 
@@ -288,11 +321,11 @@ func (t *TencentCloud) addDomainRecord(value string) error {
 	var response TencentCloudAPIResponse
 	err := t.request("CreateRecord", requestBody, &response)
 	if err != nil {
-		helper.Error(helper.LogTypeDDNS, "[%s] 创建DNS记录失败 [域名=%s, 错误=%v]", t.GetServiceName(), t.DNS.Domain, err)
+		helper.Error(helper.LogTypeDDNS, "[%s] 创建 DNS 记录失败 [域名=%s, 错误=%v]", t.GetServiceName(), t.DNS.Domain, err)
 		return err
 	}
 
-	helper.Info(helper.LogTypeDDNS, "[%s] 创建DNS记录成功 [值=%s]", t.GetServiceName(), value)
+	helper.Info(helper.LogTypeDDNS, "[%s] 创建 DNS 记录成功 [值=%s]", t.GetServiceName(), value)
 	return nil
 }
 
