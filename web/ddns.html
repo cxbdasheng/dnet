@@ -553,9 +553,17 @@
                 const placeholder = '请输入 ' + labelText.replace('：', '');
 
                 if ($row.is(':hidden') || $row.find('input[name="' + fieldName + '"]').length === 0) {
+                    // 保存当前字段的值（如果存在）
+                    const currentValue = $row.find('input[name="' + fieldName + '"]').val() || '';
+
                     $row.find('.layui-input-block').html(
                         '<input type="text" id="' + fieldId + '" name="' + fieldName + '"  lay-verify="' + fieldName + '" placeholder="' + placeholder + '" class="layui-input">'
                     );
+
+                    // 恢复之前的值
+                    if (currentValue) {
+                        $row.find('input[name="' + fieldName + '"]').val(currentValue);
+                    }
                 } else {
                     $row.find('input[name="' + fieldName + '"]').attr('placeholder', placeholder);
                 }
@@ -762,8 +770,6 @@
             // 恢复基本配置
             $cache.domainInput.val(config.domain || '');
             $('input[name="service"][value="' + (config.service || firstDNSProvider) + '"]').prop('checked', true);
-            $('input[name="access_key"]').val(config.access_key || '');
-            $('input[name="access_secret"]').val(config.access_secret || '');
             $('select[name="ttl"]').val(config.ttl || 'AUTO');
             $('select[name="type"]').val(config.type || 'A');
 
@@ -777,8 +783,12 @@
                 $option.text(configValue);
             }
 
-            // 更新DNS提供商相关的表单字段
+            // 先更新DNS提供商相关的表单字段（可能会重新创建 access_key 和 access_secret 字段）
             updateFormBasedOnProvider(config.service || firstDNSProvider);
+
+            // 然后再设置 access_key 和 access_secret 的值（确保字段已存在）
+            $('input[name="access_key"]').val(config.access_key || '');
+            $('input[name="access_secret"]').val(config.access_secret || '');
 
             // 恢复记录类型相关的字段
             if (config.type === 'A') {

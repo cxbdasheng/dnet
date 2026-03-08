@@ -105,6 +105,8 @@ func ProcessDDNSServices(conf *config.Config) {
 			dnsSelected = &ddns.Aliyun{}
 		case ddns.ProviderTencent:
 			dnsSelected = &ddns.TencentCloud{}
+		case ddns.ProviderCloudflare:
+			dnsSelected = &ddns.Cloudflare{}
 		// 未来可以添加其他 DNS 提供商
 		// case ddns.ProviderBaiduCloud:
 		//     dnsSelected = &ddns.Baidu{}

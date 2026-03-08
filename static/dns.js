@@ -11,10 +11,16 @@ const DNS_PROVIDERS = {
         secretLabel: "AccessKey Secret：",
         idHelpHtml: "<a target='_blank' href='https://console.bce.baidu.com/iam/?_=1651763238057#/iam/accesslist'>创建 AccessKey</a>",
     },
-    tencent:{
+    tencent: {
         name: "腾讯云",
         idLabel: "SecretId：",
         secretLabel: "SecretKey：",
         idHelpHtml: "<a target='_blank' href='https://console.dnspod.cn/account/token/apikey'>创建腾讯云 API 密钥</a>",
-    }
+    },
+    cloudflare: {
+        name: "Cloudflare",
+        idLabel: "API Token：",
+        secretLabel: "",
+        idHelpHtml: "<a target='_blank' href='https://dash.cloudflare.com/profile/api-tokens'>创建 API 令牌 -> 编辑区域 DNS (使用模板)</a>",
+    },
 }
