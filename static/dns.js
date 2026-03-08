@@ -23,4 +23,10 @@ const DNS_PROVIDERS = {
         secretLabel: "",
         idHelpHtml: "<a target='_blank' href='https://dash.cloudflare.com/profile/api-tokens'>创建 API 令牌 -> 编辑区域 DNS (使用模板)</a>",
     },
+    huawei: {
+        name: "华为云",
+        idLabel: "Access Key ID：",
+        secretLabel: "Secret Access Key：",
+        idHelpHtml: "<a target='_blank' href='https://console.huaweicloud.com/iam/#/mine/accessKey'>创建访问密钥</a>",
+    },
 }

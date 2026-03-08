@@ -25,6 +25,7 @@ const (
 	ProviderTencent    = "tencent"    // 腾讯云 DNS
 	ProviderBaiduCloud = "baiducloud" // 百度云 DNS
 	ProviderCloudflare = "cloudflare" // Cloudflare DNS
+	ProviderHuawei     = "huawei"     // 华为云 DNS
 )
 
 var dynamicTypes = map[string]bool{

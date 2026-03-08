@@ -107,20 +107,18 @@ func ProcessDDNSServices(conf *config.Config) {
 			dnsSelected = &ddns.TencentCloud{}
 		case ddns.ProviderCloudflare:
 			dnsSelected = &ddns.Cloudflare{}
-		// 未来可以添加其他 DNS 提供商
-		// case ddns.ProviderBaiduCloud:
-		//     dnsSelected = &ddns.Baidu{}
+		case ddns.ProviderHuawei:
+			dnsSelected = &ddns.Huawei{}
+		case ddns.ProviderBaiduCloud:
+			dnsSelected = &ddns.Baidu{}
 		default:
 			helper.Warn(helper.LogTypeDDNS, "不支持的 DNS 提供商: %s，跳过", conf.DDNSConfig.DDNS[i].Service)
 			continue
 		}
-
 		// 初始化 DNS 服务
 		dnsSelected.Init(&conf.DDNSConfig.DDNS[i], &DDNSCaches[i])
-
 		// 更新或创建 DNS 记录
 		dnsSelected.UpdateOrCreateRecord()
-
 		// 发送 Webhook 通知
 		if conf.WebhookEnabled && dnsSelected.ShouldSendWebhook() {
 			config.ExecWebhook(&conf.Webhook, string(helper.LogTypeDDNS), dnsSelected.GetServiceName(), dnsSelected.GetServiceStatus())
