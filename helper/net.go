@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -387,6 +388,49 @@ func findAddrInInterfaces(interfaces []NetInterface, interfaceName string) strin
 	return ""
 }
 
+// findAddrInInterfacesWithRegex 在接口列表中使用正则匹配查找地址
+func findAddrInInterfacesWithRegex(interfaces []NetInterface, interfaceName, regexStr string) string {
+	for _, netInterface := range interfaces {
+		if netInterface.Name == interfaceName && len(netInterface.Address) > 0 {
+			// 如果没有提供正则，返回第一个地址
+			if regexStr == "" {
+				return netInterface.Address[0]
+			}
+
+			// 处理 @n 格式（例如 @1 表示第一个地址，@2 表示第二个地址）
+			if strings.HasPrefix(regexStr, "@") {
+				indexStr := strings.TrimPrefix(regexStr, "@")
+				if index, err := strconv.Atoi(indexStr); err == nil {
+					// 索引从 1 开始，转换为数组索引（从 0 开始）
+					if index >= 1 && index <= len(netInterface.Address) {
+						return netInterface.Address[index-1]
+					}
+				}
+			}
+
+			// 使用正则表达式匹配
+			regex, err := regexp.Compile(regexStr)
+			if err != nil {
+				Info(LogTypeSystem, "正则表达式编译失败: %s, 错误: %v", regexStr, err)
+				// 正则错误时返回第一个地址
+				return netInterface.Address[0]
+			}
+
+			// 遍历所有地址，返回第一个匹配的
+			for _, addr := range netInterface.Address {
+				if regex.MatchString(addr) {
+					return addr
+				}
+			}
+
+			// 没有匹配到，返回第一个地址作为后备
+			Info(LogTypeSystem, "正则表达式未匹配到地址: %s, 使用第一个地址", regexStr)
+			return netInterface.Address[0]
+		}
+	}
+	return ""
+}
+
 // GetAddrFromInterface 从网络接口获取地址
 func GetAddrFromInterface(interfaceName string, addrType string) string {
 	ipv4, ipv6, err := GetNetInterface()
@@ -403,6 +447,30 @@ func GetAddrFromInterface(interfaceName string, addrType string) string {
 		}
 	} else if addrType == IPv6 {
 		result = findAddrInInterfaces(ipv6, interfaceName)
+		if result == "" {
+			Info(LogTypeSystem, "未找到IPv6接口: %s", interfaceName)
+		}
+	}
+
+	return result
+}
+
+// GetAddrFromInterfaceWithRegex 从网络接口获取地址（支持正则匹配）
+func GetAddrFromInterfaceWithRegex(interfaceName string, addrType string, regexStr string) string {
+	ipv4, ipv6, err := GetNetInterface()
+	if err != nil {
+		Info(LogTypeSystem, "获取网络接口失败: %v", err)
+		return ""
+	}
+
+	var result string
+	if addrType == IPv4 {
+		result = findAddrInInterfacesWithRegex(ipv4, interfaceName, regexStr)
+		if result == "" {
+			Info(LogTypeSystem, "未找到IPv4接口: %s", interfaceName)
+		}
+	} else if addrType == IPv6 {
+		result = findAddrInInterfacesWithRegex(ipv6, interfaceName, regexStr)
 		if result == "" {
 			Info(LogTypeSystem, "未找到IPv6接口: %s", interfaceName)
 		}

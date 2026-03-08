@@ -1,9 +1,5 @@
 package signer
 
-const (
-	HeaderAuthorization = "Authorization"
-)
-
 func shouldEscape(c byte) bool {
 	if 'A' <= c && c <= 'Z' || 'a' <= c && c <= 'z' || '0' <= c && c <= '9' || c == '_' || c == '-' || c == '~' || c == '.' {
 		return false

@@ -52,6 +52,17 @@ func GetIPCacheKey(sourceType, sourceValue string) string {
 	return sourceValue
 }
 
+// GetIPCacheKeyWithRegex 的唯一标识（包含正则表达式）
+func GetIPCacheKeyWithRegex(sourceType, sourceValue, regex string) string {
+	if sourceType == DynamicIPv4Interface || sourceType == DynamicIPv6Interface {
+		if regex != "" {
+			return sourceType + ":" + sourceValue + ":" + regex
+		}
+		return sourceType + ":" + sourceValue
+	}
+	return sourceValue
+}
+
 // ClearGlobalIPCache 清空全局 IP 缓存
 func ClearGlobalIPCache() {
 	GlobalIPCache.Clear()
@@ -94,6 +105,36 @@ func GetOrSetDynamicIPWithCache(sourceType, sourceValue string) (string, bool) {
 	}
 	if addr != "" {
 		SetGlobalIPCache(sourceType, sourceValue, addr)
+		return addr, true
+	}
+	return "", false
+}
+
+// GetOrSetDynamicIPWithCacheAndRegex 获取或设置动态 IP，使用全局缓存避免重复获取（支持正则表达式）
+func GetOrSetDynamicIPWithCacheAndRegex(sourceType, sourceValue, regex string) (string, bool) {
+	sourceKey := GetIPCacheKeyWithRegex(sourceType, sourceValue, regex)
+	addr, ok := GlobalIPCache.Get(sourceKey)
+	if ok {
+		return addr, ok
+	}
+	switch sourceType {
+	case DynamicIPv4URL:
+		addr = GetAddrFromUrl(sourceValue, IPv4)
+	case DynamicIPv6URL:
+		addr = GetAddrFromUrl(sourceValue, IPv6)
+	case DynamicIPv4Interface:
+		addr = GetAddrFromInterfaceWithRegex(sourceValue, IPv4, regex)
+	case DynamicIPv6Interface:
+		addr = GetAddrFromInterfaceWithRegex(sourceValue, IPv6, regex)
+	case DynamicIPv4Command:
+		addr = GetAddrFromCmd(sourceValue, IPv4)
+	case DynamicIPv6Command:
+		addr = GetAddrFromCmd(sourceValue, IPv6)
+	default:
+		return "", false
+	}
+	if addr != "" {
+		GlobalIPCache.Set(sourceKey, addr)
 		return addr, true
 	}
 	return "", false

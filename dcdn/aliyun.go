@@ -405,7 +405,7 @@ func (aliyun *Aliyun) updateOrCreateSite() {
 	if domainInfo != nil {
 		newCname := domainInfo.GetCname()
 		if newCname != "" && newCname != aliyun.CDN.CName {
-			helper.Info(helper.LogTypeDCDN, "CNAME 发生变化 [域名=%s, 旧CNAME=%s, 新CNAME=%s]",
+			helper.Info(helper.LogTypeDCDN, "CNAME 发生变化 [域名=%s, 旧 CNAME=%s, 新 CNAME=%s]",
 				aliyun.CDN.Domain, aliyun.CDN.CName, newCname)
 			aliyun.CDN.CName = newCname
 			aliyun.configChanged = true
