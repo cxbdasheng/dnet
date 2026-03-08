@@ -399,20 +399,18 @@ func (t *TencentCloud) getRootDomain() string {
 // 例如: www.sub.example.com -> www.sub
 // 例如: example.com -> @
 // 例如: *.example.com -> *
+// 例如: *.a.example.com -> *.a
 func (t *TencentCloud) getHostRecord() string {
 	domain := t.DNS.Domain
-
-	// 处理泛域名
-	if strings.HasPrefix(domain, "*.") {
-		return "*"
-	}
 
 	parts := strings.Split(domain, ".")
 	if len(parts) <= 2 {
 		return "@" // 根域名使用 @
 	}
 
-	// 返回除根域名外的所有部分
+	// 处理泛域名：返回除根域名外的所有部分（包括 * 号）
+	// 例如: *.a.example.com -> *.a
+	// 例如: *.example.com -> *
 	return strings.Join(parts[:len(parts)-2], ".")
 }
 
