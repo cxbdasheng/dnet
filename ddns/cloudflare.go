@@ -296,77 +296,80 @@ func (cf *Cloudflare) UpdateOrCreateRecord() bool {
 		}
 	}
 
-	// 3. 查询现有记录（先按当前类型查询）
-	record, err := cf.getDNSRecord()
+	// 3. 查询该子域下的所有记录（所有类型）
+	allRecords, err := cf.getAllDNSRecords()
 	if err != nil {
 		cf.Status = UpdatedFailed
-		helper.Error(helper.LogTypeDDNS, "[%s] 查询 DNS 记录失败: %v", cf.GetServiceName(), err)
+		helper.Error(helper.LogTypeDDNS, "[%s] 查询所有 DNS 记录失败: %v", cf.GetServiceName(), err)
 		return false
 	}
 
-	// 4. 如果没找到记录，查询该域名下的所有记录（可能是类型变更）
-	var allRecords []CloudflareDNSRecord
-	if record == nil {
-		allRecords, err = cf.getAllDNSRecords()
-		if err != nil {
-			cf.Status = UpdatedFailed
-			helper.Error(helper.LogTypeDDNS, "[%s] 查询所有 DNS 记录失败: %v", cf.GetServiceName(), err)
-			return false
-		}
-	}
-
-	// 5. 更新或创建
+	// 4. 处理记录类型变更（特殊处理 CNAME 类型冲突）
 	var updateErr error
-	if record != nil {
-		// 记录存在且类型匹配，检查值是否需要更新
-		if record.Content == currentValue {
-			// 值完全相同，跳过更新
-			helper.Info(helper.LogTypeDDNS, "[%s] 记录值未变化，无需更新 [RecordID=%s, 值=%s]", cf.GetServiceName(), record.ID, currentValue)
-			updateErr = nil
-		} else {
-			// 值不同，执行更新
-			helper.Info(helper.LogTypeDDNS, "[%s] 记录已存在 [RecordID=%s, 类型=%s, 旧值=%s]", cf.GetServiceName(), record.ID, record.Type, record.Content)
-			updateErr = cf.updateDNSRecord(record.ID, currentValue)
-		}
-	} else if len(allRecords) > 0 {
-		// 域名存在但类型不同，需要处理类型变更
-		oldRecord := allRecords[0] // 使用第一条记录
-		helper.Info(helper.LogTypeDDNS, "[%s] 检测到记录类型变更 [RecordID=%s, 旧类型=%s->新类型=%s]", cf.GetServiceName(), oldRecord.ID, oldRecord.Type, cf.DNS.Type)
 
-		// 判断是否要修改为 CNAME
-		if cf.DNS.Type == RecordTypeCNAME {
-			// 修改为 CNAME：删除所有现有记录，然后创建新的 CNAME 记录
-			helper.Info(helper.LogTypeDDNS, "[%s] 修改为 CNAME，需要删除所有现有记录", cf.GetServiceName())
-			for _, existingRecord := range allRecords {
-				helper.Info(helper.LogTypeDDNS, "[%s] 删除现有记录 [RecordID=%s, 类型=%s]", cf.GetServiceName(), existingRecord.ID, existingRecord.Type)
-				if err := cf.deleteDNSRecord(existingRecord.ID); err != nil {
-					helper.Error(helper.LogTypeDDNS, "[%s] 删除记录失败: %v", cf.GetServiceName(), err)
+	// 如果目标类型是 CNAME，需要先删除该子域下的所有其他类型记录
+	if cf.DNS.Type == RecordTypeCNAME {
+		// 如果存在任何记录，先全部删除
+		if len(allRecords) > 0 {
+			helper.Info(helper.LogTypeDDNS, "[%s] 创建 CNAME 记录前，需要删除该子域下的所有现有记录 [数量=%d]", cf.GetServiceName(), len(allRecords))
+			for _, rec := range allRecords {
+				if deleteErr := cf.deleteDNSRecord(rec.ID); deleteErr != nil {
 					cf.Status = UpdatedFailed
+					helper.Error(helper.LogTypeDDNS, "[%s] 删除 DNS 记录失败 [RecordID=%s, 类型=%s, 错误=%v]", cf.GetServiceName(), rec.ID, rec.Type, deleteErr)
 					return false
 				}
-			}
-			// 创建新的 CNAME 记录
-			updateErr = cf.createDNSRecord(currentValue)
-		} else {
-			// 修改为非 CNAME 类型：直接修改第一条记录，保留其他记录
-			helper.Info(helper.LogTypeDDNS, "[%s] 修改为非 CNAME 类型，直接修改第一条记录", cf.GetServiceName())
-			updateErr = cf.updateDNSRecord(oldRecord.ID, currentValue)
-
-			// 如果旧记录是 CNAME，且有多条记录（理论上不应该），清理多余的
-			if oldRecord.Type == RecordTypeCNAME && len(allRecords) > 1 {
-				helper.Info(helper.LogTypeDDNS, "[%s] 旧记录是 CNAME 但有多条，清理多余记录", cf.GetServiceName())
-				for i := 1; i < len(allRecords); i++ {
-					helper.Info(helper.LogTypeDDNS, "[%s] 删除多余记录 [RecordID=%s, 类型=%s]", cf.GetServiceName(), allRecords[i].ID, allRecords[i].Type)
-					if err := cf.deleteDNSRecord(allRecords[i].ID); err != nil {
-						helper.Warn(helper.LogTypeDDNS, "[%s] 删除多余记录失败: %v", cf.GetServiceName(), err)
-					}
-				}
+				helper.Info(helper.LogTypeDDNS, "[%s] 已删除 DNS 记录 [RecordID=%s, 类型=%s, 值=%s]", cf.GetServiceName(), rec.ID, rec.Type, rec.Content)
 			}
 		}
-	} else {
-		// 记录不存在，创建新记录
-		helper.Info(helper.LogTypeDDNS, "[%s] 记录不存在，创建新记录", cf.GetServiceName())
+
+		// 删除后创建新的 CNAME 记录
+		helper.Info(helper.LogTypeDDNS, "[%s] 创建新的 CNAME 记录", cf.GetServiceName())
 		updateErr = cf.createDNSRecord(currentValue)
+	} else {
+		// 创建非 CNAME 类型记录，需要确保同子域下没有 CNAME 记录
+		var cnameRecords []CloudflareDNSRecord
+		var targetRecord *CloudflareDNSRecord
+
+		for i := range allRecords {
+			if allRecords[i].Type == RecordTypeCNAME {
+				cnameRecords = append(cnameRecords, allRecords[i])
+			} else if allRecords[i].Type == cf.DNS.Type && targetRecord == nil {
+				// 只取第一条匹配的记录
+				record := allRecords[i]
+				targetRecord = &record
+			}
+		}
+
+		// 如果存在 CNAME 记录，需要先删除
+		if len(cnameRecords) > 0 {
+			helper.Info(helper.LogTypeDDNS, "[%s] 创建 %s 记录前，检测到 CNAME 记录，需要删除 [数量=%d]", cf.GetServiceName(), cf.DNS.Type, len(cnameRecords))
+			for _, rec := range cnameRecords {
+				if deleteErr := cf.deleteDNSRecord(rec.ID); deleteErr != nil {
+					cf.Status = UpdatedFailed
+					helper.Error(helper.LogTypeDDNS, "[%s] 删除 CNAME 记录失败 [RecordID=%s, 错误=%v]", cf.GetServiceName(), rec.ID, deleteErr)
+					return false
+				}
+				helper.Info(helper.LogTypeDDNS, "[%s] 已删除 CNAME 记录 [RecordID=%s, 值=%s]", cf.GetServiceName(), rec.ID, rec.Content)
+			}
+		}
+
+		// 处理目标类型记录
+		if targetRecord != nil {
+			// 目标类型记录已存在，检查值是否真的需要更新
+			if targetRecord.Content == currentValue {
+				// 值完全相同，跳过更新
+				helper.Info(helper.LogTypeDDNS, "[%s] 记录值未变化，无需更新 [RecordID=%s, 值=%s]", cf.GetServiceName(), targetRecord.ID, currentValue)
+				updateErr = nil
+			} else {
+				// 值不同，执行更新
+				helper.Info(helper.LogTypeDDNS, "[%s] 记录已存在 [RecordID=%s, 类型=%s, 旧值=%s]", cf.GetServiceName(), targetRecord.ID, targetRecord.Type, targetRecord.Content)
+				updateErr = cf.updateDNSRecord(targetRecord.ID, currentValue)
+			}
+		} else {
+			// 目标类型记录不存在，创建新记录
+			helper.Info(helper.LogTypeDDNS, "[%s] 记录不存在，创建新记录", cf.GetServiceName())
+			updateErr = cf.createDNSRecord(currentValue)
+		}
 	}
 
 	if updateErr != nil {
