@@ -473,7 +473,7 @@ func (h *Huawei) request(method, path string, body interface{}, result interface
 	query := req.URL.RawQuery
 
 	signHeaders := map[string]string{
-		"host":         req.Host,
+		"host":         req.URL.Host,
 		"content-type": "application/json",
 	}
 
