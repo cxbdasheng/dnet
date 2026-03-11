@@ -122,17 +122,20 @@
             <div class="layui-card-header">DNS 记录设置</div>
             <div class="layui-card-body">
                 <div class="layui-row layui-form-item">
-                    <label class="layui-form-label" for="type" id="type-label">记录类型 ：</label>
+                    <label class="layui-form-label" id="type-label">记录类型 ：</label>
                     <div class="layui-input-block">
-                        <select name="type" lay-filter="type-filter" id="type">
-                            <option value="A">IPv4（A）</option>
-                            <option value="AAAA">IPv6（AAAA）</option>
-                            <option value="CNAME">CNAME</option>
-                            <option value="TXT">TXT</option>
-                        </select>
+                        <input type="checkbox" name="type" value="A" title="IPv4（A）" lay-filter="type-checkbox">
+                        <input type="checkbox" name="type" value="AAAA" title="IPv6（AAAA）" lay-filter="type-checkbox">
+                        <input type="checkbox" name="type" value="CNAME" title="CNAME" lay-filter="type-checkbox">
+                        <input type="checkbox" name="type" value="TXT" title="TXT" lay-filter="type-checkbox">
+                        <div class="clear"></div>
+                        <tip>可同时选择 A 和 AAAA 记录，CNAME 不能与其他类型同时使用。</tip>
                     </div>
                 </div>
                 <!--IPv4-->
+                <fieldset class="layui-elem-field layui-field-title" id="ipv4-fieldset">
+                    <legend>IPv4</legend>
+                </fieldset>
                 <div class="layui-row layui-form-item">
                     <label class="layui-form-label" for="ipv4_type">IPv4 类型 ：</label>
                     <div class="layui-input-block">
@@ -154,8 +157,7 @@
                 <div class="layui-row layui-form-item">
                     <label class="layui-form-label" for="dynamic_ipv4_url">接口地址：</label>
                     <div class="layui-input-block">
-                        <textarea name="dynamic_ipv4_url" placeholder="请输入 IPv4 获取地址" id="dynamic_ipv4_url"
-                                  class="layui-textarea"></textarea>
+                        <textarea name="dynamic_ipv4_url" placeholder="请输入 IPv4 获取地址" id="dynamic_ipv4_url" class="layui-textarea"></textarea>
                     </div>
                 </div>
                 <div class="layui-row layui-form-item">
@@ -182,6 +184,9 @@
                     </div>
                 </div>
                 <!--IPv6-->
+                <fieldset class="layui-elem-field layui-field-title" id="ipv6-fieldset">
+                    <legend>IPv6</legend>
+                </fieldset>
                 <div class="layui-row layui-form-item">
                     <label class="layui-form-label" for="ipv6_type">IPv6 类型 ：</label>
                     <div class="layui-input-block">
@@ -236,6 +241,9 @@
                     </div>
                 </div>
                 <!--CNAME-->
+                <fieldset class="layui-elem-field layui-field-title" id="cname-fieldset">
+                    <legend>CNAME</legend>
+                </fieldset>
                 <div class="layui-row layui-form-item">
                     <label class="layui-form-label" for="cname">CNAME 值：</label>
                     <div class="layui-input-block">
@@ -243,6 +251,9 @@
                     </div>
                 </div>
                 <!--TXT-->
+                <fieldset class="layui-elem-field layui-field-title" id="txt-fieldset">
+                    <legend>TXT</legend>
+                </fieldset>
                 <div class="layui-row layui-form-item">
                     <label class="layui-form-label" for="txt">TXT 值：</label>
                     <div class="layui-input-block">
@@ -281,6 +292,95 @@
 
     // 当前选中的配置 ID
     var currentSelectedConfig = null;
+
+    // 后端数据结构转换为前端格式
+    // 后端：records 是数组 [{type, ip_type, value, regex}, ...]
+    // 前端：types 数组 + records 对象 {type: {ip_type, value, regex}, ...}
+    function backendToFrontend(backendData) {
+        if (!backendData || !backendData.ddns) {
+            return {ddns_enable: false, ddns: []};
+        }
+
+        const frontendData = {
+            ddns_enable: backendData.ddns_enable,
+            ddns: []
+        };
+
+        backendData.ddns.forEach(function(group) {
+            const frontendGroup = {
+                id: group.id,
+                name: group.name,
+                domain: group.domain,
+                service: group.service,
+                access_key: group.access_key,
+                access_secret: group.access_secret,
+                ttl: group.ttl,
+                types: [],
+                records: {}
+            };
+
+            if (group.records && Array.isArray(group.records)) {
+                group.records.forEach(function(record) {
+                    frontendGroup.types.push(record.type);
+                    frontendGroup.records[record.type] = {
+                        ip_type: record.ip_type,
+                        value: record.value,
+                        regex: record.regex
+                    };
+                });
+            }
+
+            frontendData.ddns.push(frontendGroup);
+        });
+
+        return frontendData;
+    }
+
+    // 前端数据结构转换为后端格式
+    function frontendToBackend(frontendData) {
+        if (!frontendData || !frontendData.ddns) {
+            return {ddns_enable: false, ddns: []};
+        }
+
+        const backendData = {
+            ddns_enable: frontendData.ddns_enable,
+            ddns: []
+        };
+
+        frontendData.ddns.forEach(function(group) {
+            const backendGroup = {
+                id: group.id,
+                name: group.name,
+                domain: group.domain,
+                service: group.service,
+                access_key: group.access_key,
+                access_secret: group.access_secret,
+                ttl: group.ttl,
+                records: []
+            };
+
+            if (group.types && Array.isArray(group.types)) {
+                group.types.forEach(function(type) {
+                    const record = group.records[type];
+                    if (record) {
+                        backendGroup.records.push({
+                            type: type,
+                            ip_type: record.ip_type || '',
+                            value: record.value || '',
+                            regex: record.regex || ''
+                        });
+                    }
+                });
+            }
+
+            backendData.ddns.push(backendGroup);
+        });
+
+        return backendData;
+    }
+
+    // 转换后端数据为前端格式
+    configData = backendToFrontend(configData);
 
 
     layui.use(['element', 'layer', 'util', 'form'], function () {
@@ -483,7 +583,16 @@
             if (config.name) {
                 return config.name;
             } else if (config.domain) {
-                return config.id + ' - ' + config.domain;
+                // 显示域名和记录类型
+                let displayText = config.id + ' - ' + config.domain;
+                // 如果有多记录类型，显示类型列表
+                if (config.types && Array.isArray(config.types) && config.types.length > 0) {
+                    displayText += ' (' + config.types.join(', ') + ')';
+                } else if (config.type) {
+                    // 旧格式兼容
+                    displayText += ' (' + config.type + ')';
+                }
+                return displayText;
             }
             return config.id;
         }
@@ -600,31 +709,117 @@
                 $('input[name="domain"]').focus();
                 return false;
             }
+
+            // 验证是否至少选择了一种记录类型
+            const selectedTypes = getSelectedRecordTypes();
+            if (selectedTypes.length === 0) {
+                layer.msg('请至少选择一种记录类型', {
+                    icon: 0,
+                    time: 2000,
+                    shade: 0.1
+                });
+                return false;
+            }
+
+            // 验证每个选中记录类型的值是否已填写
+            for (let i = 0; i < selectedTypes.length; i++) {
+                const recordType = selectedTypes[i];
+                if (recordType === 'A') {
+                    const ipv4Type = $cache.ipv4Type.val();
+                    let ipv4Value = '';
+                    switch(ipv4Type) {
+                        case 'static_ipv4':
+                            ipv4Value = $cache.staticIpv4.val().trim();
+                            if (!ipv4Value) {
+                                layer.msg('请填写 IPv4 静态地址', {icon: 0, time: 2000, shade: 0.1});
+                                $cache.staticIpv4.focus();
+                                return false;
+                            }
+                            break;
+                        case 'dynamic_ipv4_url':
+                            ipv4Value = $cache.dynamicIpv4Url.val().trim();
+                            if (!ipv4Value) {
+                                layer.msg('请填写 IPv4 接口地址', {icon: 0, time: 2000, shade: 0.1});
+                                $cache.dynamicIpv4Url.focus();
+                                return false;
+                            }
+                            break;
+                        case 'dynamic_ipv4_interface':
+                            ipv4Value = $cache.dynamicIpv4Interface.val();
+                            if (!ipv4Value) {
+                                layer.msg('请选择 IPv4 网卡', {icon: 0, time: 2000, shade: 0.1});
+                                return false;
+                            }
+                            break;
+                        case 'dynamic_ipv4_command':
+                            ipv4Value = $cache.dynamicIpv4Command.val().trim();
+                            if (!ipv4Value) {
+                                layer.msg('请填写 IPv4 获取命令', {icon: 0, time: 2000, shade: 0.1});
+                                $cache.dynamicIpv4Command.focus();
+                                return false;
+                            }
+                            break;
+                    }
+                } else if (recordType === 'AAAA') {
+                    const ipv6Type = $cache.ipv6Type.val();
+                    let ipv6Value = '';
+                    switch(ipv6Type) {
+                        case 'static_ipv6':
+                            ipv6Value = $cache.staticIpv6.val().trim();
+                            if (!ipv6Value) {
+                                layer.msg('请填写 IPv6 静态地址', {icon: 0, time: 2000, shade: 0.1});
+                                $cache.staticIpv6.focus();
+                                return false;
+                            }
+                            break;
+                        case 'dynamic_ipv6_url':
+                            ipv6Value = $cache.dynamicIpv6Url.val().trim();
+                            if (!ipv6Value) {
+                                layer.msg('请填写 IPv6 接口地址', {icon: 0, time: 2000, shade: 0.1});
+                                $cache.dynamicIpv6Url.focus();
+                                return false;
+                            }
+                            break;
+                        case 'dynamic_ipv6_interface':
+                            ipv6Value = $cache.dynamicIpv6Interface.val();
+                            if (!ipv6Value) {
+                                layer.msg('请选择 IPv6 网卡', {icon: 0, time: 2000, shade: 0.1});
+                                return false;
+                            }
+                            break;
+                        case 'dynamic_ipv6_command':
+                            ipv6Value = $cache.dynamicIpv6Command.val().trim();
+                            if (!ipv6Value) {
+                                layer.msg('请填写 IPv6 获取命令', {icon: 0, time: 2000, shade: 0.1});
+                                $cache.dynamicIpv6Command.focus();
+                                return false;
+                            }
+                            break;
+                    }
+                } else if (recordType === 'CNAME') {
+                    const cnameValue = $cache.cname.val().trim();
+                    if (!cnameValue) {
+                        layer.msg('请填写 CNAME 值', {icon: 0, time: 2000, shade: 0.1});
+                        $cache.cname.focus();
+                        return false;
+                    }
+                } else if (recordType === 'TXT') {
+                    const txtValue = $cache.txt.val().trim();
+                    if (!txtValue) {
+                        layer.msg('请填写 TXT 值', {icon: 0, time: 2000, shade: 0.1});
+                        $cache.txt.focus();
+                        return false;
+                    }
+                }
+            }
+
             // 保存当前配置数据
             saveCurrentConfig();
             // 保存 ddns_enable 到 configData 中
             configData.ddns_enable = $('input[name="ddns_enable"]').is(':checked');
 
-            // 创建一个副本用于提交，过滤掉空配置
-            var submitData = {
-                ddns_enable: configData.ddns_enable,
-                ddns: []
-            };
-
-            // 过滤掉空配置：域名为空或 Value 为空的配置
-            if (configData.ddns && configData.ddns.length > 0) {
-                submitData.ddns = configData.ddns.filter(function(config) {
-                    // 检查域名是否为空
-                    if (!config.domain || config.domain.trim() === '') {
-                        return false;
-                    }
-                    // 检查 Value 是否为空
-                    if (!config.value || config.value.trim() === '') {
-                        return false;
-                    }
-                    return true;
-                });
-            }
+            // 转换为后端格式并提交
+            var submitData = frontendToBackend(configData);
 
             $.ajax({
                 type: 'POST',
@@ -694,6 +889,9 @@
             const existingConfig = getConfigById(configName);
             const customName = existingConfig && existingConfig.name ? existingConfig.name : '';
 
+            // 获取选中的记录类型
+            const selectedTypes = getSelectedRecordTypes();
+
             const configObj = {
                 id: configName,
                 name: customName,
@@ -702,56 +900,67 @@
                 access_key: $('input[name="access_key"]').val(),
                 access_secret: $('input[name="access_secret"]').val(),
                 ttl: $('select[name="ttl"]').val(),
-                type: $('select[name="type"]').val(),
-                ip_type: '',
-                value: '',
-                regex: ''
+                types: selectedTypes, // 多记录类型数组
+                records: {} // 存储各类型的配置
             };
 
             // 根据记录类型收集对应的字段
-            const recordType = configObj.type;
-            if (recordType === 'A') {
-                const ipv4Type = $cache.ipv4Type.val();
-                configObj.ip_type = ipv4Type;
-                // 根据 IPv4 类型获取对应的值
-                switch(ipv4Type) {
-                    case 'static_ipv4':
-                        configObj.value = $cache.staticIpv4.val();
-                        break;
-                    case 'dynamic_ipv4_url':
-                        configObj.value = $cache.dynamicIpv4Url.val();
-                        break;
-                    case 'dynamic_ipv4_interface':
-                        configObj.value = $cache.dynamicIpv4Interface.val();
-                        break;
-                    case 'dynamic_ipv4_command':
-                        configObj.value = $cache.dynamicIpv4Command.val();
-                        break;
+            selectedTypes.forEach(function(recordType) {
+                if (recordType === 'A') {
+                    const ipv4Type = $cache.ipv4Type.val();
+                    configObj.records['A'] = {
+                        ip_type: ipv4Type,
+                        value: '',
+                        regex: ''
+                    };
+                    // 根据 IPv4 类型获取对应的值
+                    switch(ipv4Type) {
+                        case 'static_ipv4':
+                            configObj.records['A'].value = $cache.staticIpv4.val();
+                            break;
+                        case 'dynamic_ipv4_url':
+                            configObj.records['A'].value = $cache.dynamicIpv4Url.val();
+                            break;
+                        case 'dynamic_ipv4_interface':
+                            configObj.records['A'].value = $cache.dynamicIpv4Interface.val();
+                            break;
+                        case 'dynamic_ipv4_command':
+                            configObj.records['A'].value = $cache.dynamicIpv4Command.val();
+                            break;
+                    }
+                } else if (recordType === 'AAAA') {
+                    const ipv6Type = $cache.ipv6Type.val();
+                    configObj.records['AAAA'] = {
+                        ip_type: ipv6Type,
+                        value: '',
+                        regex: ''
+                    };
+                    // 根据 IPv6 类型获取对应的值
+                    switch(ipv6Type) {
+                        case 'static_ipv6':
+                            configObj.records['AAAA'].value = $cache.staticIpv6.val();
+                            break;
+                        case 'dynamic_ipv6_url':
+                            configObj.records['AAAA'].value = $cache.dynamicIpv6Url.val();
+                            break;
+                        case 'dynamic_ipv6_interface':
+                            configObj.records['AAAA'].value = $cache.dynamicIpv6Interface.val();
+                            configObj.records['AAAA'].regex = $cache.dynamicIpv6Regex.val();
+                            break;
+                        case 'dynamic_ipv6_command':
+                            configObj.records['AAAA'].value = $cache.dynamicIpv6Command.val();
+                            break;
+                    }
+                } else if (recordType === 'CNAME') {
+                    configObj.records['CNAME'] = {
+                        value: $cache.cname.val()
+                    };
+                } else if (recordType === 'TXT') {
+                    configObj.records['TXT'] = {
+                        value: $cache.txt.val()
+                    };
                 }
-            } else if (recordType === 'AAAA') {
-                const ipv6Type = $cache.ipv6Type.val();
-                configObj.ip_type = ipv6Type;
-                // 根据 IPv6 类型获取对应的值
-                switch(ipv6Type) {
-                    case 'static_ipv6':
-                        configObj.value = $cache.staticIpv6.val();
-                        break;
-                    case 'dynamic_ipv6_url':
-                        configObj.value = $cache.dynamicIpv6Url.val();
-                        break;
-                    case 'dynamic_ipv6_interface':
-                        configObj.value = $cache.dynamicIpv6Interface.val();
-                        configObj.regex = $cache.dynamicIpv6Regex.val();
-                        break;
-                    case 'dynamic_ipv6_command':
-                        configObj.value = $cache.dynamicIpv6Command.val();
-                        break;
-                }
-            } else if (recordType === 'CNAME') {
-                configObj.value = $cache.cname.val();
-            } else if (recordType === 'TXT') {
-                configObj.value = $cache.txt.val();
-            }
+            });
 
             // 查找并更新或添加配置
             const index = findConfigIndex(configName);
@@ -771,7 +980,6 @@
             $cache.domainInput.val(config.domain || '');
             $('input[name="service"][value="' + (config.service || firstDNSProvider) + '"]').prop('checked', true);
             $('select[name="ttl"]').val(config.ttl || 'AUTO');
-            $('select[name="type"]').val(config.type || 'A');
 
             // 更新下拉选项显示文本
             const $option = $cache.configSelect.find('option[value="' + configValue + '"]');
@@ -790,53 +998,79 @@
             $('input[name="access_key"]').val(config.access_key || '');
             $('input[name="access_secret"]').val(config.access_secret || '');
 
-            // 恢复记录类型相关的字段
-            if (config.type === 'A') {
-                const ipType = config.ip_type || defaultConfig.ipv4_type;
-                $cache.ipv4Type.val(ipType);
-                // 根据 IP 类型恢复对应的值
-                switch(ipType) {
-                    case 'static_ipv4':
-                        $cache.staticIpv4.val(config.value || '');
-                        break;
-                    case 'dynamic_ipv4_url':
-                        $cache.dynamicIpv4Url.val(config.value || defaultConfig.dynamic_ipv4_url);
-                        break;
-                    case 'dynamic_ipv4_interface':
-                        $cache.dynamicIpv4Interface.val(config.value || selectFirstOption('select[name="dynamic_ipv4_interface"]'));
-                        break;
-                    case 'dynamic_ipv4_command':
-                        $cache.dynamicIpv4Command.val(config.value || '');
-                        break;
-                }
-            } else if (config.type === 'AAAA') {
-                const ipType = config.ip_type || defaultConfig.ipv6_type;
-                $cache.ipv6Type.val(ipType);
-                // 根据 IP 类型恢复对应的值
-                switch(ipType) {
-                    case 'static_ipv6':
-                        $cache.staticIpv6.val(config.value || '');
-                        break;
-                    case 'dynamic_ipv6_url':
-                        $cache.dynamicIpv6Url.val(config.value || defaultConfig.dynamic_ipv6_url);
-                        break;
-                    case 'dynamic_ipv6_interface':
-                        $cache.dynamicIpv6Interface.val(config.value || selectFirstOption('select[name="dynamic_ipv6_interface"]'));
-                        $cache.dynamicIpv6Regex.val(config.regex || '');
-                        break;
-                    case 'dynamic_ipv6_command':
-                        $cache.dynamicIpv6Command.val(config.value || '');
-                        break;
-                }
-            } else if (config.type === 'CNAME') {
-                $cache.cname.val(config.value || '');
-            } else if (config.type === 'TXT') {
-                $cache.txt.val(config.value || '');
+            // 处理新旧数据格式兼容
+            let typesToLoad = [];
+            if (config.types && Array.isArray(config.types)) {
+                // 新格式：多记录类型
+                typesToLoad = config.types;
+            } else if (config.type) {
+                // 旧格式：单记录类型，转换为数组
+                typesToLoad = [config.type];
             }
+
+            // 先取消所有复选框
+            $('input[name="type"]').prop('checked', false);
+
+            // 恢复记录类型选中状态和相关字段
+            typesToLoad.forEach(function(recordType) {
+                // 选中对应的复选框
+                $('input[name="type"][value="' + recordType + '"]').prop('checked', true);
+
+                if (recordType === 'A') {
+                    const recordData = config.records && config.records['A'] ? config.records['A'] :
+                                      (config.type === 'A' ? config : {});
+                    const ipType = recordData.ip_type || defaultConfig.ipv4_type;
+                    $cache.ipv4Type.val(ipType);
+                    // 根据 IP 类型恢复对应的值
+                    switch(ipType) {
+                        case 'static_ipv4':
+                            $cache.staticIpv4.val(recordData.value || '');
+                            break;
+                        case 'dynamic_ipv4_url':
+                            $cache.dynamicIpv4Url.val(recordData.value || defaultConfig.dynamic_ipv4_url);
+                            break;
+                        case 'dynamic_ipv4_interface':
+                            $cache.dynamicIpv4Interface.val(recordData.value || selectFirstOption('select[name="dynamic_ipv4_interface"]'));
+                            break;
+                        case 'dynamic_ipv4_command':
+                            $cache.dynamicIpv4Command.val(recordData.value || '');
+                            break;
+                    }
+                } else if (recordType === 'AAAA') {
+                    const recordData = config.records && config.records['AAAA'] ? config.records['AAAA'] :
+                                      (config.type === 'AAAA' ? config : {});
+                    const ipType = recordData.ip_type || defaultConfig.ipv6_type;
+                    $cache.ipv6Type.val(ipType);
+                    // 根据 IP 类型恢复对应的值
+                    switch(ipType) {
+                        case 'static_ipv6':
+                            $cache.staticIpv6.val(recordData.value || '');
+                            break;
+                        case 'dynamic_ipv6_url':
+                            $cache.dynamicIpv6Url.val(recordData.value || defaultConfig.dynamic_ipv6_url);
+                            break;
+                        case 'dynamic_ipv6_interface':
+                            $cache.dynamicIpv6Interface.val(recordData.value || selectFirstOption('select[name="dynamic_ipv6_interface"]'));
+                            $cache.dynamicIpv6Regex.val(recordData.regex || '');
+                            break;
+                        case 'dynamic_ipv6_command':
+                            $cache.dynamicIpv6Command.val(recordData.value || '');
+                            break;
+                    }
+                } else if (recordType === 'CNAME') {
+                    const recordData = config.records && config.records['CNAME'] ? config.records['CNAME'] :
+                                      (config.type === 'CNAME' ? config : {});
+                    $cache.cname.val(recordData.value || '');
+                } else if (recordType === 'TXT') {
+                    const recordData = config.records && config.records['TXT'] ? config.records['TXT'] :
+                                      (config.type === 'TXT' ? config : {});
+                    $cache.txt.val(recordData.value || '');
+                }
+            });
 
             // 重新渲染表单并更新显示
             form.render();
-            updateRecordTypeFields(config.type || 'A');
+            updateRecordTypeFields(typesToLoad.length > 0 ? typesToLoad : ['AAAA']);
         }
 
         // 使用默认配置初始化表单字段
@@ -848,7 +1082,11 @@
             $('input[name="access_key"]').val(defaultConfig.access_key || '');
             $('input[name="access_secret"]').val(defaultConfig.access_secret || '');
             $('select[name="ttl"]').val('AUTO');
-            $('select[name="type"]').val(defaultConfig.type || 'A');
+
+            // 清空并设置默认记录类型（复选框）
+            $('input[name="type"]').prop('checked', false);
+            const defaultType = defaultConfig.type || 'AAAA';
+            $('input[name="type"][value="' + defaultType + '"]').prop('checked', true);
 
             // 清空 IPv4 字段
             $cache.ipv4Type.val(defaultConfig.ipv4_type);
@@ -1126,6 +1364,12 @@
                     $element.hide();
                 }
             });
+            // 显示/隐藏 IPv4 fieldset
+            if (show) {
+                $('#ipv4-fieldset').show();
+            } else {
+                $('#ipv4-fieldset').hide();
+            }
         }
 
         // 显示/隐藏 IPv6 相关字段
@@ -1143,6 +1387,12 @@
                     $element.hide();
                 }
             });
+            // 显示/隐藏 IPv6 fieldset
+            if (show) {
+                $('#ipv6-fieldset').show();
+            } else {
+                $('#ipv6-fieldset').hide();
+            }
         }
 
         // 显示/隐藏 CNAME 字段
@@ -1150,8 +1400,10 @@
             const $cnameElement = $('#cname').closest('.layui-form-item');
             if (show) {
                 $cnameElement.show();
+                $('#cname-fieldset').show();
             } else {
                 $cnameElement.hide();
+                $('#cname-fieldset').hide();
             }
         }
 
@@ -1160,8 +1412,10 @@
             const $txtElement = $('#txt').closest('.layui-form-item');
             if (show) {
                 $txtElement.show();
+                $('#txt-fieldset').show();
             } else {
                 $txtElement.hide();
+                $('#txt-fieldset').hide();
             }
         }
 
@@ -1231,42 +1485,66 @@
             }
         }
 
-        // 根据记录类型显示对应部分
-        function updateRecordTypeFields(recordType) {
-            if (recordType === 'A') {
-                // 显示 IPv4，隐藏其他
-                toggleIPv4Fields(true);
-                toggleIPv6Fields(false);
-                toggleCNAMEField(false);
-                toggleTXTField(false);
-                // 触发 IPv4 类型选择器更新
+        // 获取当前选中的记录类型数组
+        function getSelectedRecordTypes() {
+            const selectedTypes = [];
+            $('input[name="type"]:checked').each(function() {
+                selectedTypes.push($(this).val());
+            });
+            return selectedTypes;
+        }
+
+        // 根据记录类型显示对应部分（支持多选）
+        function updateRecordTypeFields(selectedTypes) {
+            if (!Array.isArray(selectedTypes)) {
+                selectedTypes = [selectedTypes];
+            }
+
+            const hasA = selectedTypes.includes('A');
+            const hasAAAA = selectedTypes.includes('AAAA');
+            const hasCNAME = selectedTypes.includes('CNAME');
+            const hasTXT = selectedTypes.includes('TXT');
+
+            // 显示/隐藏对应字段
+            toggleIPv4Fields(hasA);
+            toggleIPv6Fields(hasAAAA);
+            toggleCNAMEField(hasCNAME);
+            toggleTXTField(hasTXT);
+
+            // 触发类型选择器更新
+            if (hasA) {
                 updateIPv4TypeFields($('#ipv4_type').val());
-            } else if (recordType === 'AAAA') {
-                // 显示 IPv6，隐藏其他
-                toggleIPv4Fields(false);
-                toggleIPv6Fields(true);
-                toggleCNAMEField(false);
-                toggleTXTField(false);
-                // 触发 IPv6 类型选择器更新
+            }
+            if (hasAAAA) {
                 updateIPv6TypeFields($('#ipv6_type').val());
-            } else if (recordType === 'CNAME') {
-                // 显示 CNAME，隐藏其他
-                toggleIPv4Fields(false);
-                toggleIPv6Fields(false);
-                toggleCNAMEField(true);
-                toggleTXTField(false);
-            } else if (recordType === 'TXT') {
-                // 显示 TXT，隐藏其他
-                toggleIPv4Fields(false);
-                toggleIPv6Fields(false);
-                toggleCNAMEField(false);
-                toggleTXTField(true);
             }
         }
 
-        // 监听记录类型变化
-        form.on('select(type-filter)', function (data) {
-            updateRecordTypeFields(data.value);
+        // 监听记录类型复选框变化
+        form.on('checkbox(type-checkbox)', function (data) {
+            const $checkbox = $(data.elem);
+            const value = $checkbox.val();
+
+            // CNAME 互斥逻辑
+            if (value === 'CNAME' && data.elem.checked) {
+                // 选中 CNAME 时，取消其他类型
+                $('input[name="type"]').not(data.elem).each(function() {
+                    $(this).prop('checked', false);
+                });
+                form.render('checkbox');
+                layer.msg('CNAME 记录不能与其他类型同时使用', {icon: 0, time: 2000});
+            } else if (value !== 'CNAME' && data.elem.checked) {
+                // 选中非 CNAME 时，取消 CNAME
+                const $cnameCheckbox = $('input[name="type"][value="CNAME"]');
+                if ($cnameCheckbox.prop('checked')) {
+                    $cnameCheckbox.prop('checked', false);
+                    form.render('checkbox');
+                }
+            }
+
+            // 更新字段显示
+            const selectedTypes = getSelectedRecordTypes();
+            updateRecordTypeFields(selectedTypes);
         });
 
         // 监听 IPv4 类型变化
@@ -1281,8 +1559,15 @@
 
         // 页面加载时初始化显示状态
         $(function () {
-            var initialRecordType = $('#type').val();
-            updateRecordTypeFields(initialRecordType);
+            const selectedTypes = getSelectedRecordTypes();
+            if (selectedTypes.length > 0) {
+                updateRecordTypeFields(selectedTypes);
+            } else {
+                // 默认选中 AAAA
+                $('input[name="type"][value="AAAA"]').prop('checked', true);
+                form.render('checkbox');
+                updateRecordTypeFields(['AAAA']);
+            }
         });
 
         // 初始化 DNS 提供商选择
