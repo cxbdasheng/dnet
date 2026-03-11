@@ -24,8 +24,9 @@ func HuaweiSigner(accessKey, secretKey, method, uri, query string, headers map[s
 	// 1. 创建规范请求
 	canonicalRequest := createCanonicalRequest(method, uri, query, headers, body)
 
-	// 2. 创建待签名字符串
-	stringToSign := createStringToSign(canonicalRequest)
+	// 2. 创建待签名字符串（使用已写入请求头的时间戳，保证与规范请求一致）
+	timestamp := headers[HeaderXDate]
+	stringToSign := createStringToSign(canonicalRequest, timestamp)
 
 	// 3. 计算签名
 	signature := calculateSignature(stringToSign, secretKey)
@@ -44,10 +45,12 @@ func HuaweiSigner(accessKey, secretKey, method, uri, query string, headers map[s
 
 // createCanonicalRequest 创建规范请求
 func createCanonicalRequest(method, uri, query string, headers map[string]string, body string) string {
-	// 规范化 URI
+	// 规范化 URI — 华为云签名规范要求 URI 必须以 "/" 结尾
 	canonicalURI := uri
 	if canonicalURI == "" {
 		canonicalURI = "/"
+	} else if !strings.HasSuffix(canonicalURI, "/") {
+		canonicalURI += "/"
 	}
 
 	// 规范化查询字符串
@@ -141,9 +144,9 @@ func getSignedHeadersString(headers map[string]string) string {
 }
 
 // createStringToSign 创建待签名字符串
-func createStringToSign(canonicalRequest string) string {
+func createStringToSign(canonicalRequest, timestamp string) string {
 	return fmt.Sprintf("SDK-HMAC-SHA256\n%s\n%s",
-		time.Now().UTC().Format("20060102T150405Z"),
+		timestamp,
 		hashSHA256(canonicalRequest))
 }
 
