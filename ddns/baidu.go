@@ -18,9 +18,8 @@ import (
 const baiduDNSEndpoint = "https://dns.baidubce.com"
 
 type Baidu struct {
-	DNS    *config.DNS
-	Cache  *Cache
-	Status statusType
+	Group  *config.DNSGroup
+	Caches []*Cache
 }
 
 // BaiduRecord 百度云 DNS 记录
@@ -50,235 +49,261 @@ type BaiduRecordResponse struct {
 	RecordID string `json:"recordId"`
 }
 
-func (b *Baidu) GetServiceStatus() string {
-	return string(b.Status)
+// baiduRecordsByType 按类型分组的百度云记录映射
+type baiduRecordsByType struct {
+	cnameRecords []BaiduRecord
+	otherRecords map[string]*BaiduRecord // Rdtype -> Record
 }
 
 func (b *Baidu) GetServiceName() string {
-	if b.DNS == nil {
+	if b.Group == nil {
 		return ""
 	}
-	if b.DNS.Name != "" {
-		return b.DNS.Name
+	if b.Group.Name != "" {
+		return b.Group.Name
 	}
-	return b.DNS.Domain
+	return b.Group.Domain
 }
 
-// getCacheKey 获取缓存键（支持正则表达式）
-func (b *Baidu) getCacheKey() string {
-	if b.DNS.IPType == helper.DynamicIPv6Interface && b.DNS.Regex != "" {
-		return helper.GetIPCacheKeyWithRegex(b.DNS.IPType, b.DNS.Value, b.DNS.Regex)
-	}
-	return helper.GetIPCacheKey(b.DNS.IPType, b.DNS.Value)
-}
+// Init 初始化百度云 DDNS（批量处理模式）
+func (b *Baidu) Init(group *config.DNSGroup, caches []*Cache) {
+	b.Group = group
+	b.Caches = caches
 
-func (b *Baidu) ShouldSendWebhook() bool {
-	// 成功时重置失败计数并发送通知
-	if b.Status == UpdatedSuccess {
-		b.Cache.TimesFailed = 0
-		return true
-	}
-
-	// 失败时累计失败次数
-	if b.Status == UpdatedFailed {
-		b.Cache.TimesFailed++
-		// 连续失败 3 次才发送 Webhook，避免频繁通知
-		if b.Cache.TimesFailed >= 3 {
-			helper.Warn(helper.LogTypeDDNS, "[%s] 连续失败 %d 次，发送 Webhook 通知", b.GetServiceName(), b.Cache.TimesFailed)
-			return true
-		}
-		helper.Debug(helper.LogTypeDDNS, "[%s] 失败 %d 次，未达到通知阈值", b.GetServiceName(), b.Cache.TimesFailed)
-		return false
-	}
-
-	return false
-}
-
-// Init 初始化百度云 DDNS
-func (b *Baidu) Init(dnsConfig *config.DNS, cache *Cache) {
-	b.DNS = dnsConfig
-	b.Cache = cache
-
-	// 验证配置
-	if b.DNS.Domain == "" || b.DNS.AccessKey == "" || b.DNS.AccessSecret == "" {
-		b.Status = InitFailed
+	if b.Group.Domain == "" || b.Group.AccessKey == "" || b.Group.AccessSecret == "" {
 		helper.Error(helper.LogTypeDDNS, "[%s] 初始化失败: 配置不完整", b.GetServiceName())
 		return
 	}
 
-	b.Status = InitSuccess
-	// 只在第一次初始化时打印日志
-	if !b.Cache.HasRun {
-		helper.Info(helper.LogTypeDDNS, "[%s] 初始化成功", b.GetServiceName())
+	if len(b.Caches) > 0 && !b.Caches[0].HasRun {
+		helper.Info(helper.LogTypeDDNS, "[%s] 初始化成功，共 %d 条记录", b.GetServiceName(), len(b.Caches))
 	}
 }
 
-// UpdateOrCreateRecord 更新或创建 DNS 记录
-func (b *Baidu) UpdateOrCreateRecord() bool {
-	if b.Status == InitFailed {
-		return false
+// UpdateOrCreateRecords 批量更新或创建 DNS 记录（一次查询，处理所有记录）
+func (b *Baidu) UpdateOrCreateRecords() []RecordResult {
+	// 1. 预先过滤有效记录
+	validRecords := make([]validRecord, 0, len(b.Group.Records))
+	cacheIdx := 0
+	for i := range b.Group.Records {
+		if b.Group.Records[i].Value != "" {
+			validRecords = append(validRecords, validRecord{
+				record: &b.Group.Records[i],
+				cache:  b.Caches[cacheIdx],
+			})
+			cacheIdx++
+		}
 	}
 
-	// 1. 获取当前值（IP 地址或 CNAME 等）
+	if len(validRecords) == 0 {
+		return []RecordResult{}
+	}
+
+	// 2. 验证配置
+	if b.Group.Domain == "" || b.Group.AccessKey == "" || b.Group.AccessSecret == "" {
+		return b.createErrorResults(validRecords, InitFailed, "配置不完整")
+	}
+
+	// 3. 一次性查询该子域下的所有 DNS 记录
+	allRecords, err := b.listAllRecords()
+	if err != nil {
+		helper.Error(helper.LogTypeDDNS, "[%s] 查询所有 DNS 记录失败: %v", b.GetServiceName(), err)
+		return b.createErrorResults(validRecords, UpdatedFailed, err.Error())
+	}
+
+	// 4. 将现有记录按类型分组
+	existing := b.parseExistingRecords(allRecords)
+
+	// 5. 逐条处理
+	results := make([]RecordResult, 0, len(validRecords))
+	for _, vr := range validRecords {
+		result := b.processRecord(vr.record, vr.cache, existing)
+		results = append(results, result)
+	}
+
+	return results
+}
+
+// parseExistingRecords 将现有记录按类型分组（只遍历一次）
+func (b *Baidu) parseExistingRecords(allRecords []BaiduRecord) *baiduRecordsByType {
+	existing := &baiduRecordsByType{
+		cnameRecords: make([]BaiduRecord, 0),
+		otherRecords: make(map[string]*BaiduRecord),
+	}
+
+	for i := range allRecords {
+		if allRecords[i].Rdtype == RecordTypeCNAME {
+			existing.cnameRecords = append(existing.cnameRecords, allRecords[i])
+		} else {
+			if _, exists := existing.otherRecords[allRecords[i].Rdtype]; !exists {
+				rec := allRecords[i]
+				existing.otherRecords[allRecords[i].Rdtype] = &rec
+			}
+		}
+	}
+
+	return existing
+}
+
+// createErrorResults 创建批量错误结果
+func (b *Baidu) createErrorResults(validRecords []validRecord, status statusType, errMsg string) []RecordResult {
+	results := make([]RecordResult, 0, len(validRecords))
+	for _, vr := range validRecords {
+		results = append(results, RecordResult{
+			RecordType:    vr.record.Type,
+			Status:        status,
+			ShouldWebhook: false,
+			ErrorMessage:  errMsg,
+		})
+	}
+	return results
+}
+
+// processRecord 处理单条 DNS 记录
+func (b *Baidu) processRecord(record *config.DNSRecord, cache *Cache, existing *baiduRecordsByType) RecordResult {
+	result := RecordResult{
+		RecordType:    record.Type,
+		Status:        UpdatedNothing,
+		ShouldWebhook: false,
+	}
+
+	// 1. 获取当前值
 	var currentValue string
 	var ok bool
 
-	switch b.DNS.Type {
+	switch record.Type {
 	case RecordTypeA, RecordTypeAAAA:
-		// 动态 IP 类型
-		if IsDynamicType(b.DNS.IPType) {
-			// 如果是 IPv6 接口类型且提供了正则表达式，使用支持正则的函数
-			if b.DNS.IPType == helper.DynamicIPv6Interface && b.DNS.Regex != "" {
-				currentValue, ok = helper.GetOrSetDynamicIPWithCacheAndRegex(b.DNS.IPType, b.DNS.Value, b.DNS.Regex)
+		if IsDynamicType(record.IPType) {
+			if record.IPType == helper.DynamicIPv6Interface && record.Regex != "" {
+				currentValue, ok = helper.GetOrSetDynamicIPWithCacheAndRegex(record.IPType, record.Value, record.Regex)
 			} else {
-				currentValue, ok = helper.GetOrSetDynamicIPWithCache(b.DNS.IPType, b.DNS.Value)
+				currentValue, ok = helper.GetOrSetDynamicIPWithCache(record.IPType, record.Value)
 			}
 			if !ok {
-				b.Status = InitGetIPFailed
-				b.Cache.TimesFailed++
-				helper.Error(helper.LogTypeDDNS, "[%s] 获取 IP 失败", b.GetServiceName())
-				return false
+				result.Status = InitGetIPFailed
+				result.ShouldWebhook = shouldSendWebhook(cache, InitGetIPFailed)
+				result.ErrorMessage = "获取 IP 失败"
+				helper.Error(helper.LogTypeDDNS, "[%s] [%s] 获取 IP 失败", b.GetServiceName(), record.Type)
+				return result
 			}
 		} else {
-			// 静态 IP
-			currentValue = b.DNS.Value
+			currentValue = record.Value
 		}
 	case RecordTypeCNAME, RecordTypeTXT:
-		// CNAME 或 TXT 记录，直接使用配置值
-		currentValue = b.DNS.Value
+		currentValue = record.Value
 	default:
-		helper.Error(helper.LogTypeDDNS, "[%s] 不支持的记录类型: %s", b.GetServiceName(), b.DNS.Type)
-		b.Status = UpdatedFailed
-		return false
+		result.Status = UpdatedFailed
+		result.ErrorMessage = "不支持的记录类型"
+		helper.Error(helper.LogTypeDDNS, "[%s] 不支持的记录类型: %s", b.GetServiceName(), record.Type)
+		return result
 	}
 
 	// 2. 检查值是否变化（仅对动态类型检查）
-	if IsDynamicType(b.DNS.IPType) {
-		cacheKey := b.getCacheKey()
-		valueChanged, oldValue := b.Cache.CheckIPChanged(cacheKey, currentValue)
+	if IsDynamicType(record.IPType) {
+		cacheKey := getCacheKey(record.IPType, record.Value, record.Regex)
+		valueChanged, oldValue := cache.CheckIPChanged(cacheKey, currentValue)
+		forceUpdate := cache.Times <= 0
 
-		// 检查是否需要强制更新（计数器归零）
-		forceUpdate := b.Cache.Times <= 0
-
-		// 如果没有变化且已经运行过且不需要强制更新，跳过更新
-		if !valueChanged && b.Cache.HasRun && !ForceCompareGlobal && !forceUpdate {
-			b.Status = UpdatedNothing
-			b.Cache.Times--
-			helper.Debug(helper.LogTypeDDNS, "[%s] 值未变化，跳过更新 [当前=%s, 剩余次数=%d]", b.GetServiceName(), currentValue, b.Cache.Times)
-			return false
+		if !valueChanged && cache.HasRun && !ForceCompareGlobal && !forceUpdate {
+			result.Status = UpdatedNothing
+			result.ShouldWebhook = false
+			cache.Times--
+			helper.Debug(helper.LogTypeDDNS, "[%s] [%s] 值未变化，跳过更新 [当前=%s, 剩余次数=%d]", b.GetServiceName(), record.Type, currentValue, cache.Times)
+			return result
 		}
 
 		if forceUpdate && !valueChanged {
-			helper.Info(helper.LogTypeDDNS, "[%s] 达到强制更新阈值，执行更新 [值=%s]", b.GetServiceName(), currentValue)
+			helper.Info(helper.LogTypeDDNS, "[%s] [%s] 达到强制更新阈值，执行更新 [值=%s]", b.GetServiceName(), record.Type, currentValue)
 		} else if valueChanged {
-			helper.Info(helper.LogTypeDDNS, "[%s] 检测到值变化 [旧值=%s, 新值=%s]", b.GetServiceName(), oldValue, currentValue)
+			helper.Info(helper.LogTypeDDNS, "[%s] [%s] 检测到值变化 [旧值=%s, 新值=%s]", b.GetServiceName(), record.Type, oldValue, currentValue)
 		}
 	}
 
-	// 3. 查询该子域下的所有记录（所有类型）
-	allRecords, err := b.listAllRecords()
-	if err != nil {
-		b.Status = UpdatedFailed
-		helper.Error(helper.LogTypeDDNS, "[%s] 查询所有 DNS 记录失败: %v", b.GetServiceName(), err)
-		return false
-	}
-
-	// 4. 处理记录类型变更（特殊处理 CNAME 类型冲突）
+	// 3. 处理记录类型变更（特殊处理 CNAME 类型冲突）
 	var updateErr error
 
-	// 如果目标类型是 CNAME，需要先删除该子域下的所有其他类型记录
-	if b.DNS.Type == RecordTypeCNAME {
-		// 如果存在任何记录，先全部删除
-		if len(allRecords) > 0 {
-			helper.Info(helper.LogTypeDDNS, "[%s] 创建 CNAME 记录前，需要删除该子域下的所有现有记录 [数量=%d]", b.GetServiceName(), len(allRecords))
-			for _, rec := range allRecords {
+	if record.Type == RecordTypeCNAME {
+		totalRecords := len(existing.cnameRecords) + len(existing.otherRecords)
+		if totalRecords > 0 {
+			helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 创建 CNAME 记录前，需要删除该子域下的所有现有记录 [数量=%d]", b.GetServiceName(), totalRecords)
+
+			if deleteErr := b.deleteRecords(existing.cnameRecords, "CNAME"); deleteErr != nil {
+				result.Status = UpdatedFailed
+				result.ErrorMessage = deleteErr.Error()
+				result.ShouldWebhook = shouldSendWebhook(cache, UpdatedFailed)
+				return result
+			}
+
+			for _, rec := range existing.otherRecords {
 				if deleteErr := b.deleteRecord(rec.RecordID); deleteErr != nil {
-					b.Status = UpdatedFailed
-					helper.Error(helper.LogTypeDDNS, "[%s] 删除 DNS 记录失败 [RecordID=%s, 类型=%s, 错误=%v]", b.GetServiceName(), rec.RecordID, rec.Rdtype, deleteErr)
-					return false
+					result.Status = UpdatedFailed
+					result.ErrorMessage = deleteErr.Error()
+					result.ShouldWebhook = shouldSendWebhook(cache, UpdatedFailed)
+					helper.Error(helper.LogTypeDDNS, "[%s] [CNAME] 删除 DNS 记录失败 [RecordID=%s, 类型=%s, 错误=%v]", b.GetServiceName(), rec.RecordID, rec.Rdtype, deleteErr)
+					return result
 				}
-				helper.Info(helper.LogTypeDDNS, "[%s] 已删除 DNS 记录 [RecordID=%s, 类型=%s, 值=%s]", b.GetServiceName(), rec.RecordID, rec.Rdtype, rec.Rdata)
+				helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 已删除 DNS 记录 [RecordID=%s, 类型=%s, 值=%s]", b.GetServiceName(), rec.RecordID, rec.Rdtype, rec.Rdata)
 			}
 		}
 
-		// 删除后创建新的 CNAME 记录
-		helper.Info(helper.LogTypeDDNS, "[%s] 创建新的 CNAME 记录", b.GetServiceName())
-		updateErr = b.addRecord(currentValue)
+		helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 创建新的 CNAME 记录", b.GetServiceName())
+		updateErr = b.addRecord(record.Type, currentValue)
 	} else {
-		// 创建非 CNAME 类型记录，需要确保同子域下没有 CNAME 记录
-		var cnameRecords []BaiduRecord
-		var targetRecord *BaiduRecord
-
-		for i := range allRecords {
-			if allRecords[i].Rdtype == RecordTypeCNAME {
-				cnameRecords = append(cnameRecords, allRecords[i])
-			} else if allRecords[i].Rdtype == b.DNS.Type && targetRecord == nil {
-				// 只取第一条匹配的记录
-				record := allRecords[i]
-				targetRecord = &record
+		if len(existing.cnameRecords) > 0 {
+			helper.Info(helper.LogTypeDDNS, "[%s] [%s] 创建 %s 记录前，检测到 CNAME 记录，需要删除 [数量=%d]", b.GetServiceName(), record.Type, record.Type, len(existing.cnameRecords))
+			if deleteErr := b.deleteRecords(existing.cnameRecords, record.Type); deleteErr != nil {
+				result.Status = UpdatedFailed
+				result.ErrorMessage = deleteErr.Error()
+				result.ShouldWebhook = shouldSendWebhook(cache, UpdatedFailed)
+				return result
 			}
 		}
 
-		// 如果存在 CNAME 记录，需要先删除
-		if len(cnameRecords) > 0 {
-			helper.Info(helper.LogTypeDDNS, "[%s] 创建 %s 记录前，检测到 CNAME 记录，需要删除 [数量=%d]", b.GetServiceName(), b.DNS.Type, len(cnameRecords))
-			for _, rec := range cnameRecords {
-				if deleteErr := b.deleteRecord(rec.RecordID); deleteErr != nil {
-					b.Status = UpdatedFailed
-					helper.Error(helper.LogTypeDDNS, "[%s] 删除 CNAME 记录失败 [RecordID=%s, 错误=%v]", b.GetServiceName(), rec.RecordID, deleteErr)
-					return false
-				}
-				helper.Info(helper.LogTypeDDNS, "[%s] 已删除 CNAME 记录 [RecordID=%s, 值=%s]", b.GetServiceName(), rec.RecordID, rec.Rdata)
-			}
-		}
-
-		// 处理目标类型记录
+		targetRecord := existing.otherRecords[record.Type]
 		if targetRecord != nil {
-			// 目标类型记录已存在，检查值是否真的需要更新
 			if targetRecord.Rdata == currentValue {
-				// 值完全相同，跳过更新
-				helper.Info(helper.LogTypeDDNS, "[%s] 记录值未变化，无需更新 [RecordID=%s, 值=%s]", b.GetServiceName(), targetRecord.RecordID, currentValue)
+				helper.Info(helper.LogTypeDDNS, "[%s] [%s] 记录值未变化，无需更新 [RecordID=%s, 值=%s]", b.GetServiceName(), record.Type, targetRecord.RecordID, currentValue)
 				updateErr = nil
 			} else {
-				// 值不同，执行更新
-				helper.Info(helper.LogTypeDDNS, "[%s] 记录已存在 [RecordID=%s, 类型=%s, 旧值=%s]", b.GetServiceName(), targetRecord.RecordID, targetRecord.Rdtype, targetRecord.Rdata)
-				updateErr = b.updateRecord(targetRecord.RecordID, currentValue)
+				helper.Info(helper.LogTypeDDNS, "[%s] [%s] 记录已存在 [RecordID=%s, 旧值=%s]", b.GetServiceName(), record.Type, targetRecord.RecordID, targetRecord.Rdata)
+				updateErr = b.updateRecord(targetRecord.RecordID, record.Type, currentValue)
 			}
 		} else {
-			// 目标类型记录不存在，创建新记录
-			helper.Info(helper.LogTypeDDNS, "[%s] 记录不存在，创建新记录", b.GetServiceName())
-			updateErr = b.addRecord(currentValue)
+			helper.Info(helper.LogTypeDDNS, "[%s] [%s] 记录不存在，创建新记录", b.GetServiceName(), record.Type)
+			updateErr = b.addRecord(record.Type, currentValue)
 		}
 	}
 
 	if updateErr != nil {
-		b.Status = UpdatedFailed
-		return false
+		result.Status = UpdatedFailed
+		result.ErrorMessage = updateErr.Error()
+		result.ShouldWebhook = shouldSendWebhook(cache, UpdatedFailed)
+		return result
 	}
 
-	// 5. 更新缓存
-	if IsDynamicType(b.DNS.IPType) {
-		cacheKey := b.getCacheKey()
-		b.Cache.UpdateDynamicIP(cacheKey, currentValue)
+	// 4. 更新缓存
+	if IsDynamicType(record.IPType) {
+		cacheKey := getCacheKey(record.IPType, record.Value, record.Regex)
+		cache.UpdateDynamicIP(cacheKey, currentValue)
 	}
 
-	b.Cache.HasRun = true
-	b.Cache.TimesFailed = 0
-	b.Cache.ResetTimes()
-	b.Status = UpdatedSuccess
+	cache.HasRun = true
+	cache.TimesFailed = 0
+	cache.ResetTimes()
+	result.Status = UpdatedSuccess
+	result.ShouldWebhook = shouldSendWebhook(cache, UpdatedSuccess)
 
-	helper.Info(helper.LogTypeDDNS, "[%s] DNS 记录更新成功 [类型=%s, 值=%s]", b.GetServiceName(), b.DNS.Type, currentValue)
-	return true
+	helper.Info(helper.LogTypeDDNS, "[%s] [%s] DNS 记录更新成功 [值=%s]", b.GetServiceName(), record.Type, currentValue)
+	return result
 }
 
-// listAllRecords 查询指定域名的所有 DNS 记录
+// listAllRecords 查询指定域名的所有 DNS 记录（一次查询，所有类型）
 func (b *Baidu) listAllRecords() ([]BaiduRecord, error) {
 	zoneName := b.getRootDomain()
 	rr := b.getHostRecord()
 
 	helper.Debug(helper.LogTypeDDNS, "[%s] 正在查询所有 DNS 记录 [Zone=%s, RR=%s]", b.GetServiceName(), zoneName, rr)
 
-	// 构建查询参数
 	path := fmt.Sprintf("/v1/dns/zone/%s/record", zoneName)
 	if rr != "" && rr != "@" {
 		path += "?rr=" + rr
@@ -293,19 +318,16 @@ func (b *Baidu) listAllRecords() ([]BaiduRecord, error) {
 	return response.Records, nil
 }
 
-// addRecord 添加 DNS 记录
-func (b *Baidu) addRecord(value string) error {
+// addRecord 创建 DNS 记录
+func (b *Baidu) addRecord(recordType, value string) error {
 	zoneName := b.getRootDomain()
 
-	helper.Debug(helper.LogTypeDDNS, "[%s] 正在创建 DNS 记录 [Zone=%s, 类型=%s, 值=%s]", b.GetServiceName(), zoneName, b.DNS.Type, value)
-
-	// 构建请求数据
 	data := map[string]interface{}{
 		"rr":    b.getHostRecord(),
-		"type":  b.DNS.Type,
+		"type":  recordType,
 		"value": value,
 		"ttl":   b.parseTTL(),
-		"line":  "default", // 默认线路
+		"line":  "default",
 	}
 
 	path := fmt.Sprintf("/v1/dns/zone/%s/record", zoneName)
@@ -313,24 +335,21 @@ func (b *Baidu) addRecord(value string) error {
 	var response BaiduRecordResponse
 	err := b.request(http.MethodPost, path, data, &response)
 	if err != nil {
-		helper.Error(helper.LogTypeDDNS, "[%s] 创建 DNS 记录失败 [Zone=%s, 错误=%v]", b.GetServiceName(), zoneName, err)
+		helper.Error(helper.LogTypeDDNS, "[%s] [%s] 创建 DNS 记录失败 [Zone=%s, 错误=%v]", b.GetServiceName(), recordType, zoneName, err)
 		return err
 	}
 
-	helper.Info(helper.LogTypeDDNS, "[%s] 创建 DNS 记录成功 [RecordID=%s, 值=%s]", b.GetServiceName(), response.RecordID, value)
+	helper.Info(helper.LogTypeDDNS, "[%s] [%s] 创建 DNS 记录成功 [RecordID=%s, 值=%s]", b.GetServiceName(), recordType, response.RecordID, value)
 	return nil
 }
 
 // updateRecord 更新 DNS 记录
-func (b *Baidu) updateRecord(recordID, value string) error {
+func (b *Baidu) updateRecord(recordID, recordType, value string) error {
 	zoneName := b.getRootDomain()
 
-	helper.Debug(helper.LogTypeDDNS, "[%s] 正在更新 DNS 记录 [RecordID=%s, 类型=%s, 值=%s]", b.GetServiceName(), recordID, b.DNS.Type, value)
-
-	// 构建请求数据
 	data := map[string]interface{}{
 		"rr":    b.getHostRecord(),
-		"type":  b.DNS.Type,
+		"type":  recordType,
 		"value": value,
 		"ttl":   b.parseTTL(),
 	}
@@ -339,20 +358,29 @@ func (b *Baidu) updateRecord(recordID, value string) error {
 
 	err := b.request(http.MethodPut, path, data, nil)
 	if err != nil {
-		helper.Error(helper.LogTypeDDNS, "[%s] 更新 DNS 记录失败 [RecordID=%s, 错误=%v]", b.GetServiceName(), recordID, err)
+		helper.Error(helper.LogTypeDDNS, "[%s] [%s] 更新 DNS 记录失败 [RecordID=%s, 错误=%v]", b.GetServiceName(), recordType, recordID, err)
 		return err
 	}
 
-	helper.Info(helper.LogTypeDDNS, "[%s] 更新 DNS 记录成功 [RecordID=%s, 新值=%s]", b.GetServiceName(), recordID, value)
+	helper.Info(helper.LogTypeDDNS, "[%s] [%s] 更新 DNS 记录成功 [RecordID=%s, 新值=%s]", b.GetServiceName(), recordType, recordID, value)
+	return nil
+}
+
+// deleteRecords 批量删除 DNS 记录
+func (b *Baidu) deleteRecords(records []BaiduRecord, contextType string) error {
+	for _, rec := range records {
+		if deleteErr := b.deleteRecord(rec.RecordID); deleteErr != nil {
+			helper.Error(helper.LogTypeDDNS, "[%s] [%s] 删除 DNS 记录失败 [RecordID=%s, 类型=%s, 错误=%v]", b.GetServiceName(), contextType, rec.RecordID, rec.Rdtype, deleteErr)
+			return deleteErr
+		}
+		helper.Info(helper.LogTypeDDNS, "[%s] [%s] 已删除 DNS 记录 [RecordID=%s, 类型=%s, 值=%s]", b.GetServiceName(), contextType, rec.RecordID, rec.Rdtype, rec.Rdata)
+	}
 	return nil
 }
 
 // deleteRecord 删除 DNS 记录
 func (b *Baidu) deleteRecord(recordID string) error {
 	zoneName := b.getRootDomain()
-
-	helper.Debug(helper.LogTypeDDNS, "[%s] 正在删除 DNS 记录 [RecordID=%s]", b.GetServiceName(), recordID)
-
 	path := fmt.Sprintf("/v1/dns/zone/%s/record/%s", zoneName, recordID)
 
 	err := b.request(http.MethodDelete, path, nil, nil)
@@ -367,7 +395,7 @@ func (b *Baidu) deleteRecord(recordID string) error {
 
 // request 统一请求方法
 func (b *Baidu) request(method, path string, body interface{}, result interface{}) error {
-	url := baiduDNSEndpoint + path
+	reqURL := baiduDNSEndpoint + path
 
 	var reqBody []byte
 	var err error
@@ -379,24 +407,19 @@ func (b *Baidu) request(method, path string, body interface{}, result interface{
 		}
 	}
 
-	// 构建请求
 	var req *http.Request
 	if reqBody != nil {
-		req, err = http.NewRequest(method, url, bytes.NewBuffer(reqBody))
+		req, err = http.NewRequest(method, reqURL, bytes.NewBuffer(reqBody))
 	} else {
-		req, err = http.NewRequest(method, url, nil)
+		req, err = http.NewRequest(method, reqURL, nil)
 	}
 	if err != nil {
 		return fmt.Errorf("创建请求失败: %v", err)
 	}
 
-	// 设置基本请求头
 	req.Header.Set("Content-Type", "application/json")
+	signer.BaiduSigner(b.Group.AccessKey, b.Group.AccessSecret, req)
 
-	// 调用百度云签名器
-	signer.BaiduSigner(b.DNS.AccessKey, b.DNS.AccessSecret, req)
-
-	// 发送请求
 	client := helper.CreateHTTPClient()
 	resp, err := client.Do(req)
 	if err != nil {
@@ -431,19 +454,14 @@ func (b *Baidu) request(method, path string, body interface{}, result interface{
 // getRootDomain 获取根域名
 // 例如: www.sub.example.com -> example.com
 func (b *Baidu) getRootDomain() string {
-	domain := b.DNS.Domain
-
-	// 处理泛域名（*.example.com -> example.com）
+	domain := b.Group.Domain
 	if strings.HasPrefix(domain, "*.") {
 		domain = domain[2:]
 	}
-
 	parts := strings.Split(domain, ".")
 	if len(parts) <= 2 {
 		return domain
 	}
-
-	// 返回最后两部分作为根域名
 	return parts[len(parts)-2] + "." + parts[len(parts)-1]
 }
 
@@ -451,74 +469,49 @@ func (b *Baidu) getRootDomain() string {
 // 例如: www.sub.example.com -> www.sub
 // 例如: example.com -> @
 // 例如: *.example.com -> *
-// 例如: *.a.example.com -> *.a
 func (b *Baidu) getHostRecord() string {
-	domain := b.DNS.Domain
-
+	domain := b.Group.Domain
 	parts := strings.Split(domain, ".")
 	if len(parts) <= 2 {
-		return "@" // 根域名使用 @
+		return "@"
 	}
-
-	// 处理泛域名：返回除根域名外的所有部分（包括 * 号）
-	// 例如: *.a.example.com -> *.a
-	// 例如: *.example.com -> *
 	return strings.Join(parts[:len(parts)-2], ".")
 }
 
-// parseTTL 解析 TTL 值
+// parseTTL 解析 TTL 值（百度云范围 60-86400 秒）
 func (b *Baidu) parseTTL() int {
-	if b.DNS.TTL == "" || b.DNS.TTL == "AUTO" {
-		return 600 // 默认 10 分钟
+	if b.Group.TTL == "" || b.Group.TTL == "AUTO" {
+		return 600
 	}
 
-	// 尝试解析数字（秒）
-	if ttl, err := strconv.Atoi(b.DNS.TTL); err == nil {
-		// 百度云 TTL 范围通常是 60-86400 秒
-		if ttl < 60 {
+	clamp := func(v int) int {
+		if v < 60 {
 			return 60
 		}
-		if ttl > 86400 {
+		if v > 86400 {
 			return 86400
 		}
-		return ttl
+		return v
 	}
 
-	// 解析时间单位（例如：1m, 10m, 1h）
-	ttlStr := strings.ToLower(b.DNS.TTL)
+	if ttl, err := strconv.Atoi(b.Group.TTL); err == nil {
+		return clamp(ttl)
+	}
+
+	ttlStr := strings.ToLower(b.Group.TTL)
 	if strings.HasSuffix(ttlStr, "s") {
-		// 秒
 		if ttl, err := strconv.Atoi(ttlStr[:len(ttlStr)-1]); err == nil {
-			if ttl < 60 {
-				return 60
-			}
-			if ttl > 86400 {
-				return 86400
-			}
-			return ttl
+			return clamp(ttl)
 		}
 	} else if strings.HasSuffix(ttlStr, "m") {
-		// 分钟
 		if ttl, err := strconv.Atoi(ttlStr[:len(ttlStr)-1]); err == nil {
-			seconds := ttl * 60
-			if seconds < 60 {
-				return 60
-			}
-			if seconds > 86400 {
-				return 86400
-			}
-			return seconds
+			return clamp(ttl * 60)
 		}
 	} else if strings.HasSuffix(ttlStr, "h") {
-		// 小时
 		if ttl, err := strconv.Atoi(ttlStr[:len(ttlStr)-1]); err == nil {
-			seconds := ttl * 3600
-			if seconds > 86400 {
-				return 86400
-			}
-			return seconds
+			return clamp(ttl * 3600)
 		}
 	}
 
-	return 600 // 默认值
+	return 600
 }

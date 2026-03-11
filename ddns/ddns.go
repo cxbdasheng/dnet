@@ -64,11 +64,17 @@ type Cache struct {
 
 // DNS DNS 提供商接口
 type DNS interface {
-	Init(dnsConfig *config.DNS, cache *Cache)
-	UpdateOrCreateRecord() bool
-	ShouldSendWebhook() bool
-	GetServiceStatus() string
+	Init(group *config.DNSGroup, caches []*Cache)
+	UpdateOrCreateRecords() []RecordResult
 	GetServiceName() string
+}
+
+// RecordResult 单条记录的处理结果
+type RecordResult struct {
+	RecordType    string     // 记录类型 (A, AAAA, CNAME, TXT)
+	Status        statusType // 处理状态
+	ShouldWebhook bool       // 是否需要发送 Webhook
+	ErrorMessage  string     // 错误信息（如果有）
 }
 
 // NewCache 创建新的缓存实例

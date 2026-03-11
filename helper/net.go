@@ -534,7 +534,7 @@ func GetHTTPResponse(resp *http.Response, err error, result interface{}) error {
 	return nil
 }
 
-// GetHTTPResponseOrg 处理HTTP结果，返回byte
+// GetHTTPResponseOrg 处理 HTTP 结果，返回 byte
 func GetHTTPResponseOrg(resp *http.Response, err error) ([]byte, error) {
 	if err != nil {
 		return nil, err
