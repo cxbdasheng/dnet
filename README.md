@@ -18,7 +18,7 @@
 ## 主要功能
 
 - **动态 CDN 管理 (DCDN)：** 支持阿里云（CDN、DCDN、ESA）、腾讯云（CDN、EdgeOne）、百度云（CDN、DRCDN）、Cloudflare
-- **动态 DNS 管理 (DDNS)：** 自动更新 **A / AAAA / CNAME / TXT** 记录，支持阿里云、腾讯云、百度云、Cloudflare、华为云
+- **动态 DNS 管理 (DDNS)：** 根据 IP 变化自动更新 DNS 解析，支持 **A / AAAA / CNAME / TXT** 记录，支持阿里云、腾讯云、百度云、Cloudflare、华为云
 - **内网穿透管理：** 从外网访问内网服务（V3 版本规划中）
 - **Webhook 通知：** 实时推送 IP 变更通知
 - **Web 管理界面：** 可视化配置和管理

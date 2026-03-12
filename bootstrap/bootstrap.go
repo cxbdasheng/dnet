@@ -158,8 +158,8 @@ func ProcessDDNSServices(conf *config.Config) {
 			dnsSelected = &ddns.Cloudflare{}
 		case ddns.ProviderHuawei:
 			dnsSelected = &ddns.Huawei{}
-		//case ddns.ProviderBaiduCloud:
-		//	dnsSelected = &ddns.Baidu{}
+		case ddns.ProviderBaiduCloud:
+			dnsSelected = &ddns.Baidu{}
 		default:
 			helper.Warn(helper.LogTypeDDNS, "不支持的 DNS 提供商: %s，跳过", group.Service)
 			continue
