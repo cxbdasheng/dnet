@@ -154,7 +154,7 @@
                         </select>
                     </div>
                     <div class="layui-input-inline dnet-form-value" data-type="sources_type_domain">
-                        <input type="text"  name="sources_type_domain" lay-verify="domain" class="layui-input" placeholder="请输入域名内容" lay-verify="domain">
+                        <input type="text"  name="sources_type_domain" class="layui-input" placeholder="请输入域名内容" lay-verify="source_domain">
                     </div>
                     <div class="layui-input-inline dnet-form-value" data-type="sources_type_ipv4">
                         <input type="text"  name="sources_type_ipv4" class="layui-input" placeholder="请输入静态 IPv4 地址" lay-verify="ipv4">
@@ -246,6 +246,7 @@
     </form>
 </div>
 </body>
+<script src="/static/common.js"></script>
 <script src="/static/cdn.js"></script>
 <script>
     // 获取第一个 CDN 提供商作为默认值
@@ -280,21 +281,12 @@
         var util = layui.util;
         var form = layui.form;
         var $ = layui.$;
-        // 域名验证正则表达式
-        const DOMAIN_REGEX = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/;
-        const ipv4Regex = /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-        // IPv6 完整格式检查
-        const ipv6FullRegex = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
-        // IPv6 压缩格式检查
-        const ipv6CompressedRegex = /^(([0-9a-fA-F]{1,4}:){1,7}:|:((:[0-9a-fA-F]{1,4}){1,7}|:))$/;
-        // IPv6 混合格式检查（包含 ::）
-        const ipv6MixedRegex = /^((([0-9a-fA-F]{1,4}:){1,6}:)|(::))([0-9a-fA-F]{1,4}:){0,5}[0-9a-fA-F]{1,4}$|^::$/;
         // 自定义验证规则
         form.verify({
             // 域名验证
             domain: function (value, elem) {
                 // 如果父容器被隐藏，跳过验证
-                var $parent = $(elem).closest('.dnet-form-value');
+                var $parent = $(elem).closest('.layui-form-item');
                 if ($parent.length && $parent.is(':hidden')) {
                     return; // 跳过验证
                 }
@@ -302,21 +294,31 @@
                 if (!value) {
                     return '域名不能为空';
                 }
+
+                // 检查是否为泛解析（通配符域名）
+                var domainToCheck = value;
+                var isWildcard = false;
+                if (value.startsWith('*.')) {
+                    isWildcard = true;
+                    domainToCheck = value.substring(2); // 去掉 '*.' 前缀
+                    if (!domainToCheck) {
+                        return '泛解析域名格式错误，应为 *.example.com';
+                    }
+                }
+
                 // 域名长度检查
-                if (value.length < 3 || value.length > 253) {
+                if (domainToCheck.length < 3 || value.length > 253) {
                     return '域名长度必须在3-253个字符之间';
                 }
-                if (!DOMAIN_REGEX.test(value)) {
-                    return '请输入正确的域名格式，例如：example.com';
+                if (!DOMAIN_REGEX.test(domainToCheck)) {
+                    return '请输入正确的域名格式，例如：example.com 或 *.example.com';
                 }
-
                 // 检查是否包含至少一个点（顶级域名）
-                if (value.indexOf('.') === -1) {
+                if (domainToCheck.indexOf('.') === -1) {
                     return '域名必须包含顶级域名';
                 }
-
                 // 检查标签长度（每个部分不能超过63个字符）
-                const labels = value.split('.');
+                const labels = domainToCheck.split('.');
                 for (var i = 0; i < labels.length; i++) {
                     if (labels[i].length > 63) {
                         return '域名的每个部分不能超过63个字符';
@@ -430,12 +432,49 @@
                     // return;
                     return '接口地址不能为空';
                 }
+            }, // 域名验证
+            source_domain: function (value, elem) {
+                // 如果父容器被隐藏，跳过验证
+                var $parent = $(elem).closest('.dnet-form-value');
+                if ($parent.length && $parent.is(':hidden')) {
+                    return; // 跳过验证
+                }
+
+                if (!value) {
+                    return '域名不能为空';
+                }
+
+                // 检查是否为泛解析（通配符域名）
+                var domainToCheck = value;
+                var isWildcard = false;
+                if (value.startsWith('*.')) {
+                    isWildcard = true;
+                    domainToCheck = value.substring(2); // 去掉 '*.' 前缀
+                    if (!domainToCheck) {
+                        return '泛解析域名格式错误，应为 *.example.com';
+                    }
+                }
+
+                // 域名长度检查
+                if (domainToCheck.length < 3 || value.length > 253) {
+                    return '域名长度必须在3-253个字符之间';
+                }
+                if (!DOMAIN_REGEX.test(domainToCheck)) {
+                    return '请输入正确的域名格式，例如：example.com 或 *.example.com';
+                }
+                // 检查是否包含至少一个点（顶级域名）
+                if (domainToCheck.indexOf('.') === -1) {
+                    return '域名必须包含顶级域名';
+                }
+                // 检查标签长度（每个部分不能超过63个字符）
+                const labels = domainToCheck.split('.');
+                for (var i = 0; i < labels.length; i++) {
+                    if (labels[i].length > 63) {
+                        return '域名的每个部分不能超过63个字符';
+                    }
+                }
             }
         });
-        // 域名验证函数
-        function isValidDomain(domain) {
-            return DOMAIN_REGEX.test(domain) && domain.indexOf('.') !== -1;
-        }
         // 源站类型到字段名的映射
         const SOURCE_TYPE_MAP = {
             'domain': 'sources_type_domain',
@@ -448,16 +487,6 @@
             'dynamic_ipv6_interface': 'sources_dynamic_ipv6_interface',
             'dynamic_ipv6_command': 'sources_dynamic_ipv6_command'
         };
-        // 获取配置显示文本
-        function getConfigDisplayText(config) {
-            if (config.name) {
-                return config.name;
-            } else if (config.domain) {
-                return config.id + ' - ' + config.domain;
-            }
-            return config.id;
-        }
-
         // 删除多余的源站行（保留第一个数据行）
         function removeExtraSourceRows() {
             $('.dnet-form-sources').each(function(index) {
@@ -481,32 +510,7 @@
 
         // 提交事件
         form.on('submit(save)', function (data) {
-            // 使用 Layui 方式进行表单校验
-            let isValid = true;
-            $('.layui-form').find('input[lay-verify], select[lay-verify], textarea[lay-verify]').each(function () {
-                const $this = $(this);
-                const fieldName = $this.attr('name');
-                const verifyType = $this.attr('lay-verify');
-                if (verifyType) {
-                    const value = $this.val();
-                    const verifyRules = verifyType.split('|');
-
-                    for (let i = 0; i < verifyRules.length; i++) {
-                        const rule = verifyRules[i];
-                        if (form.config.verify[rule]) {
-                            const result = form.config.verify[rule](value, this);
-                            if (result) {
-                                layer.msg(result);
-                                $this.focus();
-                                isValid = false;
-                                return false; // 跳出循环
-                            }
-                        }
-                    }
-                }
-                if (!isValid) return false; // 跳出each循环
-            })
-            if (!isValid) {
+            if (!validateLayuiForm(form, layer, $)) {
                 return false;
             }
             // 检查当前是否已输入域名
@@ -828,32 +832,7 @@
 
         // 新增配置
         $('#config-add').on('click', function () {
-            // 使用 Layui 方式进行表单校验
-            let isValid = true;
-            $('.layui-form').find('input[lay-verify], select[lay-verify], textarea[lay-verify]').each(function () {
-                const $this = $(this);
-                const fieldName = $this.attr('name');
-                const verifyType = $this.attr('lay-verify');
-                if (verifyType) {
-                    const value = $this.val();
-                    const verifyRules = verifyType.split('|');
-
-                    for (let i = 0; i < verifyRules.length; i++) {
-                        const rule = verifyRules[i];
-                        if (form.config.verify[rule]) {
-                            const result = form.config.verify[rule](value, this);
-                            if (result) {
-                                layer.msg(result);
-                                $this.focus();
-                                isValid = false;
-                                return false; // 跳出循环
-                            }
-                        }
-                    }
-                }
-                if (!isValid) return false; // 跳出each循环
-            })
-            if (!isValid) {
+            if (!validateLayuiForm(form, layer, $)) {
                 return false;
             }
             // 检查当前是否已输入域名
