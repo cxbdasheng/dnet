@@ -20,28 +20,7 @@ const (
 )
 
 type Aliyun struct {
-	CDN           *config.CDN
-	Cache         *Cache
-	Status        statusType
-	configChanged bool // 标记配置是否发生变化（用于触发保存）
-}
-
-func (aliyun *Aliyun) GetServiceStatus() string {
-	return string(aliyun.Status)
-}
-
-func (aliyun *Aliyun) GetServiceName() string {
-	if aliyun.CDN == nil {
-		return ""
-	}
-	if aliyun.CDN.Name != "" {
-		return aliyun.CDN.Name
-	}
-	return aliyun.CDN.Domain
-}
-
-func (aliyun *Aliyun) ConfigChanged() bool {
-	return aliyun.configChanged
+	BaseProvider
 }
 
 // AliyunSource 阿里云源站配置
@@ -233,126 +212,28 @@ func (aliyun *Aliyun) Init(cdnConfig *config.CDN, cache *Cache) {
 // validateConfig 校验 CDN 配置是否有效
 func (aliyun *Aliyun) validateConfig() bool {
 	if aliyun.CDN == nil {
-		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：配置对象为空", aliyun.getCDNTypeName())
+		helper.Warn(helper.LogTypeDCDN, "阿里云配置校验失败：配置对象为空")
 		return false
 	}
-	// 检查必填的认证信息
-	if aliyun.CDN.AccessKey == "" || aliyun.CDN.AccessSecret == "" {
-		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：AccessKey或AccessSecret为空 [域名=%s]", aliyun.getCDNTypeName(), aliyun.CDN.Domain)
-		return false
-	}
-	// 检查域名
-	if aliyun.CDN.Domain == "" {
-		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：域名为空", aliyun.getCDNTypeName())
-		return false
-	}
-	// 检查 CDN 类型
-	if aliyun.CDN.CDNType == "" {
-		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：类型为空 [域名=%s]", aliyun.getCDNTypeName(), aliyun.CDN.Domain)
+	providerName := "阿里云 " + aliyun.getCDNTypeName()
+	if !aliyun.validateBaseConfig(providerName) {
 		return false
 	}
 	// 验证 CDN 类型是否合法（不区分大小写）
 	cdnType := strings.ToUpper(aliyun.CDN.CDNType)
-	if cdnType != CDNTypeCDN && cdnType != CDNTypeDCDN && cdnType != CDNTypeESA {
-		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：不支持的类型 [域名=%s, 类型=%s]", aliyun.getCDNTypeName(), aliyun.CDN.Domain, aliyun.CDN.CDNType)
+	if cdnType == "" {
+		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：类型为空 [域名=%s]", providerName, aliyun.CDN.Domain)
 		return false
 	}
-	// 检查源站配置
-	if len(aliyun.CDN.Sources) == 0 {
-		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：源站配置为空 [域名=%s]", aliyun.getCDNTypeName(), aliyun.CDN.Domain)
+	if cdnType != CDNTypeCDN && cdnType != CDNTypeDCDN && cdnType != CDNTypeESA {
+		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：不支持的类型 [域名=%s, 类型=%s]", providerName, aliyun.CDN.Domain, aliyun.CDN.CDNType)
 		return false
 	}
 	return true
 }
 
 func (aliyun *Aliyun) UpdateOrCreateSources() bool {
-	// 初始化失败则不继续执行
-	if aliyun.Status == InitFailed {
-		helper.Warn(helper.LogTypeDCDN, "阿里云 %s 更新跳过：初始化失败 [域名=%s]", aliyun.getCDNTypeName(), aliyun.CDN.Domain)
-		return false
-	}
-
-	helper.Debug(helper.LogTypeDCDN, "开始检查阿里云 %s 源站 IP 变化 [域名=%s]", aliyun.getCDNTypeName(), aliyun.CDN.Domain)
-
-	// 检查动态源的 IP 变化情况
-	changedIPCount := 0
-	for _, source := range aliyun.CDN.Sources {
-		// 跳过静态源
-		if !IsDynamicType(source.Type) {
-			continue
-		}
-
-		// 获取动态 IP
-		addr, ok := helper.GetOrSetDynamicIPWithCache(source.Type, source.Value)
-		if !ok {
-			// IP 获取失败，标记状态并终止
-			aliyun.Status = InitGetIPFailed
-			helper.Error(helper.LogTypeDCDN, "获取动态 IP 失败 [域名=%s, 源类型=%s, 配置值=%s]",
-				aliyun.CDN.Domain, source.Type, source.Value)
-			return false
-		}
-
-		cacheKey := helper.GetIPCacheKey(source.Type, source.Value)
-
-		// 检查 IP 是否发生变化
-		ipChanged, oldIP := aliyun.Cache.CheckIPChanged(cacheKey, addr)
-		if ipChanged {
-			// IP 发生变化，更新缓存
-			aliyun.Cache.UpdateDynamicIP(cacheKey, addr)
-			changedIPCount++
-			helper.Info(helper.LogTypeDCDN, "检测到源站IP变化 [域名=%s, 源类型=%s, 旧IP=%s, 新IP=%s]",
-				aliyun.CDN.Domain, source.Type, oldIP, addr)
-		}
-	}
-
-	if changedIPCount > 0 {
-		helper.Info(helper.LogTypeDCDN, "共检测到 %d 个源站 IP 发生变化 [域名=%s]", changedIPCount, aliyun.CDN.Domain)
-	} else {
-		helper.Debug(helper.LogTypeDCDN, "未检测到源站 IP 变化 [域名=%s]", aliyun.CDN.Domain)
-	}
-
-	// 判断是否需要更新 CDN
-	shouldUpdate := aliyun.shouldUpdateCDN(changedIPCount)
-	if shouldUpdate {
-		helper.Info(helper.LogTypeDCDN, "开始更新阿里云 %s 配置 [域名=%s, IP变化数=%d, 计数器=%d]",
-			aliyun.getCDNTypeName(), aliyun.CDN.Domain, changedIPCount, aliyun.Cache.Times)
-		aliyun.updateOrCreateSite()
-		aliyun.Cache.ResetTimes()
-	} else {
-		aliyun.Status = UpdatedNothing
-		helper.Debug(helper.LogTypeDCDN, "无需更新 %s 配置 [域名=%s, 计数器剩余=%d]",
-			aliyun.getCDNTypeName(), aliyun.CDN.Domain, aliyun.Cache.Times)
-	}
-	return shouldUpdate
-}
-
-// shouldUpdateCDN 判断是否需要更新 CDN 配置
-func (aliyun *Aliyun) shouldUpdateCDN(changedIPCount int) bool {
-	// 第一次运行，需要初始化
-	if !aliyun.Cache.HasRun {
-		aliyun.Cache.HasRun = true
-		helper.Info(helper.LogTypeDCDN, "首次运行，需要初始化 %s 配置 [域名=%s]", aliyun.getCDNTypeName(), aliyun.CDN.Domain)
-		return true
-	}
-
-	// 有 IP 发生变化，需要更新
-	if changedIPCount > 0 {
-		helper.Info(helper.LogTypeDCDN, "源站 IP 变化，需要更新 %s [域名=%s, 变化数=%d]",
-			aliyun.getCDNTypeName(), aliyun.CDN.Domain, changedIPCount)
-		return true
-	}
-
-	// 递减计数器
-	aliyun.Cache.Times--
-
-	// 计数器归零，需要强制更新
-	if aliyun.Cache.Times == 0 {
-		helper.Info(helper.LogTypeDCDN, "计数器归零，强制更新 %s [域名=%s]", aliyun.getCDNTypeName(), aliyun.CDN.Domain)
-		return true
-	}
-
-	// 无需更新
-	return false
+	return aliyun.runUpdateOrCreate("阿里云 "+aliyun.getCDNTypeName(), aliyun.updateOrCreateSite)
 }
 
 func (aliyun *Aliyun) updateOrCreateSite() {
@@ -403,13 +284,7 @@ func (aliyun *Aliyun) updateOrCreateSite() {
 
 	// 如果查询到域名信息，保存 CNAME（仅当 CNAME 发生变化时）
 	if domainInfo != nil {
-		newCname := domainInfo.GetCname()
-		if newCname != "" && newCname != aliyun.CDN.CName {
-			helper.Info(helper.LogTypeDCDN, "CNAME 发生变化 [域名=%s, 旧 CNAME=%s, 新 CNAME=%s]",
-				aliyun.CDN.Domain, aliyun.CDN.CName, newCname)
-			aliyun.CDN.CName = newCname
-			aliyun.configChanged = true
-		}
+		aliyun.updateCnameIfChanged(domainInfo.GetCname())
 	}
 
 	// 根据查询结果判断是创建还是修改
@@ -527,7 +402,7 @@ func (aliyun *Aliyun) buildSourcesParam() string {
 		}
 
 		// 获取实际的源站地址
-		content := aliyun.getSourceContent(&source)
+		content := aliyun.getSourceAddr(&source)
 
 		// 根据源站类型判断是 IP 还是域名
 		sourceType := aliyun.getSourceType(&source, content)
@@ -607,24 +482,6 @@ func (aliyun *Aliyun) getSourceType(source *config.Source, content string) strin
 	return "domain"
 }
 
-// getSourceContent 获取源站的实际内容（处理动态IP）
-func (aliyun *Aliyun) getSourceContent(source *config.Source) string {
-	if IsDynamicType(source.Type) {
-		// 对于动态类型，从缓存获取IP
-		cacheKey := helper.GetIPCacheKey(source.Type, source.Value)
-		if ip, ok := aliyun.Cache.DynamicIPs[cacheKey]; ok {
-			return ip
-		}
-		// 如果缓存中没有，尝试获取
-		if addr, ok := helper.GetOrSetDynamicIPWithCache(source.Type, source.Value); ok {
-			return addr
-		}
-		helper.Warn(helper.LogTypeDCDN, "无法获取动态源站IP [类型=%s, 值=%s]，使用配置值", source.Type, source.Value)
-	}
-	// 静态类型直接返回配置的值
-	return source.Value
-}
-
 func (aliyun *Aliyun) createCDN() {
 	params := url.Values{}
 	params.Set("Action", "AddCdnDomain")
@@ -653,12 +510,7 @@ func (aliyun *Aliyun) createCDN() {
 		return
 	}
 	if domainInfo != nil {
-		newCname := domainInfo.GetCname()
-		if newCname != "" && newCname != aliyun.CDN.CName {
-			helper.Info(helper.LogTypeDCDN, "获取到 CNAME [域名=%s, CNAME=%s]", aliyun.CDN.Domain, newCname)
-			aliyun.CDN.CName = newCname
-			aliyun.configChanged = true
-		}
+		aliyun.updateCnameIfChanged(domainInfo.GetCname())
 	}
 }
 
@@ -711,12 +563,7 @@ func (aliyun *Aliyun) createDCDN() {
 		return
 	}
 	if domainInfo != nil {
-		newCname := domainInfo.GetCname()
-		if newCname != "" && newCname != aliyun.CDN.CName {
-			helper.Info(helper.LogTypeDCDN, "获取到 CNAME [域名=%s, CNAME=%s]", aliyun.CDN.Domain, newCname)
-			aliyun.CDN.CName = newCname
-			aliyun.configChanged = true
-		}
+		aliyun.updateCnameIfChanged(domainInfo.GetCname())
 	}
 }
 
@@ -750,7 +597,7 @@ func (aliyun *Aliyun) setESASourceParams(params url.Values) {
 		params.Set("Type", "A/AAAA")
 	}
 	// 获取实际的源站地址
-	content := aliyun.getSourceContent(&aliyun.CDN.Sources[0])
+	content := aliyun.getSourceAddr(&aliyun.CDN.Sources[0])
 	params.Set("Data", `{"Value":"`+content+`"}`)
 }
 
@@ -784,12 +631,7 @@ func (aliyun *Aliyun) createESA(SiteId int64) {
 		return
 	}
 	if domainInfo != nil {
-		newCname := domainInfo.GetCname()
-		if newCname != "" && newCname != aliyun.CDN.CName {
-			helper.Info(helper.LogTypeDCDN, "获取到 CNAME [域名=%s, CNAME=%s]", aliyun.CDN.Domain, newCname)
-			aliyun.CDN.CName = newCname
-			aliyun.configChanged = true
-		}
+		aliyun.updateCnameIfChanged(domainInfo.GetCname())
 	}
 }
 

@@ -21,28 +21,7 @@ const (
 )
 
 type Tencent struct {
-	CDN           *config.CDN
-	Cache         *Cache
-	Status        statusType
-	configChanged bool // 标记配置是否发生变化（用于触发保存）
-}
-
-func (tencent *Tencent) GetServiceStatus() string {
-	return string(tencent.Status)
-}
-
-func (tencent *Tencent) GetServiceName() string {
-	if tencent.CDN == nil {
-		return ""
-	}
-	if tencent.CDN.Name != "" {
-		return tencent.CDN.Name
-	}
-	return tencent.CDN.Domain
-}
-
-func (tencent *Tencent) ConfigChanged() bool {
-	return tencent.configChanged
+	BaseProvider
 }
 
 // getCDNTypeName 获取 CDN 类型的显示名称
@@ -175,115 +154,14 @@ func (tencent *Tencent) Init(cdnConfig *config.CDN, cache *Cache) {
 // validateConfig 校验 CDN 配置是否有效
 func (tencent *Tencent) validateConfig() bool {
 	if tencent.CDN == nil {
-		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：配置对象为空", tencent.getCDNTypeName())
+		helper.Warn(helper.LogTypeDCDN, "腾讯云配置校验失败：配置对象为空")
 		return false
 	}
-	// 检查必填的认证信息
-	if tencent.CDN.AccessKey == "" || tencent.CDN.AccessSecret == "" {
-		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：SecretId 或 SecretKey 为空 [域名=%s]", tencent.getCDNTypeName(), tencent.CDN.Domain)
-		return false
-	}
-	// 检查域名
-	if tencent.CDN.Domain == "" {
-		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：域名为空", tencent.getCDNTypeName())
-		return false
-	}
-	// 检查源站配置
-	if len(tencent.CDN.Sources) == 0 {
-		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：源站配置为空 [域名=%s]", tencent.getCDNTypeName(), tencent.CDN.Domain)
-		return false
-	}
-	return true
+	return tencent.validateBaseConfig("腾讯云 " + tencent.getCDNTypeName())
 }
 
 func (tencent *Tencent) UpdateOrCreateSources() bool {
-	// 初始化失败则不继续执行
-	if tencent.Status == InitFailed {
-		helper.Warn(helper.LogTypeDCDN, "腾讯云 %s 更新跳过：初始化失败 [域名=%s]", tencent.getCDNTypeName(), tencent.CDN.Domain)
-		return false
-	}
-
-	helper.Debug(helper.LogTypeDCDN, "开始检查腾讯云 %s 源站 IP 变化 [域名=%s]", tencent.getCDNTypeName(), tencent.CDN.Domain)
-
-	// 检查动态源的 IP 变化情况
-	changedIPCount := 0
-	for _, source := range tencent.CDN.Sources {
-		// 跳过静态源
-		if !IsDynamicType(source.Type) {
-			continue
-		}
-
-		// 获取动态 IP
-		addr, ok := helper.GetOrSetDynamicIPWithCache(source.Type, source.Value)
-		if !ok {
-			// IP 获取失败，标记状态并终止
-			tencent.Status = InitGetIPFailed
-			helper.Error(helper.LogTypeDCDN, "获取动态 IP 失败 [域名=%s, 源类型=%s, 配置值=%s]",
-				tencent.CDN.Domain, source.Type, source.Value)
-			return false
-		}
-
-		cacheKey := helper.GetIPCacheKey(source.Type, source.Value)
-
-		// 检查 IP 是否发生变化
-		ipChanged, oldIP := tencent.Cache.CheckIPChanged(cacheKey, addr)
-		if ipChanged {
-			// IP 发生变化，更新缓存
-			tencent.Cache.UpdateDynamicIP(cacheKey, addr)
-			changedIPCount++
-			helper.Info(helper.LogTypeDCDN, "检测到源站 IP 变化 [域名=%s, 源类型=%s, 旧IP=%s, 新IP=%s]",
-				tencent.CDN.Domain, source.Type, oldIP, addr)
-		}
-	}
-
-	if changedIPCount > 0 {
-		helper.Info(helper.LogTypeDCDN, "共检测到 %d 个源站 IP 发生变化 [域名=%s]", changedIPCount, tencent.CDN.Domain)
-	} else {
-		helper.Debug(helper.LogTypeDCDN, "未检测到源站 IP 变化 [域名=%s]", tencent.CDN.Domain)
-	}
-
-	// 判断是否需要更新 CDN
-	shouldUpdate := tencent.shouldUpdateCDN(changedIPCount)
-	if shouldUpdate {
-		helper.Info(helper.LogTypeDCDN, "开始更新腾讯云 %s 配置 [域名=%s, IP变化数=%d, 计数器=%d]",
-			tencent.getCDNTypeName(), tencent.CDN.Domain, changedIPCount, tencent.Cache.Times)
-		tencent.updateOrCreateSite()
-		tencent.Cache.ResetTimes()
-	} else {
-		tencent.Status = UpdatedNothing
-		helper.Debug(helper.LogTypeDCDN, "无需更新 %s 配置 [域名=%s, 计数器剩余=%d]",
-			tencent.getCDNTypeName(), tencent.CDN.Domain, tencent.Cache.Times)
-	}
-	return shouldUpdate
-}
-
-// shouldUpdateCDN 判断是否需要更新 CDN 配置
-func (tencent *Tencent) shouldUpdateCDN(changedIPCount int) bool {
-	// 第一次运行，需要初始化
-	if !tencent.Cache.HasRun {
-		tencent.Cache.HasRun = true
-		helper.Info(helper.LogTypeDCDN, "首次运行，需要初始化腾讯云 %s 配置 [域名=%s]", tencent.getCDNTypeName(), tencent.CDN.Domain)
-		return true
-	}
-
-	// 有 IP 发生变化，需要更新
-	if changedIPCount > 0 {
-		helper.Info(helper.LogTypeDCDN, "源站 IP 变化，需要更新腾讯云 %s [域名=%s, 变化数=%d]",
-			tencent.getCDNTypeName(), tencent.CDN.Domain, changedIPCount)
-		return true
-	}
-
-	// 递减计数器
-	tencent.Cache.Times--
-
-	// 计数器归零，需要强制更新
-	if tencent.Cache.Times == 0 {
-		helper.Info(helper.LogTypeDCDN, "计数器归零，强制更新腾讯云 %s [域名=%s]", tencent.getCDNTypeName(), tencent.CDN.Domain)
-		return true
-	}
-
-	// 无需更新
-	return false
+	return tencent.runUpdateOrCreate("腾讯云 "+tencent.getCDNTypeName(), tencent.updateOrCreateSite)
 }
 
 func (tencent *Tencent) updateOrCreateSite() {
@@ -320,13 +198,7 @@ func (tencent *Tencent) updateOrCreateSite() {
 
 	// 如果查询到域名信息，保存 CNAME（仅当 CNAME 发生变化时）
 	if domainInfo != nil {
-		newCname := domainInfo.Cname
-		if newCname != "" && newCname != tencent.CDN.CName {
-			helper.Info(helper.LogTypeDCDN, "CNAME 发生变化 [域名=%s, 旧CNAME=%s, 新CNAME=%s]",
-				tencent.CDN.Domain, tencent.CDN.CName, newCname)
-			tencent.CDN.CName = newCname
-			tencent.configChanged = true
-		}
+		tencent.updateCnameIfChanged(domainInfo.Cname)
 	}
 
 	// 根据查询结果判断是创建还是修改
@@ -471,7 +343,7 @@ func (tencent *Tencent) buildOriginConfig() TencentOrigin {
 	// 遍历所有源站
 	for _, source := range tencent.CDN.Sources {
 		// 获取实际的源站地址
-		content := tencent.getSourceContent(&source)
+		content := tencent.getSourceAddr(&source)
 
 		// 根据协议构建完整的源站地址
 		protocol := strings.ToLower(source.Protocol)
@@ -516,24 +388,6 @@ func (tencent *Tencent) buildOriginConfig() TencentOrigin {
 	return origin
 }
 
-// getSourceContent 获取源站的实际内容（处理动态IP）
-func (tencent *Tencent) getSourceContent(source *config.Source) string {
-	if IsDynamicType(source.Type) {
-		// 对于动态类型，从缓存获取IP
-		cacheKey := helper.GetIPCacheKey(source.Type, source.Value)
-		if ip, ok := tencent.Cache.DynamicIPs[cacheKey]; ok {
-			return ip
-		}
-		// 如果缓存中没有，尝试获取
-		if addr, ok := helper.GetOrSetDynamicIPWithCache(source.Type, source.Value); ok {
-			return addr
-		}
-		helper.Warn(helper.LogTypeDCDN, "无法获取动态源站IP [类型=%s, 值=%s]，使用配置值", source.Type, source.Value)
-	}
-	// 静态类型直接返回配置的值
-	return source.Value
-}
-
 func (tencent *Tencent) createEdgeOne(ZoneId string) {
 	action := "CreateAccelerationDomain"
 	originProtocol := tencent.CDN.Sources[0].Protocol
@@ -561,7 +415,7 @@ func (tencent *Tencent) createEdgeOne(ZoneId string) {
 		"DomainName": tencent.CDN.Domain,
 		"OriginInfo": map[string]interface{}{
 			"OriginType": "IP_DOMAIN",
-			"Origin":     tencent.getSourceContent(&tencent.CDN.Sources[0]),
+			"Origin":     tencent.getSourceAddr(&tencent.CDN.Sources[0]),
 		},
 		"OriginProtocol":  originProtocol,
 		"HttpOriginPort":  httpPort,
@@ -582,12 +436,7 @@ func (tencent *Tencent) createEdgeOne(ZoneId string) {
 		return
 	}
 	if domainInfo != nil {
-		newCname := domainInfo.Cname
-		if newCname != "" && newCname != tencent.CDN.CName {
-			helper.Info(helper.LogTypeDCDN, "获取到 CNAME [域名=%s, CNAME=%s]", tencent.CDN.Domain, newCname)
-			tencent.CDN.CName = newCname
-			tencent.configChanged = true
-		}
+		tencent.updateCnameIfChanged(domainInfo.Cname)
 	}
 }
 func (tencent *Tencent) createCDN() {
@@ -618,12 +467,7 @@ func (tencent *Tencent) createCDN() {
 		return
 	}
 	if domainInfo != nil {
-		newCname := domainInfo.Cname
-		if newCname != "" && newCname != tencent.CDN.CName {
-			helper.Info(helper.LogTypeDCDN, "获取到 CNAME [域名=%s, CNAME=%s]", tencent.CDN.Domain, newCname)
-			tencent.CDN.CName = newCname
-			tencent.configChanged = true
-		}
+		tencent.updateCnameIfChanged(domainInfo.Cname)
 	}
 }
 
@@ -646,30 +490,6 @@ func (tencent *Tencent) modifyCDN() {
 
 	tencent.Status = UpdatedSuccess
 	helper.Info(helper.LogTypeDCDN, "修改腾讯云 %s 源站配置成功 [域名=%s, RequestId=%s]", tencent.getCDNTypeName(), tencent.CDN.Domain, result.Response.RequestId)
-}
-
-// ShouldSendWebhook 判断是否应该发送 webhook
-func (tencent *Tencent) ShouldSendWebhook() bool {
-	// 更新成功，重置失败计数器并发送 webhook
-	if tencent.Status == UpdatedSuccess {
-		tencent.Cache.TimesFailed = 0
-		return true
-	}
-
-	// 只有明确的更新失败才计数
-	if tencent.Status == UpdatedFailed {
-		tencent.Cache.TimesFailed++
-		if tencent.Cache.TimesFailed >= 3 {
-			helper.Warn(helper.LogTypeDCDN, "连续更新失败 %d 次，触发 Webhook 通知 [域名=%s]", tencent.Cache.TimesFailed, tencent.CDN.Domain)
-			tencent.Cache.TimesFailed = 0
-			return true
-		}
-		helper.Warn(helper.LogTypeDCDN, "更新失败，将不会触发 Webhook，仅在连续失败 3 次时触发，当前失败次数：%d [域名=%s]", tencent.Cache.TimesFailed, tencent.CDN.Domain)
-		return false
-	}
-
-	// 其他状态（如 UpdatedNothing、InitGetIPFailed 等）不发送 webhook
-	return false
 }
 
 func (tencent *Tencent) modifyEdgeOne(ZoneId string) {
@@ -699,7 +519,7 @@ func (tencent *Tencent) modifyEdgeOne(ZoneId string) {
 		"DomainName": tencent.CDN.Domain,
 		"OriginInfo": map[string]interface{}{
 			"OriginType": "IP_DOMAIN",
-			"Origin":     tencent.getSourceContent(&tencent.CDN.Sources[0]),
+			"Origin":     tencent.getSourceAddr(&tencent.CDN.Sources[0]),
 		},
 		"OriginProtocol":  originProtocol,
 		"HttpOriginPort":  httpPort,
@@ -720,12 +540,7 @@ func (tencent *Tencent) modifyEdgeOne(ZoneId string) {
 		return
 	}
 	if domainInfo != nil {
-		newCname := domainInfo.Cname
-		if newCname != "" && newCname != tencent.CDN.CName {
-			helper.Info(helper.LogTypeDCDN, "获取到 CNAME [域名=%s, CNAME=%s]", tencent.CDN.Domain, newCname)
-			tencent.CDN.CName = newCname
-			tencent.configChanged = true
-		}
+		tencent.updateCnameIfChanged(domainInfo.Cname)
 	}
 }
 

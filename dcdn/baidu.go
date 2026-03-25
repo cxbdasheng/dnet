@@ -18,28 +18,7 @@ const (
 )
 
 type Baidu struct {
-	CDN           *config.CDN
-	Cache         *Cache
-	Status        statusType
-	configChanged bool // 标记配置是否发生变化（用于触发保存）
-}
-
-func (baidu *Baidu) GetServiceStatus() string {
-	return string(baidu.Status)
-}
-
-func (baidu *Baidu) GetServiceName() string {
-	if baidu.CDN == nil {
-		return ""
-	}
-	if baidu.CDN.Name != "" {
-		return baidu.CDN.Name
-	}
-	return baidu.CDN.Domain
-}
-
-func (baidu *Baidu) ConfigChanged() bool {
-	return baidu.configChanged
+	BaseProvider
 }
 
 // getCDNTypeName 获取 CDN 类型的显示名称
@@ -117,115 +96,14 @@ func (baidu *Baidu) Init(cdnConfig *config.CDN, cache *Cache) {
 // validateConfig 校验 CDN 配置是否有效
 func (baidu *Baidu) validateConfig() bool {
 	if baidu.CDN == nil {
-		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：配置对象为空", baidu.getCDNTypeName())
+		helper.Warn(helper.LogTypeDCDN, "百度云配置校验失败：配置对象为空")
 		return false
 	}
-	// 检查必填的认证信息
-	if baidu.CDN.AccessKey == "" || baidu.CDN.AccessSecret == "" {
-		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：AccessKey 或 AccessSecret 为空 [域名=%s]", baidu.getCDNTypeName(), baidu.CDN.Domain)
-		return false
-	}
-	// 检查域名
-	if baidu.CDN.Domain == "" {
-		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：域名为空", baidu.getCDNTypeName())
-		return false
-	}
-	// 检查源站配置
-	if len(baidu.CDN.Sources) == 0 {
-		helper.Warn(helper.LogTypeDCDN, "%s 配置校验失败：源站配置为空 [域名=%s]", baidu.getCDNTypeName(), baidu.CDN.Domain)
-		return false
-	}
-	return true
+	return baidu.validateBaseConfig("百度云 " + baidu.getCDNTypeName())
 }
 
 func (baidu *Baidu) UpdateOrCreateSources() bool {
-	// 初始化失败则不继续执行
-	if baidu.Status == InitFailed {
-		helper.Warn(helper.LogTypeDCDN, "百度云 %s 更新跳过：初始化失败 [域名=%s]", baidu.getCDNTypeName(), baidu.CDN.Domain)
-		return false
-	}
-
-	helper.Debug(helper.LogTypeDCDN, "开始检查百度云 %s 源站 IP 变化 [域名=%s]", baidu.getCDNTypeName(), baidu.CDN.Domain)
-
-	// 检查动态源的 IP 变化情况
-	changedIPCount := 0
-	for _, source := range baidu.CDN.Sources {
-		// 跳过静态源
-		if !IsDynamicType(source.Type) {
-			continue
-		}
-
-		// 获取动态 IP
-		addr, ok := helper.GetOrSetDynamicIPWithCache(source.Type, source.Value)
-		if !ok {
-			// IP 获取失败，标记状态并终止
-			baidu.Status = InitGetIPFailed
-			helper.Error(helper.LogTypeDCDN, "获取动态 IP 失败 [域名=%s, 源类型=%s, 配置值=%s]",
-				baidu.CDN.Domain, source.Type, source.Value)
-			return false
-		}
-
-		cacheKey := helper.GetIPCacheKey(source.Type, source.Value)
-
-		// 检查 IP 是否发生变化
-		ipChanged, oldIP := baidu.Cache.CheckIPChanged(cacheKey, addr)
-		if ipChanged {
-			// IP 发生变化，更新缓存
-			baidu.Cache.UpdateDynamicIP(cacheKey, addr)
-			changedIPCount++
-			helper.Info(helper.LogTypeDCDN, "检测到源站 IP 变化 [域名=%s, 源类型=%s, 旧IP=%s, 新IP=%s]",
-				baidu.CDN.Domain, source.Type, oldIP, addr)
-		}
-	}
-
-	if changedIPCount > 0 {
-		helper.Info(helper.LogTypeDCDN, "共检测到 %d 个源站 IP 发生变化 [域名=%s]", changedIPCount, baidu.CDN.Domain)
-	} else {
-		helper.Debug(helper.LogTypeDCDN, "未检测到源站 IP 变化 [域名=%s]", baidu.CDN.Domain)
-	}
-
-	// 判断是否需要更新 CDN
-	shouldUpdate := baidu.shouldUpdateCDN(changedIPCount)
-	if shouldUpdate {
-		helper.Info(helper.LogTypeDCDN, "开始更新百度云 %s 配置 [域名=%s, IP变化数=%d, 计数器=%d]",
-			baidu.getCDNTypeName(), baidu.CDN.Domain, changedIPCount, baidu.Cache.Times)
-		baidu.updateOrCreateSite()
-		baidu.Cache.ResetTimes()
-	} else {
-		baidu.Status = UpdatedNothing
-		helper.Debug(helper.LogTypeDCDN, "无需更新 %s 配置 [域名=%s, 计数器剩余=%d]",
-			baidu.getCDNTypeName(), baidu.CDN.Domain, baidu.Cache.Times)
-	}
-	return shouldUpdate
-}
-
-// shouldUpdateCDN 判断是否需要更新 CDN 配置
-func (baidu *Baidu) shouldUpdateCDN(changedIPCount int) bool {
-	// 第一次运行，需要初始化
-	if !baidu.Cache.HasRun {
-		baidu.Cache.HasRun = true
-		helper.Info(helper.LogTypeDCDN, "首次运行，需要初始化百度云 %s 配置 [域名=%s]", baidu.getCDNTypeName(), baidu.CDN.Domain)
-		return true
-	}
-
-	// 有 IP 发生变化，需要更新
-	if changedIPCount > 0 {
-		helper.Info(helper.LogTypeDCDN, "源站 IP 变化，需要更新百度云 %s [域名=%s, 变化数=%d]",
-			baidu.getCDNTypeName(), baidu.CDN.Domain, changedIPCount)
-		return true
-	}
-
-	// 递减计数器
-	baidu.Cache.Times--
-
-	// 计数器归零，需要强制更新
-	if baidu.Cache.Times == 0 {
-		helper.Info(helper.LogTypeDCDN, "计数器归零，强制更新百度云 %s [域名=%s]", baidu.getCDNTypeName(), baidu.CDN.Domain)
-		return true
-	}
-
-	// 无需更新
-	return false
+	return baidu.runUpdateOrCreate("百度云 "+baidu.getCDNTypeName(), baidu.updateOrCreateSite)
 }
 
 func (baidu *Baidu) updateOrCreateSite() {
@@ -239,13 +117,7 @@ func (baidu *Baidu) updateOrCreateSite() {
 
 	// 如果查询到域名信息，保存 CNAME（仅当 CNAME 发生变化时）
 	if domainInfo != nil {
-		newCname := domainInfo.Cname
-		if newCname != "" && newCname != baidu.CDN.CName {
-			helper.Info(helper.LogTypeDCDN, "CNAME 发生变化 [域名=%s, 旧CNAME=%s, 新CNAME=%s]",
-				baidu.CDN.Domain, baidu.CDN.CName, newCname)
-			baidu.CDN.CName = newCname
-			baidu.configChanged = true
-		}
+		baidu.updateCnameIfChanged(domainInfo.Cname)
 	}
 
 	// 根据查询结果判断是创建还是修改
@@ -478,12 +350,7 @@ func (baidu *Baidu) createCDN() {
 		return
 	}
 	if domainInfo != nil {
-		newCname := domainInfo.Cname
-		if newCname != "" && newCname != baidu.CDN.CName {
-			helper.Info(helper.LogTypeDCDN, "获取到 CNAME [域名=%s, CNAME=%s]", baidu.CDN.Domain, newCname)
-			baidu.CDN.CName = newCname
-			baidu.configChanged = true
-		}
+		baidu.updateCnameIfChanged(domainInfo.Cname)
 	}
 }
 
@@ -507,30 +374,6 @@ func (baidu *Baidu) modifyCDN() {
 
 	baidu.Status = UpdatedSuccess
 	helper.Info(helper.LogTypeDCDN, "修改百度云 %s 源站配置成功 [域名=%s]", baidu.getCDNTypeName(), baidu.CDN.Domain)
-}
-
-// ShouldSendWebhook 判断是否应该发送 webhook
-func (baidu *Baidu) ShouldSendWebhook() bool {
-	// 更新成功，重置失败计数器并发送 webhook
-	if baidu.Status == UpdatedSuccess {
-		baidu.Cache.TimesFailed = 0
-		return true
-	}
-
-	// 只有明确的更新失败才计数
-	if baidu.Status == UpdatedFailed {
-		baidu.Cache.TimesFailed++
-		if baidu.Cache.TimesFailed >= 3 {
-			helper.Warn(helper.LogTypeDCDN, "连续更新失败 %d 次，触发 Webhook 通知 [域名=%s]", baidu.Cache.TimesFailed, baidu.CDN.Domain)
-			baidu.Cache.TimesFailed = 0
-			return true
-		}
-		helper.Warn(helper.LogTypeDCDN, "更新失败，将不会触发 Webhook，仅在连续失败 3 次时触发，当前失败次数：%d [域名=%s]", baidu.Cache.TimesFailed, baidu.CDN.Domain)
-		return false
-	}
-
-	// 其他状态（如 UpdatedNothing、InitGetIPFailed 等）不发送 webhook
-	return false
 }
 
 // request 统一请求接口

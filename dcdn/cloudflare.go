@@ -17,30 +17,9 @@ const (
 )
 
 type Cloudflare struct {
-	CDN           *config.CDN
-	Cache         *Cache
-	Status        statusType
-	configChanged bool // 标记配置是否发生变化（用于触发保存）
-	zoneID        string
-	recordID      string
-}
-
-func (cf *Cloudflare) GetServiceStatus() string {
-	return string(cf.Status)
-}
-
-func (cf *Cloudflare) GetServiceName() string {
-	if cf.CDN == nil {
-		return ""
-	}
-	if cf.CDN.Name != "" {
-		return cf.CDN.Name
-	}
-	return cf.CDN.Domain
-}
-
-func (cf *Cloudflare) ConfigChanged() bool {
-	return cf.configChanged
+	BaseProvider
+	zoneID   string
+	recordID string
 }
 
 // CloudflareZone Cloudflare Zone 信息
@@ -140,64 +119,32 @@ func (cf *Cloudflare) validateConfig() bool {
 }
 
 func (cf *Cloudflare) UpdateOrCreateSources() bool {
-	// 初始化失败则不继续执行
 	if cf.Status == InitFailed {
 		helper.Warn(helper.LogTypeDCDN, "Cloudflare 更新跳过：初始化失败 [域名=%s]", cf.CDN.Domain)
 		return false
 	}
-
 	helper.Debug(helper.LogTypeDCDN, "开始检查 Cloudflare 源站 IP 变化 [域名=%s]", cf.CDN.Domain)
 
-	// 检查动态源的 IP 变化情况
-	changedIPCount := 0
-	for _, source := range cf.CDN.Sources {
-		// 跳过静态源
-		if !IsDynamicType(source.Type) {
-			continue
-		}
-
-		// 获取动态 IP
-		addr, ok := helper.GetOrSetDynamicIPWithCache(source.Type, source.Value)
-		if !ok {
-			// IP 获取失败，标记状态并终止
-			cf.Status = InitGetIPFailed
-			helper.Error(helper.LogTypeDCDN, "获取动态 IP 失败 [域名=%s, 源类型=%s, 配置值=%s]",
-				cf.CDN.Domain, source.Type, source.Value)
-			return false
-		}
-
-		cacheKey := helper.GetIPCacheKey(source.Type, source.Value)
-
-		// 检查 IP 是否发生变化
-		ipChanged, oldIP := cf.Cache.CheckIPChanged(cacheKey, addr)
-		if ipChanged {
-			// IP 发生变化，更新缓存
-			cf.Cache.UpdateDynamicIP(cacheKey, addr)
-			changedIPCount++
-			helper.Info(helper.LogTypeDCDN, "检测到源站 IP 变化 [域名=%s, 源类型=%s, 旧IP=%s, 新IP=%s]",
-				cf.CDN.Domain, source.Type, oldIP, addr)
-		}
+	changedIPCount, ok := cf.checkDynamicIPChanges()
+	if !ok {
+		return false
 	}
-
 	if changedIPCount > 0 {
 		helper.Info(helper.LogTypeDCDN, "共检测到 %d 个源站 IP 发生变化 [域名=%s]", changedIPCount, cf.CDN.Domain)
 	} else {
 		helper.Debug(helper.LogTypeDCDN, "未检测到源站 IP 变化 [域名=%s]", cf.CDN.Domain)
 	}
 
-	// 判断是否需要更新 DNS
-	shouldUpdate := cf.shouldUpdateDNS(changedIPCount)
-	if shouldUpdate {
+	if cf.shouldUpdateDNS(changedIPCount) {
 		helper.Info(helper.LogTypeDCDN, "开始更新 Cloudflare DNS 记录 [域名=%s, IP变化数=%d, 计数器=%d]",
 			cf.CDN.Domain, changedIPCount, cf.Cache.Times)
 		cf.updateOrCreateDNSRecord()
 		cf.Cache.ResetTimes()
-	} else {
-		cf.Status = UpdatedNothing
-		helper.Debug(helper.LogTypeDCDN, "无需更新 DNS 记录 [域名=%s, 计数器剩余=%d]",
-			cf.CDN.Domain, cf.Cache.Times)
+		return true
 	}
-	return shouldUpdate
+	cf.Status = UpdatedNothing
+	helper.Debug(helper.LogTypeDCDN, "无需更新 DNS 记录 [域名=%s, 计数器剩余=%d]", cf.CDN.Domain, cf.Cache.Times)
+	return false
 }
 
 // shouldUpdateDNS 判断是否需要更新 DNS 记录
