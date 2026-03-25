@@ -19,16 +19,15 @@ import (
 const huaweiDNSEndpoint = "https://dns.myhuaweicloud.com"
 
 type Huawei struct {
-	Group  *config.DNSGroup
-	Caches []*Cache
+	BaseDNSProvider
 	zoneID string // Zone ID 缓存（同组所有记录共享）
 }
 
 // HuaweiZone 华为云 Zone 结构
 type HuaweiZone struct {
 	ID       string `json:"id"`
-	Name     string `json:"name"`      // 域名
-	ZoneType string `json:"zone_type"` // public/private
+	Name     string `json:"name"`
+	ZoneType string `json:"zone_type"`
 	Email    string `json:"email"`
 	TTL      int    `json:"ttl"`
 	Serial   int    `json:"serial"`
@@ -49,18 +48,18 @@ type HuaweiMetadata struct {
 // HuaweiRecordSet 华为云 DNS 记录集
 type HuaweiRecordSet struct {
 	ID          string   `json:"id"`
-	Name        string   `json:"name"`        // 完整域名 (如 www.example.com.)
-	Description string   `json:"description"` // 描述
-	ZoneID      string   `json:"zone_id"`     // Zone ID
-	ZoneName    string   `json:"zone_name"`   // Zone 名称
-	Type        string   `json:"type"`        // 记录类型 A/AAAA/CNAME/TXT
-	TTL         int      `json:"ttl"`         // TTL 值
-	Records     []string `json:"records"`     // 记录值列表
-	Status      string   `json:"status"`      // 状态
-	Line        string   `json:"line"`        // 解析线路
-	Weight      *int     `json:"weight"`      // 权重
-	CreateAt    string   `json:"create_at"`   // 创建时间
-	UpdateAt    string   `json:"update_at"`   // 更新时间
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	ZoneID      string   `json:"zone_id"`
+	ZoneName    string   `json:"zone_name"`
+	Type        string   `json:"type"`
+	TTL         int      `json:"ttl"`
+	Records     []string `json:"records"`
+	Status      string   `json:"status"`
+	Line        string   `json:"line"`
+	Weight      *int     `json:"weight"`
+	CreateAt    string   `json:"create_at"`
+	UpdateAt    string   `json:"update_at"`
 }
 
 // HuaweiRecordSetsResponse 查询记录集列表响应
@@ -73,30 +72,15 @@ type HuaweiRecordSetsResponse struct {
 // huaweiRecordsByType 按类型分组的华为云记录映射
 type huaweiRecordsByType struct {
 	cnameRecords []HuaweiRecordSet
-	otherRecords map[string]*HuaweiRecordSet // Type -> RecordSet
+	otherRecords map[string]*HuaweiRecordSet
 }
 
-func (h *Huawei) GetServiceName() string {
-	if h.Group == nil {
-		return ""
-	}
-	if h.Group.Name != "" {
-		return h.Group.Name
-	}
-	return h.Group.Domain
-}
-
-// Init 初始化华为云 DDNS（批量处理模式）
+// Init 初始化华为云 DDNS（需额外获取 Zone ID）
 func (h *Huawei) Init(group *config.DNSGroup, caches []*Cache) {
-	h.Group = group
-	h.Caches = caches
-
-	if h.Group.Domain == "" || h.Group.AccessKey == "" || h.Group.AccessSecret == "" {
-		helper.Error(helper.LogTypeDDNS, "[%s] 初始化失败: 配置不完整", h.GetServiceName())
+	if !h.initConfig(group, caches) {
 		return
 	}
 
-	// 获取 Zone ID（同组所有记录共用，只需查询一次）
 	zoneID, err := h.getZoneID()
 	if err != nil {
 		helper.Error(helper.LogTypeDDNS, "[%s] 获取 Zone ID 失败: %v", h.GetServiceName(), err)
@@ -109,60 +93,41 @@ func (h *Huawei) Init(group *config.DNSGroup, caches []*Cache) {
 	}
 }
 
-// UpdateOrCreateRecords 批量更新或创建 DNS 记录（一次查询，处理所有记录）
+// UpdateOrCreateRecords 批量更新或创建 DNS 记录
 func (h *Huawei) UpdateOrCreateRecords() []RecordResult {
-	// 1. 预先过滤有效记录
-	validRecords := make([]validRecord, 0, len(h.Group.Records))
-	cacheIdx := 0
-	for i := range h.Group.Records {
-		if h.Group.Records[i].Value != "" {
-			validRecords = append(validRecords, validRecord{
-				record: &h.Group.Records[i],
-				cache:  h.Caches[cacheIdx],
-			})
-			cacheIdx++
-		}
-	}
-
+	validRecords := filterValidRecords(h.Group, h.Caches)
 	if len(validRecords) == 0 {
 		return []RecordResult{}
 	}
 
-	// 2. 验证配置与 Zone ID
 	if h.Group.Domain == "" || h.Group.AccessKey == "" || h.Group.AccessSecret == "" {
-		return h.createErrorResults(validRecords, InitFailed, "配置不完整")
+		return createErrorResults(validRecords, InitFailed, "配置不完整")
 	}
 	if h.zoneID == "" {
-		return h.createErrorResults(validRecords, InitFailed, "Zone ID 未初始化")
+		return createErrorResults(validRecords, InitFailed, "Zone ID 未初始化")
 	}
 
-	// 3. 一次性查询该子域下的所有 DNS 记录
 	allRecords, err := h.describeAllRecordSets()
 	if err != nil {
 		helper.Error(helper.LogTypeDDNS, "[%s] 查询所有 DNS 记录失败: %v", h.GetServiceName(), err)
-		return h.createErrorResults(validRecords, UpdatedFailed, err.Error())
+		return createErrorResults(validRecords, UpdatedFailed, err.Error())
 	}
 
-	// 4. 将现有记录按类型分组
 	existing := h.parseExistingRecords(allRecords)
 
-	// 5. 逐条处理
 	results := make([]RecordResult, 0, len(validRecords))
 	for _, vr := range validRecords {
-		result := h.processRecord(vr.record, vr.cache, existing)
-		results = append(results, result)
+		results = append(results, h.processRecord(vr.record, vr.cache, existing))
 	}
-
 	return results
 }
 
-// parseExistingRecords 将现有记录按类型分组（只遍历一次）
+// parseExistingRecords 将现有记录按类型分组
 func (h *Huawei) parseExistingRecords(allRecords []HuaweiRecordSet) *huaweiRecordsByType {
 	existing := &huaweiRecordsByType{
 		cnameRecords: make([]HuaweiRecordSet, 0),
 		otherRecords: make(map[string]*HuaweiRecordSet),
 	}
-
 	for i := range allRecords {
 		if allRecords[i].Type == RecordTypeCNAME {
 			existing.cnameRecords = append(existing.cnameRecords, allRecords[i])
@@ -173,89 +138,26 @@ func (h *Huawei) parseExistingRecords(allRecords []HuaweiRecordSet) *huaweiRecor
 			}
 		}
 	}
-
 	return existing
-}
-
-// createErrorResults 创建批量错误结果
-func (h *Huawei) createErrorResults(validRecords []validRecord, status statusType, errMsg string) []RecordResult {
-	results := make([]RecordResult, 0, len(validRecords))
-	for _, vr := range validRecords {
-		results = append(results, RecordResult{
-			RecordType:    vr.record.Type,
-			Status:        status,
-			ShouldWebhook: false,
-			ErrorMessage:  errMsg,
-		})
-	}
-	return results
 }
 
 // processRecord 处理单条 DNS 记录
 func (h *Huawei) processRecord(record *config.DNSRecord, cache *Cache, existing *huaweiRecordsByType) RecordResult {
-	result := RecordResult{
-		RecordType:    record.Type,
-		Status:        UpdatedNothing,
-		ShouldWebhook: false,
-	}
-
 	// 1. 获取当前值
-	var currentValue string
-	var ok bool
-
-	switch record.Type {
-	case RecordTypeA, RecordTypeAAAA:
-		if IsDynamicType(record.IPType) {
-			if record.IPType == helper.DynamicIPv6Interface && record.Regex != "" {
-				currentValue, ok = helper.GetOrSetDynamicIPWithCacheAndRegex(record.IPType, record.Value, record.Regex)
-			} else {
-				currentValue, ok = helper.GetOrSetDynamicIPWithCache(record.IPType, record.Value)
-			}
-			if !ok {
-				result.Status = InitGetIPFailed
-				result.ShouldWebhook = shouldSendWebhook(cache, InitGetIPFailed)
-				result.ErrorMessage = "获取 IP 失败"
-				helper.Error(helper.LogTypeDDNS, "[%s] [%s] 获取 IP 失败", h.GetServiceName(), record.Type)
-				return result
-			}
-		} else {
-			currentValue = record.Value
-		}
-	case RecordTypeCNAME, RecordTypeTXT:
-		currentValue = record.Value
-	default:
-		result.Status = UpdatedFailed
-		result.ErrorMessage = "不支持的记录类型"
-		helper.Error(helper.LogTypeDDNS, "[%s] 不支持的记录类型: %s", h.GetServiceName(), record.Type)
+	currentValue, result, ok := getCurrentValue(h.GetServiceName(), record, cache)
+	if !ok {
 		return result
 	}
 
-	// 2. 检查值是否变化（仅对动态类型检查）
-	if IsDynamicType(record.IPType) {
-		cacheKey := getCacheKey(record.IPType, record.Value, record.Regex)
-		valueChanged, oldValue := cache.CheckIPChanged(cacheKey, currentValue)
-		forceUpdate := cache.Times <= 0
-
-		if !valueChanged && cache.HasRun && !ForceCompareGlobal && !forceUpdate {
-			result.Status = UpdatedNothing
-			result.ShouldWebhook = false
-			cache.Times--
-			helper.Debug(helper.LogTypeDDNS, "[%s] [%s] 值未变化，跳过更新 [当前=%s, 剩余次数=%d]", h.GetServiceName(), record.Type, currentValue, cache.Times)
-			return result
-		}
-
-		if forceUpdate && !valueChanged {
-			helper.Info(helper.LogTypeDDNS, "[%s] [%s] 达到强制更新阈值，执行更新 [值=%s]", h.GetServiceName(), record.Type, currentValue)
-		} else if valueChanged {
-			helper.Info(helper.LogTypeDDNS, "[%s] [%s] 检测到值变化 [旧值=%s, 新值=%s]", h.GetServiceName(), record.Type, oldValue, currentValue)
-		}
+	// 2. 检查缓存
+	if skip, r := checkDynamicCache(h.GetServiceName(), record, cache, currentValue); skip {
+		return r
 	}
 
-	// 3. 处理记录类型变更（特殊处理 CNAME 类型冲突）
+	// 3. 处理记录类型变更
 	var updateErr error
 
 	if record.Type == RecordTypeCNAME {
-		// 删除所有其他类型记录（非 CNAME）
 		if len(existing.otherRecords) > 0 {
 			helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 创建 CNAME 记录前，需要删除该子域下的所有非 CNAME 记录 [数量=%d]", h.GetServiceName(), len(existing.otherRecords))
 			for _, rec := range existing.otherRecords {
@@ -270,12 +172,10 @@ func (h *Huawei) processRecord(record *config.DNSRecord, cache *Cache, existing 
 			}
 		}
 
-		// 更新或创建 CNAME 记录
 		if len(existing.cnameRecords) > 0 {
 			existingCNAME := existing.cnameRecords[0]
 			if len(existingCNAME.Records) == 1 && existingCNAME.Records[0] == currentValue {
 				helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 记录值未变化，无需更新 [RecordID=%s, 值=%s]", h.GetServiceName(), existingCNAME.ID, currentValue)
-				updateErr = nil
 			} else {
 				helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 更新已有 CNAME 记录 [RecordID=%s, 旧值=%v]", h.GetServiceName(), existingCNAME.ID, existingCNAME.Records)
 				updateErr = h.updateRecordSet(existingCNAME.ID, record.Type, currentValue)
@@ -299,7 +199,6 @@ func (h *Huawei) processRecord(record *config.DNSRecord, cache *Cache, existing 
 		if targetRecord != nil {
 			if len(targetRecord.Records) == 1 && targetRecord.Records[0] == currentValue {
 				helper.Info(helper.LogTypeDDNS, "[%s] [%s] 记录值未变化，无需更新 [RecordID=%s, 值=%s]", h.GetServiceName(), record.Type, targetRecord.ID, currentValue)
-				updateErr = nil
 			} else {
 				helper.Info(helper.LogTypeDDNS, "[%s] [%s] 记录已存在 [RecordID=%s, 旧值=%v]", h.GetServiceName(), record.Type, targetRecord.ID, targetRecord.Records)
 				updateErr = h.updateRecordSet(targetRecord.ID, record.Type, currentValue)
@@ -318,26 +217,14 @@ func (h *Huawei) processRecord(record *config.DNSRecord, cache *Cache, existing 
 	}
 
 	// 4. 更新缓存
-	if IsDynamicType(record.IPType) {
-		cacheKey := getCacheKey(record.IPType, record.Value, record.Regex)
-		cache.UpdateDynamicIP(cacheKey, currentValue)
-	}
-
-	cache.HasRun = true
-	cache.TimesFailed = 0
-	cache.ResetTimes()
-	result.Status = UpdatedSuccess
-	result.ShouldWebhook = shouldSendWebhook(cache, UpdatedSuccess)
-
-	helper.Info(helper.LogTypeDDNS, "[%s] [%s] DNS 记录更新成功 [值=%s]", h.GetServiceName(), record.Type, currentValue)
+	finalizeSuccess(h.GetServiceName(), record, cache, currentValue, &result)
 	return result
 }
 
 // getZoneID 获取根域名对应的 Zone ID
 func (h *Huawei) getZoneID() (string, error) {
-	rootDomain := h.getRootDomain()
+	rootDomain := getRootDomain(h.Group.Domain)
 
-	// 华为云 Zone 名称需要带尾部 "."
 	zoneName := rootDomain
 	if !strings.HasSuffix(zoneName, ".") {
 		zoneName += "."
@@ -354,13 +241,11 @@ func (h *Huawei) getZoneID() (string, error) {
 	if len(zonesResp.Zones) == 0 {
 		return "", fmt.Errorf("未找到域名 %s 对应的 Zone", rootDomain)
 	}
-
 	return zonesResp.Zones[0].ID, nil
 }
 
-// describeAllRecordSets 查询指定域名的所有 DNS 记录（所有类型）
+// describeAllRecordSets 查询指定域名的所有 DNS 记录
 func (h *Huawei) describeAllRecordSets() ([]HuaweiRecordSet, error) {
-	// 华为云 DNS 的完整域名需要带尾部 "."
 	fullDomain := h.Group.Domain
 	if !strings.HasSuffix(fullDomain, ".") {
 		fullDomain += "."
@@ -373,7 +258,6 @@ func (h *Huawei) describeAllRecordSets() ([]HuaweiRecordSet, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return recordsResp.Recordsets, nil
 }
 
@@ -475,7 +359,6 @@ func (h *Huawei) request(method, path string, body interface{}, result interface
 
 	uri := req.URL.Path
 	query := req.URL.RawQuery
-
 	signHeaders := map[string]string{
 		"host":         req.URL.Host,
 		"content-type": "application/json",
@@ -494,7 +377,6 @@ func (h *Huawei) request(method, path string, body interface{}, result interface
 		signHeaders,
 		bodyStr,
 	)
-
 	for k, v := range authHeaders {
 		req.Header.Set(k, v)
 	}
@@ -513,7 +395,6 @@ func (h *Huawei) request(method, path string, body interface{}, result interface
 
 	helper.Debug(helper.LogTypeDDNS, "[%s] API 响应 [状态码=%d, 长度=%d]", h.GetServiceName(), resp.StatusCode, len(responseBody))
 
-	// 华为云 API 返回 2xx 表示成功
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		helper.Warn(helper.LogTypeDDNS, "[%s] API 响应状态码异常 [状态码=%d, 响应=%s]", h.GetServiceName(), resp.StatusCode, string(responseBody))
 		return fmt.Errorf("请求失败 [状态码=%d]: %s", resp.StatusCode, string(responseBody))
@@ -526,22 +407,7 @@ func (h *Huawei) request(method, path string, body interface{}, result interface
 			return fmt.Errorf("解析响应失败: %v", err)
 		}
 	}
-
 	return nil
-}
-
-// getRootDomain 获取根域名
-// 例如: www.sub.example.com -> example.com
-func (h *Huawei) getRootDomain() string {
-	domain := h.Group.Domain
-	if strings.HasPrefix(domain, "*.") {
-		domain = domain[2:]
-	}
-	parts := strings.Split(domain, ".")
-	if len(parts) <= 2 {
-		return domain
-	}
-	return parts[len(parts)-2] + "." + parts[len(parts)-1]
 }
 
 // parseTTL 解析 TTL 值（华为云最小值 300 秒）
@@ -575,6 +441,5 @@ func (h *Huawei) parseTTL() int {
 			return ttl * 3600
 		}
 	}
-
 	return 300
 }

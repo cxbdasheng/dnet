@@ -16,8 +16,7 @@ import (
 const cloudflareAPIEndpoint = "https://api.cloudflare.com/client/v4"
 
 type Cloudflare struct {
-	Group  *config.DNSGroup
-	Caches []*Cache
+	BaseDNSProvider
 	zoneID string // Zone ID 缓存（同组所有记录共享）
 }
 
@@ -93,20 +92,10 @@ type CloudflareResultInfo struct {
 // cloudflareRecordsByType 按类型分组的 Cloudflare 记录映射
 type cloudflareRecordsByType struct {
 	cnameRecords []CloudflareDNSRecord
-	otherRecords map[string]*CloudflareDNSRecord // Type -> Record
+	otherRecords map[string]*CloudflareDNSRecord
 }
 
-func (cf *Cloudflare) GetServiceName() string {
-	if cf.Group == nil {
-		return ""
-	}
-	if cf.Group.Name != "" {
-		return cf.Group.Name
-	}
-	return cf.Group.Domain
-}
-
-// Init 初始化 Cloudflare DDNS（批量处理模式）
+// Init 初始化 Cloudflare DDNS（需额外获取 Zone ID，且仅用 AccessKey）
 func (cf *Cloudflare) Init(group *config.DNSGroup, caches []*Cache) {
 	cf.Group = group
 	cf.Caches = caches
@@ -116,7 +105,6 @@ func (cf *Cloudflare) Init(group *config.DNSGroup, caches []*Cache) {
 		return
 	}
 
-	// 获取 Zone ID（同组所有记录共用，只需查询一次）
 	zoneID, err := cf.getZoneID()
 	if err != nil {
 		helper.Error(helper.LogTypeDDNS, "[%s] 获取 Zone ID 失败: %v", cf.GetServiceName(), err)
@@ -129,60 +117,41 @@ func (cf *Cloudflare) Init(group *config.DNSGroup, caches []*Cache) {
 	}
 }
 
-// UpdateOrCreateRecords 批量更新或创建 DNS 记录（一次查询，处理所有记录）
+// UpdateOrCreateRecords 批量更新或创建 DNS 记录
 func (cf *Cloudflare) UpdateOrCreateRecords() []RecordResult {
-	// 1. 预先过滤有效记录
-	validRecords := make([]validRecord, 0, len(cf.Group.Records))
-	cacheIdx := 0
-	for i := range cf.Group.Records {
-		if cf.Group.Records[i].Value != "" {
-			validRecords = append(validRecords, validRecord{
-				record: &cf.Group.Records[i],
-				cache:  cf.Caches[cacheIdx],
-			})
-			cacheIdx++
-		}
-	}
-
+	validRecords := filterValidRecords(cf.Group, cf.Caches)
 	if len(validRecords) == 0 {
 		return []RecordResult{}
 	}
 
-	// 2. 验证配置与 Zone ID
 	if cf.Group.Domain == "" || strings.TrimSpace(cf.Group.AccessKey) == "" {
-		return cf.createErrorResults(validRecords, InitFailed, "配置不完整")
+		return createErrorResults(validRecords, InitFailed, "配置不完整")
 	}
 	if cf.zoneID == "" {
-		return cf.createErrorResults(validRecords, InitFailed, "Zone ID 未初始化")
+		return createErrorResults(validRecords, InitFailed, "Zone ID 未初始化")
 	}
 
-	// 3. 一次性查询该域名下的所有 DNS 记录
 	allRecords, err := cf.getAllDNSRecords()
 	if err != nil {
 		helper.Error(helper.LogTypeDDNS, "[%s] 查询所有 DNS 记录失败: %v", cf.GetServiceName(), err)
-		return cf.createErrorResults(validRecords, UpdatedFailed, err.Error())
+		return createErrorResults(validRecords, UpdatedFailed, err.Error())
 	}
 
-	// 4. 将现有记录按类型分组
 	existing := cf.parseExistingRecords(allRecords)
 
-	// 5. 逐条处理
 	results := make([]RecordResult, 0, len(validRecords))
 	for _, vr := range validRecords {
-		result := cf.processRecord(vr.record, vr.cache, existing)
-		results = append(results, result)
+		results = append(results, cf.processRecord(vr.record, vr.cache, existing))
 	}
-
 	return results
 }
 
-// parseExistingRecords 将现有记录按类型分组（只遍历一次）
+// parseExistingRecords 将现有记录按类型分组
 func (cf *Cloudflare) parseExistingRecords(allRecords []CloudflareDNSRecord) *cloudflareRecordsByType {
 	existing := &cloudflareRecordsByType{
 		cnameRecords: make([]CloudflareDNSRecord, 0),
 		otherRecords: make(map[string]*CloudflareDNSRecord),
 	}
-
 	for i := range allRecords {
 		if allRecords[i].Type == RecordTypeCNAME {
 			existing.cnameRecords = append(existing.cnameRecords, allRecords[i])
@@ -193,89 +162,26 @@ func (cf *Cloudflare) parseExistingRecords(allRecords []CloudflareDNSRecord) *cl
 			}
 		}
 	}
-
 	return existing
-}
-
-// createErrorResults 创建批量错误结果
-func (cf *Cloudflare) createErrorResults(validRecords []validRecord, status statusType, errMsg string) []RecordResult {
-	results := make([]RecordResult, 0, len(validRecords))
-	for _, vr := range validRecords {
-		results = append(results, RecordResult{
-			RecordType:    vr.record.Type,
-			Status:        status,
-			ShouldWebhook: false,
-			ErrorMessage:  errMsg,
-		})
-	}
-	return results
 }
 
 // processRecord 处理单条 DNS 记录
 func (cf *Cloudflare) processRecord(record *config.DNSRecord, cache *Cache, existing *cloudflareRecordsByType) RecordResult {
-	result := RecordResult{
-		RecordType:    record.Type,
-		Status:        UpdatedNothing,
-		ShouldWebhook: false,
-	}
-
 	// 1. 获取当前值
-	var currentValue string
-	var ok bool
-
-	switch record.Type {
-	case RecordTypeA, RecordTypeAAAA:
-		if IsDynamicType(record.IPType) {
-			if record.IPType == helper.DynamicIPv6Interface && record.Regex != "" {
-				currentValue, ok = helper.GetOrSetDynamicIPWithCacheAndRegex(record.IPType, record.Value, record.Regex)
-			} else {
-				currentValue, ok = helper.GetOrSetDynamicIPWithCache(record.IPType, record.Value)
-			}
-			if !ok {
-				result.Status = InitGetIPFailed
-				result.ShouldWebhook = shouldSendWebhook(cache, InitGetIPFailed)
-				result.ErrorMessage = "获取 IP 失败"
-				helper.Error(helper.LogTypeDDNS, "[%s] [%s] 获取 IP 失败", cf.GetServiceName(), record.Type)
-				return result
-			}
-		} else {
-			currentValue = record.Value
-		}
-	case RecordTypeCNAME, RecordTypeTXT:
-		currentValue = record.Value
-	default:
-		result.Status = UpdatedFailed
-		result.ErrorMessage = "不支持的记录类型"
-		helper.Error(helper.LogTypeDDNS, "[%s] 不支持的记录类型: %s", cf.GetServiceName(), record.Type)
+	currentValue, result, ok := getCurrentValue(cf.GetServiceName(), record, cache)
+	if !ok {
 		return result
 	}
 
-	// 2. 检查值是否变化（仅对动态类型检查）
-	if IsDynamicType(record.IPType) {
-		cacheKey := getCacheKey(record.IPType, record.Value, record.Regex)
-		valueChanged, oldValue := cache.CheckIPChanged(cacheKey, currentValue)
-		forceUpdate := cache.Times <= 0
-
-		if !valueChanged && cache.HasRun && !ForceCompareGlobal && !forceUpdate {
-			result.Status = UpdatedNothing
-			result.ShouldWebhook = false
-			cache.Times--
-			helper.Debug(helper.LogTypeDDNS, "[%s] [%s] 值未变化，跳过更新 [当前=%s, 剩余次数=%d]", cf.GetServiceName(), record.Type, currentValue, cache.Times)
-			return result
-		}
-
-		if forceUpdate && !valueChanged {
-			helper.Info(helper.LogTypeDDNS, "[%s] [%s] 达到强制更新阈值，执行更新 [值=%s]", cf.GetServiceName(), record.Type, currentValue)
-		} else if valueChanged {
-			helper.Info(helper.LogTypeDDNS, "[%s] [%s] 检测到值变化 [旧值=%s, 新值=%s]", cf.GetServiceName(), record.Type, oldValue, currentValue)
-		}
+	// 2. 检查缓存
+	if skip, r := checkDynamicCache(cf.GetServiceName(), record, cache, currentValue); skip {
+		return r
 	}
 
-	// 3. 处理记录类型变更（特殊处理 CNAME 类型冲突）
+	// 3. 处理记录类型变更
 	var updateErr error
 
 	if record.Type == RecordTypeCNAME {
-		// 删除所有其他类型记录（非 CNAME）
 		if len(existing.otherRecords) > 0 {
 			helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 创建 CNAME 记录前，需要删除该子域下的所有非 CNAME 记录 [数量=%d]", cf.GetServiceName(), len(existing.otherRecords))
 			for _, rec := range existing.otherRecords {
@@ -290,12 +196,10 @@ func (cf *Cloudflare) processRecord(record *config.DNSRecord, cache *Cache, exis
 			}
 		}
 
-		// 更新或创建 CNAME 记录
 		if len(existing.cnameRecords) > 0 {
 			existingCNAME := existing.cnameRecords[0]
 			if existingCNAME.Content == currentValue {
 				helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 记录值未变化，无需更新 [RecordID=%s, 值=%s]", cf.GetServiceName(), existingCNAME.ID, currentValue)
-				updateErr = nil
 			} else {
 				helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 更新已有 CNAME 记录 [RecordID=%s, 旧值=%s]", cf.GetServiceName(), existingCNAME.ID, existingCNAME.Content)
 				updateErr = cf.updateDNSRecord(existingCNAME.ID, record.Type, currentValue)
@@ -319,7 +223,6 @@ func (cf *Cloudflare) processRecord(record *config.DNSRecord, cache *Cache, exis
 		if targetRecord != nil {
 			if targetRecord.Content == currentValue {
 				helper.Info(helper.LogTypeDDNS, "[%s] [%s] 记录值未变化，无需更新 [RecordID=%s, 值=%s]", cf.GetServiceName(), record.Type, targetRecord.ID, currentValue)
-				updateErr = nil
 			} else {
 				helper.Info(helper.LogTypeDDNS, "[%s] [%s] 记录已存在 [RecordID=%s, 旧值=%s]", cf.GetServiceName(), record.Type, targetRecord.ID, targetRecord.Content)
 				updateErr = cf.updateDNSRecord(targetRecord.ID, record.Type, currentValue)
@@ -338,25 +241,13 @@ func (cf *Cloudflare) processRecord(record *config.DNSRecord, cache *Cache, exis
 	}
 
 	// 4. 更新缓存
-	if IsDynamicType(record.IPType) {
-		cacheKey := getCacheKey(record.IPType, record.Value, record.Regex)
-		cache.UpdateDynamicIP(cacheKey, currentValue)
-	}
-
-	cache.HasRun = true
-	cache.TimesFailed = 0
-	cache.ResetTimes()
-	result.Status = UpdatedSuccess
-	result.ShouldWebhook = shouldSendWebhook(cache, UpdatedSuccess)
-
-	helper.Info(helper.LogTypeDDNS, "[%s] [%s] DNS 记录更新成功 [值=%s]", cf.GetServiceName(), record.Type, currentValue)
+	finalizeSuccess(cf.GetServiceName(), record, cache, currentValue, &result)
 	return result
 }
 
 // getZoneID 获取根域名对应的 Zone ID
 func (cf *Cloudflare) getZoneID() (string, error) {
-	rootDomain := cf.getRootDomain()
-
+	rootDomain := getRootDomain(cf.Group.Domain)
 	helper.Debug(helper.LogTypeDDNS, "[%s] 正在获取 Zone ID [域名=%s, 根域名=%s]", cf.GetServiceName(), cf.Group.Domain, rootDomain)
 
 	var zonesResp CloudflareZonesResponse
@@ -374,11 +265,10 @@ func (cf *Cloudflare) getZoneID() (string, error) {
 	if len(zonesResp.Result) == 0 {
 		return "", fmt.Errorf("未找到域名 %s 对应的 Zone", rootDomain)
 	}
-
 	return zonesResp.Result[0].ID, nil
 }
 
-// getAllDNSRecords 查询指定域名的所有 DNS 记录（所有类型）
+// getAllDNSRecords 查询指定域名的所有 DNS 记录
 func (cf *Cloudflare) getAllDNSRecords() ([]CloudflareDNSRecord, error) {
 	helper.Debug(helper.LogTypeDDNS, "[%s] 正在查询所有 DNS 记录 [域名=%s]", cf.GetServiceName(), cf.Group.Domain)
 
@@ -393,7 +283,6 @@ func (cf *Cloudflare) getAllDNSRecords() ([]CloudflareDNSRecord, error) {
 		}
 		return nil, fmt.Errorf("查询 DNS 记录失败")
 	}
-
 	return recordsResp.Result, nil
 }
 
@@ -404,7 +293,7 @@ func (cf *Cloudflare) createDNSRecord(recordType, content string) error {
 		"name":    cf.Group.Domain,
 		"content": content,
 		"ttl":     cf.parseTTL(),
-		"proxied": false, // DDNS 不开启代理
+		"proxied": false,
 	}
 
 	var recordResp CloudflareDNSRecordResponse
@@ -527,28 +416,13 @@ func (cf *Cloudflare) request(method, urlPath string, body interface{}, result i
 		helper.Debug(helper.LogTypeDDNS, "[%s] 响应内容: %s", cf.GetServiceName(), string(responseBody))
 		return fmt.Errorf("解析响应失败: %v", err)
 	}
-
 	return nil
-}
-
-// getRootDomain 获取根域名
-// 例如: www.sub.example.com -> example.com
-func (cf *Cloudflare) getRootDomain() string {
-	domain := cf.Group.Domain
-	if strings.HasPrefix(domain, "*.") {
-		domain = domain[2:]
-	}
-	parts := strings.Split(domain, ".")
-	if len(parts) <= 2 {
-		return domain
-	}
-	return parts[len(parts)-2] + "." + parts[len(parts)-1]
 }
 
 // parseTTL 解析 TTL 值（Cloudflare TTL=1 表示自动，自定义最小值 60）
 func (cf *Cloudflare) parseTTL() int {
 	if cf.Group.TTL == "" || cf.Group.TTL == "AUTO" {
-		return 1 // Cloudflare 的 1 表示自动 TTL
+		return 1
 	}
 
 	if ttl, err := strconv.Atoi(cf.Group.TTL); err == nil {
@@ -572,6 +446,5 @@ func (cf *Cloudflare) parseTTL() int {
 			return ttl * 3600
 		}
 	}
-
 	return 1
 }
