@@ -148,6 +148,7 @@ func (cf *Cloudflare) UpdateOrCreateSources() bool {
 }
 
 // shouldUpdateDNS 判断是否需要更新 DNS 记录
+// 计数器归零的强制更新仅对含动态源站的配置生效
 func (cf *Cloudflare) shouldUpdateDNS(changedIPCount int) bool {
 	// 第一次运行，需要初始化
 	if !cf.Cache.HasRun {
@@ -161,6 +162,11 @@ func (cf *Cloudflare) shouldUpdateDNS(changedIPCount int) bool {
 		helper.Info(helper.LogTypeDCDN, "源站 IP 变化，需要更新 DNS 记录 [域名=%s, 变化数=%d]",
 			cf.CDN.Domain, changedIPCount)
 		return true
+	}
+
+	// 非动态类型源站不进行计数器强制更新
+	if !cf.hasDynamicSources() {
+		return false
 	}
 
 	// 递减计数器

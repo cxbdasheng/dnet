@@ -61,7 +61,6 @@ type AliyunDomainInfo struct {
 	DomainStatus       string `json:"DomainStatus"`
 }
 
-// 实现 DomainInfo 接口
 func (d *AliyunDomainInfo) GetDomainName() string {
 	return d.DomainName
 }

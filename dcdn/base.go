@@ -79,7 +79,18 @@ func (b *BaseProvider) checkDynamicIPChanges() (int, bool) {
 	return changedIPCount, true
 }
 
+// hasDynamicSources 判断是否包含动态类型的源站
+func (b *BaseProvider) hasDynamicSources() bool {
+	for _, source := range b.CDN.Sources {
+		if IsDynamicType(source.Type) {
+			return true
+		}
+	}
+	return false
+}
+
 // shouldUpdate 判断是否需要更新配置（首次运行、IP 变化、计数器归零）
+// 计数器归零的强制更新仅对含动态源站的配置生效
 func (b *BaseProvider) shouldUpdate(providerName string, changedIPCount int) bool {
 	if !b.Cache.HasRun {
 		b.Cache.HasRun = true
@@ -89,6 +100,9 @@ func (b *BaseProvider) shouldUpdate(providerName string, changedIPCount int) boo
 	if changedIPCount > 0 {
 		helper.Info(helper.LogTypeDCDN, "源站 IP 变化，需要更新 %s [域名=%s, 变化数=%d]", providerName, b.CDN.Domain, changedIPCount)
 		return true
+	}
+	if !b.hasDynamicSources() {
+		return false
 	}
 	b.Cache.Times--
 	if b.Cache.Times == 0 {
