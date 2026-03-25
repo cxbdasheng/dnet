@@ -255,17 +255,9 @@ func (h *Huawei) processRecord(record *config.DNSRecord, cache *Cache, existing 
 	var updateErr error
 
 	if record.Type == RecordTypeCNAME {
-		totalRecords := len(existing.cnameRecords) + len(existing.otherRecords)
-		if totalRecords > 0 {
-			helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 创建 CNAME 记录前，需要删除该子域下的所有现有记录 [数量=%d]", h.GetServiceName(), totalRecords)
-
-			if deleteErr := h.deleteRecordSets(existing.cnameRecords, "CNAME"); deleteErr != nil {
-				result.Status = UpdatedFailed
-				result.ErrorMessage = deleteErr.Error()
-				result.ShouldWebhook = shouldSendWebhook(cache, UpdatedFailed)
-				return result
-			}
-
+		// 删除所有其他类型记录（非 CNAME）
+		if len(existing.otherRecords) > 0 {
+			helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 创建 CNAME 记录前，需要删除该子域下的所有非 CNAME 记录 [数量=%d]", h.GetServiceName(), len(existing.otherRecords))
 			for _, rec := range existing.otherRecords {
 				if deleteErr := h.deleteRecordSet(rec.ID); deleteErr != nil {
 					result.Status = UpdatedFailed
@@ -278,8 +270,20 @@ func (h *Huawei) processRecord(record *config.DNSRecord, cache *Cache, existing 
 			}
 		}
 
-		helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 创建新的 CNAME 记录", h.GetServiceName())
-		updateErr = h.createRecordSet(record.Type, currentValue)
+		// 更新或创建 CNAME 记录
+		if len(existing.cnameRecords) > 0 {
+			existingCNAME := existing.cnameRecords[0]
+			if len(existingCNAME.Records) == 1 && existingCNAME.Records[0] == currentValue {
+				helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 记录值未变化，无需更新 [RecordID=%s, 值=%s]", h.GetServiceName(), existingCNAME.ID, currentValue)
+				updateErr = nil
+			} else {
+				helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 更新已有 CNAME 记录 [RecordID=%s, 旧值=%v]", h.GetServiceName(), existingCNAME.ID, existingCNAME.Records)
+				updateErr = h.updateRecordSet(existingCNAME.ID, record.Type, currentValue)
+			}
+		} else {
+			helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 创建新的 CNAME 记录", h.GetServiceName())
+			updateErr = h.createRecordSet(record.Type, currentValue)
+		}
 	} else {
 		if len(existing.cnameRecords) > 0 {
 			helper.Info(helper.LogTypeDDNS, "[%s] [%s] 创建 %s 记录前，检测到 CNAME 记录，需要删除 [数量=%d]", h.GetServiceName(), record.Type, record.Type, len(existing.cnameRecords))

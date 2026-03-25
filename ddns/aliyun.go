@@ -239,20 +239,9 @@ func (a *Aliyun) processRecord(record *config.DNSRecord, cache *Cache, existing 
 
 	// 如果目标类型是 CNAME，需要先删除该子域下的所有其他类型记录
 	if record.Type == RecordTypeCNAME {
-		// 计算需要删除的记录数
-		totalRecords := len(existing.cnameRecords) + len(existing.otherRecords)
-		if totalRecords > 0 {
-			helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 创建 CNAME 记录前，需要删除该子域下的所有现有记录 [数量=%d]", a.GetServiceName(), totalRecords)
-
-			// 删除所有 CNAME 记录
-			if deleteErr := a.deleteRecords(existing.cnameRecords, "CNAME"); deleteErr != nil {
-				result.Status = UpdatedFailed
-				result.ErrorMessage = deleteErr.Error()
-				result.ShouldWebhook = shouldSendWebhook(cache, UpdatedFailed)
-				return result
-			}
-
-			// 删除所有其他类型记录
+		// 删除所有其他类型记录（非 CNAME）
+		if len(existing.otherRecords) > 0 {
+			helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 创建 CNAME 记录前，需要删除该子域下的所有非 CNAME 记录 [数量=%d]", a.GetServiceName(), len(existing.otherRecords))
 			for _, rec := range existing.otherRecords {
 				if deleteErr := a.deleteDomainRecord(rec.RecordId); deleteErr != nil {
 					result.Status = UpdatedFailed
@@ -265,9 +254,20 @@ func (a *Aliyun) processRecord(record *config.DNSRecord, cache *Cache, existing 
 			}
 		}
 
-		// 删除后创建新的 CNAME 记录
-		helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 创建新的 CNAME 记录", a.GetServiceName())
-		updateErr = a.addDomainRecord(record.Type, currentValue)
+		// 更新或创建 CNAME 记录
+		if len(existing.cnameRecords) > 0 {
+			existingCNAME := existing.cnameRecords[0]
+			if existingCNAME.Value == currentValue {
+				helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 记录值未变化，无需更新 [RecordId=%s, 值=%s]", a.GetServiceName(), existingCNAME.RecordId, currentValue)
+				updateErr = nil
+			} else {
+				helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 更新已有 CNAME 记录 [RecordId=%s, 旧值=%s]", a.GetServiceName(), existingCNAME.RecordId, existingCNAME.Value)
+				updateErr = a.updateDomainRecord(existingCNAME.RecordId, record.Type, currentValue)
+			}
+		} else {
+			helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 创建新的 CNAME 记录", a.GetServiceName())
+			updateErr = a.addDomainRecord(record.Type, currentValue)
+		}
 	} else {
 		// 创建非 CNAME 类型记录，需要确保同子域下没有 CNAME 记录
 		if len(existing.cnameRecords) > 0 {
