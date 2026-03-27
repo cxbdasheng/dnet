@@ -373,3 +373,47 @@ func BenchmarkIsDynamicType(b *testing.B) {
 		IsDynamicType("dynamic_ipv4_url")
 	}
 }
+
+// TestIsDomainType 测试域名类型判断
+func TestIsDomainType(t *testing.T) {
+	tests := []struct {
+		name       string
+		sourceType string
+		want       bool
+	}{
+		{
+			name:       "domain 类型",
+			sourceType: "domain",
+			want:       true,
+		},
+		{
+			name:       "静态类型",
+			sourceType: "static",
+			want:       false,
+		},
+		{
+			name:       "动态类型",
+			sourceType: "dynamic_ipv4_url",
+			want:       false,
+		},
+		{
+			name:       "空字符串",
+			sourceType: "",
+			want:       false,
+		},
+		{
+			name:       "大写 DOMAIN",
+			sourceType: "DOMAIN",
+			want:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsDomainType(tt.sourceType)
+			if got != tt.want {
+				t.Errorf("IsDomainType(%q) = %v, want %v", tt.sourceType, got, tt.want)
+			}
+		})
+	}
+}

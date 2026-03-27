@@ -316,3 +316,118 @@ func TestRestoreSensitiveFields_MultipleConfigs(t *testing.T) {
 		t.Errorf("CDN-2 AccessSecret = %q, want %q", result.DCDN[1].AccessSecret, "NewSecret1234567890AbCdEfGh12")
 	}
 }
+
+// TestRestoreSensitiveFields_DomainChange 测试域名修改时 CName 被清空
+func TestRestoreSensitiveFields_DomainChange(t *testing.T) {
+	newConf := DCDNConfig{
+		DCDNEnabled: true,
+		DCDN: []CDN{
+			{
+				ID:     "cdn-1",
+				Domain: "new.example.com", // 修改了域名
+				CName:  "old-cname.cdn.example.com",
+			},
+		},
+	}
+	oldConf := DCDNConfig{
+		DCDNEnabled: true,
+		DCDN: []CDN{
+			{
+				ID:     "cdn-1",
+				Domain: "old.example.com",
+				CName:  "old-cname.cdn.example.com",
+			},
+		},
+	}
+
+	result := RestoreSensitiveFields(newConf, oldConf)
+
+	if result.DCDN[0].CName != "" {
+		t.Errorf("域名变化后 CName 应被清空, got %q", result.DCDN[0].CName)
+	}
+}
+
+// TestRestoreSensitiveFields_DomainUnchanged 测试域名未修改时 CName 保持不变
+func TestRestoreSensitiveFields_DomainUnchanged(t *testing.T) {
+	newConf := DCDNConfig{
+		DCDNEnabled: true,
+		DCDN: []CDN{
+			{
+				ID:     "cdn-1",
+				Domain: "same.example.com",
+				CName:  "cname.cdn.example.com",
+			},
+		},
+	}
+	oldConf := DCDNConfig{
+		DCDNEnabled: true,
+		DCDN: []CDN{
+			{
+				ID:     "cdn-1",
+				Domain: "same.example.com",
+				CName:  "cname.cdn.example.com",
+			},
+		},
+	}
+
+	result := RestoreSensitiveFields(newConf, oldConf)
+
+	if result.DCDN[0].CName != "cname.cdn.example.com" {
+		t.Errorf("域名未变化时 CName 应保持不变, got %q", result.DCDN[0].CName)
+	}
+}
+
+// TestCDNGetRootDomain 测试获取根域名
+func TestCDNGetRootDomain(t *testing.T) {
+	tests := []struct {
+		name     string
+		domain   string
+		expected string
+	}{
+		{
+			name:     "空域名",
+			domain:   "",
+			expected: "",
+		},
+		{
+			name:     "二级域名",
+			domain:   "example.com",
+			expected: "example.com",
+		},
+		{
+			name:     "三级域名",
+			domain:   "test.example.com",
+			expected: "example.com",
+		},
+		{
+			name:     "四级域名",
+			domain:   "cdn.test.example.com",
+			expected: "example.com",
+		},
+		{
+			name:     "五级域名",
+			domain:   "a.b.c.example.com",
+			expected: "example.com",
+		},
+		{
+			name:     "单段域名-视为根域名",
+			domain:   "localhost",
+			expected: "localhost",
+		},
+		{
+			name:     "带连字符的域名",
+			domain:   "my-cdn.example-test.com",
+			expected: "example-test.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cdn := &CDN{Domain: tt.domain}
+			result := cdn.GetRootDomain()
+			if result != tt.expected {
+				t.Errorf("GetRootDomain(%q) = %q, want %q", tt.domain, result, tt.expected)
+			}
+		})
+	}
+}
