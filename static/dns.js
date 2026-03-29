@@ -29,4 +29,10 @@ const DNS_PROVIDERS = {
         secretLabel: "Secret Access Key：",
         idHelpHtml: "<a target='_blank' href='https://console.huaweicloud.com/iam/#/mine/accessKey'>创建访问密钥</a>",
     },
+    dnspod: {
+        name: "DNSPod",
+        idLabel: "Token ID：",
+        secretLabel: "Token：",
+        idHelpHtml: "<a target='_blank' href='https://console.dnspod.cn/account/token/token'>创建 DNSPod Token</a>",
+    },
 }

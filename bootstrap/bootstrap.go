@@ -72,6 +72,8 @@ func ProcessDCDNServices(conf *config.Config) {
 			cdnSelected = &dcdn.Tencent{}
 		case "cloudflare":
 			cdnSelected = &dcdn.Cloudflare{}
+		//case "upyun":
+		//	cdnSelected = &dcdn.Upyun{}
 		default:
 			cdnSelected = &dcdn.Aliyun{}
 		}
@@ -160,6 +162,8 @@ func ProcessDDNSServices(conf *config.Config) {
 			dnsSelected = &ddns.Huawei{}
 		case ddns.ProviderBaiduCloud:
 			dnsSelected = &ddns.Baidu{}
+		case ddns.ProviderDnspod:
+			dnsSelected = &ddns.Dnspod{}
 		default:
 			helper.Warn(helper.LogTypeDDNS, "不支持的 DNS 提供商: %s，跳过", group.Service)
 			continue
