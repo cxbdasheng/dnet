@@ -164,6 +164,8 @@ func ProcessDDNSServices(conf *config.Config) {
 			dnsSelected = &ddns.Baidu{}
 		case ddns.ProviderDnspod:
 			dnsSelected = &ddns.Dnspod{}
+		case ddns.ProviderNameSilo:
+			dnsSelected = &ddns.NameSilo{}
 		default:
 			helper.Warn(helper.LogTypeDDNS, "不支持的 DNS 提供商: %s，跳过", group.Service)
 			continue

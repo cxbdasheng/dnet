@@ -35,4 +35,10 @@ const DNS_PROVIDERS = {
         secretLabel: "Token：",
         idHelpHtml: "<a target='_blank' href='https://console.dnspod.cn/account/token/token'>创建 DNSPod Token</a>",
     },
+    namesilo: {
+        name: "NameSilo",
+        idLabel: "",
+        secretLabel: "API Key：",
+        idHelpHtml: "<a target='_blank' href='https://www.namesilo.com/account/api-manager'>获取 NameSilo API Key</a>",
+    },
 }

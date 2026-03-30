@@ -28,6 +28,7 @@ const (
 	ProviderCloudflare = "cloudflare" // Cloudflare DNS
 	ProviderHuawei     = "huawei"     // 华为云 DNS
 	ProviderDnspod     = "dnspod"     // DNSPod DNS
+	ProviderNameSilo   = "namesilo"   // NameSilo DNS
 )
 
 var dynamicTypes = map[string]bool{
