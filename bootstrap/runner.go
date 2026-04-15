@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cxbdasheng/dnet/config"
@@ -11,46 +12,86 @@ import (
 	"github.com/cxbdasheng/dnet/helper"
 )
 
-var DCDNCaches []dcdn.Cache
-var DDNSCaches []ddns.Cache
+// Runner serializes sync work and keeps cache state local to the instance.
+type Runner struct {
+	repo       config.Repository
+	mu         sync.Mutex
+	dcdnCaches []dcdn.Cache
+	ddnsCaches []ddns.Cache
+}
 
-func RunTimer(delay time.Duration) {
+func NewRunner(repo config.Repository) *Runner {
+	return &Runner{repo: repo}
+}
+
+func (r *Runner) RunTimer(delay time.Duration) {
 	for {
-		RunOnce()
+		r.RunOnce()
 		time.Sleep(delay)
 	}
 }
-func RunOnce() {
-	conf, err := config.GetConfigCached()
+
+func (r *Runner) RunOnce() {
+	conf, err := r.repo.Load()
 	if err != nil {
 		return
 	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	helper.ClearGlobalIPCache()
-	// 处理 DCDN 服务
-	ProcessDCDNServices(&conf)
-	// 处理 DDNS 服务
-	ProcessDDNSServices(&conf)
+	r.processDCDNServices(&conf)
+	r.processDDNSServices(&conf)
 }
 
-// ProcessDCDNServices 处理 DCDN 服务
-func ProcessDCDNServices(conf *config.Config) {
-	// 未开启 DCND 功能，直接返回
+func (r *Runner) SyncDCDNOnce() {
+	conf, err := r.repo.Load()
+	if err != nil {
+		helper.Error(helper.LogTypeDCDN, "加载配置失败: %v", err)
+		return
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.processDCDNServices(&conf)
+}
+
+func (r *Runner) SyncDDNSOnce() {
+	conf, err := r.repo.Load()
+	if err != nil {
+		helper.Error(helper.LogTypeDDNS, "加载配置失败: %v", err)
+		return
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.processDDNSServices(&conf)
+}
+
+func (r *Runner) TriggerDCDNSyncAsync() {
+	go r.SyncDCDNOnce()
+}
+
+func (r *Runner) TriggerDDNSSyncAsync() {
+	go r.SyncDDNSOnce()
+}
+
+func (r *Runner) processDCDNServices(conf *config.Config) {
 	if !conf.DCDNConfig.DCDNEnabled {
 		return
 	}
-	if dcdn.ForceCompareGlobal || len(conf.DCDNConfig.DCDN) != len(DCDNCaches) {
-		DCDNCaches = []dcdn.Cache{}
+	if dcdn.ForceCompareGlobal || len(conf.DCDNConfig.DCDN) != len(r.dcdnCaches) {
+		r.dcdnCaches = []dcdn.Cache{}
 		for range conf.DCDNConfig.DCDN {
-			DCDNCaches = append(DCDNCaches, dcdn.NewCache())
+			r.dcdnCaches = append(r.dcdnCaches, dcdn.NewCache())
 		}
 	}
 	configChanged := false
 	for i := range conf.DCDNConfig.DCDN {
-		// 过滤空配置：跳过域名为空或没有有效源站的配置
 		if conf.DCDNConfig.DCDN[i].Domain == "" {
 			continue
 		}
-		// 检查是否有至少一个有效的源站
 		hasValidSource := false
 		for _, source := range conf.DCDNConfig.DCDN[i].Sources {
 			if source.Value != "" {
@@ -72,24 +113,22 @@ func ProcessDCDNServices(conf *config.Config) {
 			cdnSelected = &dcdn.Tencent{}
 		case "cloudflare":
 			cdnSelected = &dcdn.Cloudflare{}
-		//case "upyun":
-		//	cdnSelected = &dcdn.Upyun{}
+		case "upyun":
+			cdnSelected = &dcdn.Upyun{}
 		default:
 			cdnSelected = &dcdn.Aliyun{}
 		}
-		cdnSelected.Init(&conf.DCDNConfig.DCDN[i], &DCDNCaches[i])
+		cdnSelected.Init(&conf.DCDNConfig.DCDN[i], &r.dcdnCaches[i])
 		cdnSelected.UpdateOrCreateSources()
 		if conf.WebhookEnabled && cdnSelected.ShouldSendWebhook() {
 			config.ExecWebhook(&conf.Webhook, string(helper.LogTypeDCDN), cdnSelected.GetServiceName(), cdnSelected.GetServiceStatus())
 		}
-		// 检查配置是否发生变化
 		if cdnSelected.ConfigChanged() {
 			configChanged = true
 		}
 	}
-	// 如果有配置变化，保存到文件
 	if configChanged {
-		if err := conf.SaveConfig(); err != nil {
+		if err := r.repo.Save(conf); err != nil {
 			helper.Error(helper.LogTypeDCDN, "保存配置文件失败 [错误=%v]", err)
 		} else {
 			helper.Info(helper.LogTypeDCDN, "配置文件已保存（CNAME 已更新）")
@@ -98,59 +137,47 @@ func ProcessDCDNServices(conf *config.Config) {
 	dcdn.ForceCompareGlobal = false
 }
 
-// ProcessDDNSServices 处理 DDNS 服务
-func ProcessDDNSServices(conf *config.Config) {
-	// 未开启 DDNS 功能，直接返回
+func (r *Runner) processDDNSServices(conf *config.Config) {
 	if !conf.DDNSConfig.DDNSEnabled {
 		return
 	}
 
-	// 计算总记录数（所有配置组的所有记录）
 	totalRecords := 0
 	for _, group := range conf.DDNSConfig.DDNS {
 		totalRecords += len(group.Records)
 	}
 
-	// 初始化或重置缓存
-	if ddns.ForceCompareGlobal || totalRecords != len(DDNSCaches) {
-		DDNSCaches = make([]ddns.Cache, totalRecords)
-		for i := range DDNSCaches {
-			DDNSCaches[i] = ddns.NewCache()
+	if ddns.ForceCompareGlobal || totalRecords != len(r.ddnsCaches) {
+		r.ddnsCaches = make([]ddns.Cache, totalRecords)
+		for i := range r.ddnsCaches {
+			r.ddnsCaches[i] = ddns.NewCache()
 		}
 	}
 
 	cacheIndex := 0
 	for groupIdx := range conf.DDNSConfig.DDNS {
 		group := &conf.DDNSConfig.DDNS[groupIdx]
-
-		// 过滤空配置：跳过域名为空的配置组
 		if group.Domain == "" {
 			continue
 		}
 
-		// 过滤空记录（跳过 Value 为空的记录）
 		validRecordsCount := 0
 		for _, record := range group.Records {
 			if record.Value != "" {
 				validRecordsCount++
 			}
 		}
-
-		// 如果没有有效记录，跳过整个配置组
 		if validRecordsCount == 0 {
 			continue
 		}
 
-		// 为该配置组分配缓存（每条有效记录一个缓存）
 		groupCaches := make([]*ddns.Cache, validRecordsCount)
 		for i := 0; i < validRecordsCount; i++ {
-			groupCaches[i] = &DDNSCaches[cacheIndex+i]
+			groupCaches[i] = &r.ddnsCaches[cacheIndex+i]
 		}
 		cacheIndex += validRecordsCount
 
 		var dnsSelected ddns.DNS
-
-		// 根据服务提供商选择对应的实现
 		switch group.Service {
 		case ddns.ProviderAliDNS:
 			dnsSelected = &ddns.Aliyun{}
@@ -171,13 +198,9 @@ func ProcessDDNSServices(conf *config.Config) {
 			continue
 		}
 
-		// 初始化 DNS 服务（传入整个配置组和对应的缓存数组）
 		dnsSelected.Init(group, groupCaches)
-
-		// 批量更新或创建 DNS 记录（一次查询，处理所有记录）
 		results := dnsSelected.UpdateOrCreateRecords()
 
-		// 统计需要发送 Webhook 的记录，合并为一条通知
 		if conf.WebhookEnabled {
 			needWebhook := false
 			successCount := 0
@@ -196,7 +219,6 @@ func ProcessDDNSServices(conf *config.Config) {
 				}
 			}
 
-			// 如果有需要通知的记录，发送一条合并的 Webhook
 			if needWebhook {
 				var status string
 				if failedCount > 0 {

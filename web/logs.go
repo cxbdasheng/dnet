@@ -11,12 +11,12 @@ import (
 //go:embed logs.html
 var logsEmbedFile embed.FS
 
-func Logs(writer http.ResponseWriter, request *http.Request) {
+func (s *Server) Logs(writer http.ResponseWriter, request *http.Request) {
 	switch request.Method {
 	case http.MethodGet:
-		handleLogsGet(writer, request)
+		s.handleLogsGet(writer, request)
 	case http.MethodDelete:
-		handleLogsAPIDelete(writer, request)
+		s.handleLogsAPIDelete(writer, request)
 	default:
 		helper.ReturnError(writer, "不支持的请求方法")
 		return
@@ -29,7 +29,7 @@ type LogsPageData struct {
 	TotalCount int               // 日志总数
 }
 
-func handleLogsGet(writer http.ResponseWriter, request *http.Request) {
+func (s *Server) handleLogsGet(writer http.ResponseWriter, request *http.Request) {
 	tmpl, err := template.ParseFS(logsEmbedFile, "logs.html")
 	if err != nil {
 		helper.Error(helper.LogTypeSystem, "解析日志页面模板失败: %v", err)
@@ -54,7 +54,7 @@ func handleLogsGet(writer http.ResponseWriter, request *http.Request) {
 }
 
 // handleLogsAPIDelete 清空日志
-func handleLogsAPIDelete(writer http.ResponseWriter, request *http.Request) {
+func (s *Server) handleLogsAPIDelete(writer http.ResponseWriter, request *http.Request) {
 	memLogger := helper.GetLogger()
 
 	// 记录清空前的日志数量
@@ -71,7 +71,7 @@ func handleLogsAPIDelete(writer http.ResponseWriter, request *http.Request) {
 }
 
 // LogsCount 获取日志数量和最新日志
-func LogsCount(writer http.ResponseWriter, request *http.Request) {
+func (s *Server) LogsCount(writer http.ResponseWriter, request *http.Request) {
 	if request.Method != http.MethodGet {
 		helper.ReturnError(writer, "不支持的请求方法")
 		return

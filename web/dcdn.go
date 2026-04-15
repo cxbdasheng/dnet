@@ -7,27 +7,25 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cxbdasheng/dnet/bootstrap"
 	"github.com/cxbdasheng/dnet/config"
-	"github.com/cxbdasheng/dnet/dcdn"
 	"github.com/cxbdasheng/dnet/helper"
 )
 
 //go:embed dcdn.html
 var DCDNEmbedFile embed.FS
 
-func DCDN(writer http.ResponseWriter, request *http.Request) {
+func (s *Server) DCDN(writer http.ResponseWriter, request *http.Request) {
 	switch request.Method {
 	case http.MethodGet:
-		handleDCDNGet(writer, request)
+		s.handleDCDNGet(writer, request)
 	case http.MethodPost:
-		handleDCDNPost(writer, request)
+		s.handleDCDNPost(writer, request)
 	default:
 		helper.ReturnError(writer, "不支持的请求方法")
 		return
 	}
 }
-func handleDCDNGet(writer http.ResponseWriter, request *http.Request) {
+func (s *Server) handleDCDNGet(writer http.ResponseWriter, request *http.Request) {
 	tmpl, err := template.ParseFS(DCDNEmbedFile, "dcdn.html")
 	if err != nil {
 		helper.Error(helper.LogTypeDCDN, "解析模板失败: %v", err)
@@ -35,7 +33,7 @@ func handleDCDNGet(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	conf, err := config.GetConfigCached()
+	conf, err := s.configRepo.Load()
 	if err != nil {
 		helper.Warn(helper.LogTypeDCDN, "获取配置失败: %v", err)
 		// 使用默认配置
@@ -70,7 +68,7 @@ func handleDCDNGet(writer http.ResponseWriter, request *http.Request) {
 	}
 }
 
-func handleDCDNPost(writer http.ResponseWriter, request *http.Request) {
+func (s *Server) handleDCDNPost(writer http.ResponseWriter, request *http.Request) {
 	var configData config.DCDNConfig
 	if err := json.NewDecoder(request.Body).Decode(&configData); err != nil {
 		helper.Error(helper.LogTypeDCDN, "请求解析失败: %v", err)
@@ -78,7 +76,7 @@ func handleDCDNPost(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	conf, err := config.GetConfigCached()
+	conf, err := s.configRepo.Load()
 	if err != nil {
 		helper.Error(helper.LogTypeDCDN, "获取配置失败: %v", err)
 		helper.ReturnError(writer, "获取配置失败")
@@ -92,35 +90,25 @@ func handleDCDNPost(writer http.ResponseWriter, request *http.Request) {
 	conf.DCDNConfig = configData
 
 	// 保存用户提交的配置
-	if err := conf.SaveConfig(); err != nil {
+	if err := s.configRepo.Save(&conf); err != nil {
 		helper.Error(helper.LogTypeDCDN, "保存配置失败: %v", err)
 		helper.ReturnError(writer, "保存配置失败")
 		return
 	}
 
-	// 然后异步获取并更新 CNAME（如果有变化会再保存一次）
-	dcdn.ForceCompareGlobal = true
-	go func() {
-		// 重新加载最新配置，避免使用旧的缓存
-		freshConf, err := config.GetConfigCached()
-		if err != nil {
-			helper.Error(helper.LogTypeDCDN, "加载配置失败: %v", err)
-			return
-		}
-		bootstrap.ProcessDCDNServices(&freshConf)
-	}()
+	s.syncer.TriggerDCDNSyncAsync()
 
 	helper.ReturnSuccess(writer, "配置保存成功", nil)
 }
 
 // DCDNConfigAPI 返回 DCDN 配置的 JSON 数据
-func DCDNConfigAPI(writer http.ResponseWriter, request *http.Request) {
+func (s *Server) DCDNConfigAPI(writer http.ResponseWriter, request *http.Request) {
 	if request.Method != http.MethodGet {
 		helper.ReturnError(writer, "不支持的请求方法")
 		return
 	}
 
-	conf, err := config.GetConfigCached()
+	conf, err := s.configRepo.Load()
 	if err != nil {
 		helper.Error(helper.LogTypeDCDN, "获取配置失败: %v", err)
 		helper.ReturnError(writer, "获取配置失败")

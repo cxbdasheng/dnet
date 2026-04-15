@@ -13,7 +13,7 @@ import (
 //go:embed webhook.html
 var webhookEmbedFile embed.FS
 
-func Mock(writer http.ResponseWriter, request *http.Request) {
+func (s *Server) Mock(writer http.ResponseWriter, request *http.Request) {
 	if request.Method != http.MethodPost {
 		helper.ReturnError(writer, "不支持的请求方法")
 		return
@@ -38,26 +38,26 @@ func Mock(writer http.ResponseWriter, request *http.Request) {
 	}
 }
 
-func Webhook(writer http.ResponseWriter, request *http.Request) {
+func (s *Server) Webhook(writer http.ResponseWriter, request *http.Request) {
 	switch request.Method {
 	case http.MethodGet:
-		handleWebhookGet(writer, request)
+		s.handleWebhookGet(writer, request)
 	case http.MethodPost:
-		handleWebhookPost(writer, request)
+		s.handleWebhookPost(writer, request)
 	default:
 		helper.ReturnError(writer, "不支持的请求方法")
 		return
 	}
 }
 
-func handleWebhookPost(writer http.ResponseWriter, request *http.Request) {
+func (s *Server) handleWebhookPost(writer http.ResponseWriter, request *http.Request) {
 	var webhook config.Webhook
 	if err := json.NewDecoder(request.Body).Decode(&webhook); err != nil {
 		helper.Error(helper.LogTypeWebhook, "请求解析失败: %v", err)
 		helper.ReturnError(writer, "请求格式错误")
 		return
 	}
-	conf, err := config.GetConfigCached()
+	conf, err := s.configRepo.Load()
 	if err != nil {
 		helper.Error(helper.LogTypeWebhook, "获取配置失败: %v", err)
 		helper.ReturnError(writer, "获取配置失败")
@@ -65,7 +65,7 @@ func handleWebhookPost(writer http.ResponseWriter, request *http.Request) {
 	}
 	conf.Webhook = webhook
 	// 保存配置
-	if err := conf.SaveConfig(); err != nil {
+	if err := s.configRepo.Save(&conf); err != nil {
 		helper.Error(helper.LogTypeWebhook, "保存配置失败: %v", err)
 		helper.ReturnError(writer, "保存配置失败")
 		return
@@ -74,13 +74,13 @@ func handleWebhookPost(writer http.ResponseWriter, request *http.Request) {
 	helper.ReturnSuccess(writer, "配置保存成功", nil)
 }
 
-func handleWebhookGet(writer http.ResponseWriter, request *http.Request) {
+func (s *Server) handleWebhookGet(writer http.ResponseWriter, request *http.Request) {
 	tmpl, err := template.ParseFS(webhookEmbedFile, "webhook.html")
 	if err != nil {
 		helper.Error(helper.LogTypeWebhook, "解析 webhook.html 模板失败: %v", err)
 		return
 	}
-	conf, err := config.GetConfigCached()
+	conf, err := s.configRepo.Load()
 	if err != nil {
 		helper.Error(helper.LogTypeWebhook, "获取配置失败: %v", err)
 		return

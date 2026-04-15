@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func Logout(w http.ResponseWriter, r *http.Request) {
+func (s *Server) Logout(w http.ResponseWriter, r *http.Request) {
 	currentCookie = &http.Cookie{
 		Name:     CookieName,
 		Value:    "",

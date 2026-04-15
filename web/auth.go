@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cxbdasheng/dnet/config"
 	"github.com/cxbdasheng/dnet/helper"
 )
 
@@ -18,11 +17,11 @@ type AccessCheckResult struct {
 }
 
 // checkWANAccess 检查WAN访问权限（提取公共逻辑）
-func checkWANAccess(r *http.Request) AccessCheckResult {
+func (s *Server) checkWANAccess(r *http.Request) AccessCheckResult {
 	clientIP := helper.GetClientIP(r)
 	isPrivateIP := helper.IsLocalAddress(clientIP)
 
-	conf, err := config.GetConfigCached()
+	conf, err := s.configRepo.Load()
 
 	// 配置文件为空且启动时间超过3小时，禁止从公网访问
 	if err != nil && time.Since(serverStartTime) > 3*time.Hour && !isPrivateIP {
@@ -44,9 +43,9 @@ func checkWANAccess(r *http.Request) AccessCheckResult {
 }
 
 // AuthAssert 保护静态等文件不被公网访问
-func AuthAssert(f ViewFunc) ViewFunc {
+func (s *Server) AuthAssert(f ViewFunc) ViewFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		accessResult := checkWANAccess(r)
+		accessResult := s.checkWANAccess(r)
 		if !accessResult.Allowed {
 			w.WriteHeader(http.StatusForbidden)
 			helper.Warn(helper.LogTypeAuth, "%s", accessResult.Reason)
@@ -58,10 +57,10 @@ func AuthAssert(f ViewFunc) ViewFunc {
 }
 
 // Auth 验证Token是否已经通过
-func Auth(f ViewFunc) ViewFunc {
+func (s *Server) Auth(f ViewFunc) ViewFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// 检查WAN访问权限
-		accessResult := checkWANAccess(r)
+		accessResult := s.checkWANAccess(r)
 		if !accessResult.Allowed {
 			w.WriteHeader(http.StatusForbidden)
 			helper.Warn(helper.LogTypeAuth, "%s", accessResult.Reason)

@@ -66,4 +66,18 @@ const CDN_PROVIDERS = {
             "<tip>Cloudflare 仅支持单个源站</tip>",
         ]
     },
+    upyun: {
+        name: "又拍云",
+        idLabel: "Token：",
+        secretLabel: "",
+        typeSelect: [
+            "CDN",
+        ],
+        idHelpHtml: "<a target='_blank' href='https://console.upyun.com/account/operator/'>操作员管理（生成 Token）</a>",
+        typeHelpHtml: "<a target='_blank' href='https://console.upyun.com/cdn/list/'>又拍云 CDN 控制台</a>",
+        maxSources: [1],
+        protocolTipHtml: [
+            "<tip></tip>",
+        ]
+    },
 }

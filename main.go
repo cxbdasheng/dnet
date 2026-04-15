@@ -65,6 +65,10 @@ var faviconEmbeddedFile embed.FS
 // version
 var version = "DEV"
 
+var configRepo config.Repository
+var syncRunner *bootstrap.Runner
+var webServer *web.Server
+
 func main() {
 	helper.InitLoggerWithConsole(helper.MaxSize, true)
 	flag.Parse()
@@ -100,17 +104,17 @@ func main() {
 	// 设置端口
 	os.Setenv(config.DNETPort, *listen)
 
+	configRepo = config.NewRepository()
+	syncRunner = bootstrap.NewRunner(configRepo)
+	web.SetEmbeddedAssets(staticEmbeddedFiles, faviconEmbeddedFile)
+	webServer = web.NewServer(configRepo, syncRunner)
+
 	// 重置密码
 	if *newPassword != "" {
-		conf, err := config.GetConfigCached()
-		if err == nil {
-			err = conf.ResetPassword(*newPassword)
-			if err != nil {
-				helper.Fatalf(helper.LogTypeSystem, "重置密码失败: %v\n", err)
-			}
+		if err := configRepo.ResetPassword(*newPassword); err == nil {
 			helper.Info(helper.LogTypeSystem, "密码已重置")
 		} else {
-			helper.Fatalf(helper.LogTypeSystem, "配置文件 %s 不存在, 可通过 -c 指定配置文件\n", *configFilePath)
+			helper.Fatalf(helper.LogTypeSystem, "重置密码失败: %v\n", err)
 		}
 		return
 	}
@@ -152,36 +156,16 @@ func main() {
 	}
 }
 
-func staticFsFunc(writer http.ResponseWriter, request *http.Request) {
-	http.FileServer(http.FS(staticEmbeddedFiles)).ServeHTTP(writer, request)
-}
-
-func faviconFsFunc(writer http.ResponseWriter, request *http.Request) {
-	http.FileServer(http.FS(faviconEmbeddedFile)).ServeHTTP(writer, request)
-}
-
 func runWebServer() error {
-	http.HandleFunc("/static/", web.AuthAssert(staticFsFunc))
-	http.HandleFunc("/favicon.ico", web.AuthAssert(faviconFsFunc))
-
-	http.HandleFunc("/", web.Auth(web.Home))
-	http.HandleFunc("/dcdn", web.Auth(web.DCDN))
-	http.HandleFunc("/ddns", web.Auth(web.DDNS))
-	http.HandleFunc("/api/dcdn/config", web.Auth(web.DCDNConfigAPI))
-	http.HandleFunc("/webhook", web.Auth(web.Webhook))
-	http.HandleFunc("/mock", web.Auth(web.Mock))
-	http.HandleFunc("/settings", web.Auth(web.Settings))
-	http.HandleFunc("/logs/count", web.Auth(web.LogsCount))
-	http.HandleFunc("/logs", web.Auth(web.Logs))
-	http.HandleFunc("/login", web.AuthAssert(web.Login))
-	http.HandleFunc("/logout", web.AuthAssert(web.Logout))
+	mux := http.NewServeMux()
+	webServer.RegisterRoutes(mux)
 
 	l, err := net.Listen("tcp", *listen)
 	helper.Info(helper.LogTypeSystem, "监听 %s", *listen)
 	if err != nil {
 		return errors.New("监听端口发生异常, 请检查端口是否被占用!" + err.Error())
 	}
-	return http.Serve(l, nil)
+	return http.Serve(l, mux)
 }
 func run() {
 
@@ -201,7 +185,7 @@ func run() {
 	helper.InitBackupDNS(*customDNS)
 
 	// 等待网络连接
-	bootstrap.RunTimer(time.Duration(*every) * time.Second)
+	syncRunner.RunTimer(time.Duration(*every) * time.Second)
 }
 
 // program 实现 service.Interface 接口

@@ -63,13 +63,13 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
-func Login(writer http.ResponseWriter, request *http.Request) {
+func (s *Server) Login(writer http.ResponseWriter, request *http.Request) {
 	switch request.Method {
 	case http.MethodGet:
-		handleLoginGet(writer, request)
+		s.handleLoginGet(writer, request)
 		return
 	case http.MethodPost:
-		handleLoginPost(writer, request)
+		s.handleLoginPost(writer, request)
 		return
 	default:
 		helper.ReturnError(writer, "不支持的请求方法")
@@ -78,7 +78,7 @@ func Login(writer http.ResponseWriter, request *http.Request) {
 }
 
 // handleLoginGet 处理登录页面GET请求
-func handleLoginGet(writer http.ResponseWriter, _ *http.Request) {
+func (s *Server) handleLoginGet(writer http.ResponseWriter, _ *http.Request) {
 	tmpl, err := template.ParseFS(loginEmbedFile, "login.html")
 	if err != nil {
 		helper.Info(helper.LogTypeSystem, "模板解析失败: %v", err)
@@ -86,7 +86,7 @@ func handleLoginGet(writer http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	// 初始化时无配置文件
-	conf, _ := config.GetConfigCached()
+	conf, _ := s.configRepo.Load()
 
 	data := struct {
 		EmptyUser bool `json:"empty_user"`
@@ -103,7 +103,7 @@ func handleLoginGet(writer http.ResponseWriter, _ *http.Request) {
 }
 
 // handleLoginPost 处理登录POST请求
-func handleLoginPost(writer http.ResponseWriter, request *http.Request) {
+func (s *Server) handleLoginPost(writer http.ResponseWriter, request *http.Request) {
 	// 检查登录失败次数限制
 	if globalLoginDetector.FailedAttempts >= MaxFailedAttempts {
 		resetLoginAttempts()
@@ -128,14 +128,14 @@ func handleLoginPost(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 	// 获取配置
-	conf, _ := config.GetConfigCached()
+	conf, _ := s.configRepo.Load()
 
 	// 处理初始用户设置
 	if conf.Username == "" || conf.Password == "" {
 		// 获取客户端IP
 		clientIP := helper.GetClientIP(request)
 		helper.Info(helper.LogTypeSystem, "登录尝试 - 用户: %s, IP: %s", loginReq.Username, clientIP)
-		if err := handleInitialSetup(&conf, loginReq, clientIP); err != nil {
+		if err := s.handleInitialSetup(&conf, loginReq, clientIP); err != nil {
 			helper.Info(helper.LogTypeSystem, "初始设置失败: %v", err)
 			helper.ReturnError(writer, err.Error())
 			return
@@ -145,7 +145,7 @@ func handleLoginPost(writer http.ResponseWriter, request *http.Request) {
 	// 验证登录信息
 	if loginReq.Username == conf.Username && conf.VerifyPassword(loginReq.Password) {
 		// 登录成功处理
-		if err := handleLoginSuccess(writer, &conf); err != nil {
+		if err := s.handleLoginSuccess(writer, &conf); err != nil {
 			helper.Info(helper.LogTypeSystem, "登录成功处理失败: %v", err)
 			helper.ReturnError(writer, "登录处理失败")
 			return
@@ -160,7 +160,7 @@ func handleLoginPost(writer http.ResponseWriter, request *http.Request) {
 }
 
 // handleInitialSetup 处理初始用户设置
-func handleInitialSetup(conf *config.Config, loginReq LoginRequest, clientIP string) error {
+func (s *Server) handleInitialSetup(conf *config.Config, loginReq LoginRequest, clientIP string) error {
 	if time.Since(serverStartTime) > SetupTimeLimit {
 		deadline := serverStartTime.Add(SetupTimeLimit)
 		return fmt.Errorf("需在 %s 之前完成用户名密码设置，请重启 D-NET",
@@ -177,7 +177,7 @@ func handleInitialSetup(conf *config.Config, loginReq LoginRequest, clientIP str
 	}
 
 	conf.Password = hashedPwd
-	if err = conf.SaveConfig(); err != nil {
+	if err = s.configRepo.Save(conf); err != nil {
 		return fmt.Errorf("保存配置失败: %v", err)
 	}
 	helper.Info(helper.LogTypeSystem, "初始设置完成 - 用户: %s, 内网模式: %v", conf.Username, conf.NotAllowWanAccess)
@@ -185,7 +185,7 @@ func handleInitialSetup(conf *config.Config, loginReq LoginRequest, clientIP str
 }
 
 // handleLoginSuccess 处理登录成功
-func handleLoginSuccess(writer http.ResponseWriter, conf *config.Config) error {
+func (s *Server) handleLoginSuccess(writer http.ResponseWriter, conf *config.Config) error {
 	// 重置登录检测器
 	globalLoginDetector.ResetTicker.Stop()
 	globalLoginDetector.FailedAttempts = 0

@@ -7,28 +7,26 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cxbdasheng/dnet/bootstrap"
 	"github.com/cxbdasheng/dnet/config"
-	"github.com/cxbdasheng/dnet/ddns"
 	"github.com/cxbdasheng/dnet/helper"
 )
 
 //go:embed ddns.html
 var DDNSEmbedFile embed.FS
 
-func DDNS(writer http.ResponseWriter, request *http.Request) {
+func (s *Server) DDNS(writer http.ResponseWriter, request *http.Request) {
 	switch request.Method {
 	case http.MethodGet:
-		handleDDNSGet(writer, request)
+		s.handleDDNSGet(writer, request)
 
 	case http.MethodPost:
-		handleDDNSPost(writer, request)
+		s.handleDDNSPost(writer, request)
 	default:
 		helper.ReturnError(writer, "不支持的请求方法")
 		return
 	}
 }
-func handleDDNSGet(writer http.ResponseWriter, request *http.Request) {
+func (s *Server) handleDDNSGet(writer http.ResponseWriter, request *http.Request) {
 	tmpl, err := template.ParseFS(DDNSEmbedFile, "ddns.html")
 	if err != nil {
 		helper.Error(helper.LogTypeDDNS, "解析模板失败: %v", err)
@@ -36,7 +34,7 @@ func handleDDNSGet(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	conf, err := config.GetConfigCached()
+	conf, err := s.configRepo.Load()
 	if err != nil {
 		helper.Warn(helper.LogTypeDDNS, "获取配置失败: %v", err)
 		// 使用默认配置
@@ -73,7 +71,7 @@ func handleDDNSGet(writer http.ResponseWriter, request *http.Request) {
 		}
 	}
 }
-func handleDDNSPost(writer http.ResponseWriter, request *http.Request) {
+func (s *Server) handleDDNSPost(writer http.ResponseWriter, request *http.Request) {
 	var configData config.DDNSConfig
 	if err := json.NewDecoder(request.Body).Decode(&configData); err != nil {
 		helper.Error(helper.LogTypeDDNS, "请求解析失败: %v", err)
@@ -81,7 +79,7 @@ func handleDDNSPost(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	conf, err := config.GetConfigCached()
+	conf, err := s.configRepo.Load()
 	if err != nil {
 		helper.Error(helper.LogTypeDDNS, "获取配置失败: %v", err)
 		helper.ReturnError(writer, "获取配置失败")
@@ -95,22 +93,13 @@ func handleDDNSPost(writer http.ResponseWriter, request *http.Request) {
 	conf.DDNSConfig = configData
 
 	// 保存用户提交的配置
-	if err := conf.SaveConfig(); err != nil {
+	if err := s.configRepo.Save(&conf); err != nil {
 		helper.Error(helper.LogTypeDDNS, "保存配置失败: %v", err)
 		helper.ReturnError(writer, "保存配置失败")
 		return
 	}
-	// 设置为强制比较
-	ddns.ForceCompareGlobal = true
-	go func() {
-		// 重新加载最新配置，避免使用旧的缓存
-		freshConf, err := config.GetConfigCached()
-		if err != nil {
-			helper.Error(helper.LogTypeDDNS, "加载配置失败: %v", err)
-			return
-		}
-		bootstrap.ProcessDDNSServices(&freshConf)
-	}()
+
+	s.syncer.TriggerDDNSSyncAsync()
 
 	helper.ReturnSuccess(writer, "配置保存成功", nil)
 }

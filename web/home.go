@@ -14,17 +14,17 @@ const VersionEnv = "DNET_VERSION"
 //go:embed home.html
 var homeEmbedFile embed.FS
 
-func Home(writer http.ResponseWriter, request *http.Request) {
+func (s *Server) Home(writer http.ResponseWriter, request *http.Request) {
 	switch request.Method {
 	case http.MethodGet:
-		handleHomeGet(writer, request)
+		s.handleHomeGet(writer, request)
 	default:
 		helper.ReturnError(writer, "不支持的请求方法")
 		return
 	}
 }
 
-func handleHomeGet(writer http.ResponseWriter, request *http.Request) {
+func (s *Server) handleHomeGet(writer http.ResponseWriter, request *http.Request) {
 	tmpl, err := template.ParseFS(homeEmbedFile, "home.html")
 	if err != nil {
 		helper.Error(helper.LogTypeSystem, "解析首页模板失败: %v", err)
