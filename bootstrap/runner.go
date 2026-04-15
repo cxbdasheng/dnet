@@ -17,11 +17,14 @@ type Runner struct {
 	repo       config.Repository
 	mu         sync.Mutex
 	dcdnCaches []dcdn.Cache
-	ddnsCaches []ddns.Cache
+	ddnsCaches map[string]*ddns.Cache
 }
 
 func NewRunner(repo config.Repository) *Runner {
-	return &Runner{repo: repo}
+	return &Runner{
+		repo:       repo,
+		ddnsCaches: make(map[string]*ddns.Cache),
+	}
 }
 
 func (r *Runner) RunTimer(delay time.Duration) {
@@ -142,40 +145,18 @@ func (r *Runner) processDDNSServices(conf *config.Config) {
 		return
 	}
 
-	totalRecords := 0
-	for _, group := range conf.DDNSConfig.DDNS {
-		totalRecords += len(group.Records)
-	}
+	r.rebuildDDNSCaches(conf)
 
-	if ddns.ForceCompareGlobal || totalRecords != len(r.ddnsCaches) {
-		r.ddnsCaches = make([]ddns.Cache, totalRecords)
-		for i := range r.ddnsCaches {
-			r.ddnsCaches[i] = ddns.NewCache()
-		}
-	}
-
-	cacheIndex := 0
 	for groupIdx := range conf.DDNSConfig.DDNS {
 		group := &conf.DDNSConfig.DDNS[groupIdx]
 		if group.Domain == "" {
 			continue
 		}
 
-		validRecordsCount := 0
-		for _, record := range group.Records {
-			if record.Value != "" {
-				validRecordsCount++
-			}
-		}
-		if validRecordsCount == 0 {
+		groupCaches := r.groupDDNSCaches(group)
+		if len(groupCaches) == 0 {
 			continue
 		}
-
-		groupCaches := make([]*ddns.Cache, validRecordsCount)
-		for i := 0; i < validRecordsCount; i++ {
-			groupCaches[i] = &r.ddnsCaches[cacheIndex+i]
-		}
-		cacheIndex += validRecordsCount
 
 		var dnsSelected ddns.DNS
 		switch group.Service {
@@ -238,4 +219,70 @@ func (r *Runner) processDDNSServices(conf *config.Config) {
 	}
 
 	ddns.ForceCompareGlobal = false
+}
+
+func (r *Runner) rebuildDDNSCaches(conf *config.Config) {
+	next := make(map[string]*ddns.Cache)
+
+	for groupIdx := range conf.DDNSConfig.DDNS {
+		group := &conf.DDNSConfig.DDNS[groupIdx]
+		if group.Domain == "" {
+			continue
+		}
+
+		for recordIdx := range group.Records {
+			record := &group.Records[recordIdx]
+			if record.Value == "" {
+				continue
+			}
+
+			key := buildDDNSCacheKey(group, record)
+			if !ddns.ForceCompareGlobal {
+				if cache, ok := r.ddnsCaches[key]; ok {
+					next[key] = cache
+					continue
+				}
+			}
+
+			cache := ddns.NewCache()
+			next[key] = &cache
+		}
+	}
+
+	r.ddnsCaches = next
+}
+
+func (r *Runner) groupDDNSCaches(group *config.DNSGroup) []*ddns.Cache {
+	groupCaches := make([]*ddns.Cache, 0, len(group.Records))
+
+	for recordIdx := range group.Records {
+		record := &group.Records[recordIdx]
+		if record.Value == "" {
+			continue
+		}
+
+		key := buildDDNSCacheKey(group, record)
+		cache, ok := r.ddnsCaches[key]
+		if !ok {
+			newCache := ddns.NewCache()
+			cache = &newCache
+			r.ddnsCaches[key] = cache
+		}
+		groupCaches = append(groupCaches, cache)
+	}
+
+	return groupCaches
+}
+
+func buildDDNSCacheKey(group *config.DNSGroup, record *config.DNSRecord) string {
+	return strings.Join([]string{
+		group.ID,
+		group.Service,
+		group.Domain,
+		group.TTL,
+		record.Type,
+		record.IPType,
+		record.Value,
+		record.Regex,
+	}, "\x1f")
 }

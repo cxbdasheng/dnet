@@ -75,9 +75,7 @@ func (s *Server) Auth(f ViewFunc) ViewFunc {
 		}
 
 		// 验证token
-		if currentCookie.Value != "" &&
-			currentCookie.Value == cookieInWeb.Value &&
-			currentCookie.Expires.After(time.Now()) {
+		if IsValidToken(cookieInWeb.Value) {
 			f(w, r) // 执行被装饰的函数
 			return
 		}

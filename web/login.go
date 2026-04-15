@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cxbdasheng/dnet/config"
@@ -34,28 +35,27 @@ const (
 
 // LoginLimits 登录限制配置
 const (
-	MaxFailedAttempts  = 5                // 最大失败尝试次数
-	SetupTimeLimit     = 30 * time.Minute // 初始设置时间限制
-	LoginLockDuration  = 30 * time.Minute // 登录失败锁定时间
-	LoginCheckInterval = 5 * time.Minute  // 登录检测间隔
+	MaxFailedAttempts = 5                // 最大失败尝试次数
+	SetupTimeLimit    = 30 * time.Minute // 初始设置时间限制
+	LoginLockDuration = 30 * time.Minute // 登录失败锁定时间
 )
 
 // currentCookie 当前系统Cookie实例（单例模式）
 var currentCookie = &http.Cookie{}
+var currentCookieMu sync.RWMutex
 
 // serverStartTime 服务启动时间
 var serverStartTime = time.Now()
 
 // LoginDetector 登录检测器
 type LoginDetector struct {
-	FailedAttempts uint32       // 失败尝试次数
-	ResetTicker    *time.Ticker // 重置定时器
+	mu             sync.Mutex
+	FailedAttempts uint32
+	LockedUntil    time.Time
 }
 
 // globalLoginDetector 全局登录检测器实例
-var globalLoginDetector = &LoginDetector{
-	ResetTicker: time.NewTicker(LoginCheckInterval),
-}
+var globalLoginDetector = &LoginDetector{}
 
 // LoginRequest 登录请求结构体
 type LoginRequest struct {
@@ -105,8 +105,7 @@ func (s *Server) handleLoginGet(writer http.ResponseWriter, _ *http.Request) {
 // handleLoginPost 处理登录POST请求
 func (s *Server) handleLoginPost(writer http.ResponseWriter, request *http.Request) {
 	// 检查登录失败次数限制
-	if globalLoginDetector.FailedAttempts >= MaxFailedAttempts {
-		resetLoginAttempts()
+	if globalLoginDetector.IsLocked(time.Now()) {
 		helper.ReturnError(writer, "登录失败次数过多，请稍后再试")
 		return
 	}
@@ -154,8 +153,13 @@ func (s *Server) handleLoginPost(writer http.ResponseWriter, request *http.Reque
 	}
 
 	// 登录失败处理
-	globalLoginDetector.FailedAttempts++
-	helper.Info(helper.LogTypeSystem, "登录失败 - 用户: %s, 失败次数: %d", loginReq.Username, globalLoginDetector.FailedAttempts)
+	attempts, locked := globalLoginDetector.RecordFailure(time.Now())
+	if locked {
+		helper.Info(helper.LogTypeSystem, "登录尝试已锁定 %v，失败次数: %d", LoginLockDuration, attempts)
+		helper.ReturnError(writer, "登录失败次数过多，请稍后再试")
+		return
+	}
+	helper.Info(helper.LogTypeSystem, "登录失败 - 用户: %s, 失败次数: %d", loginReq.Username, attempts)
 	helper.ReturnError(writer, "用户名或密码错误")
 }
 
@@ -187,8 +191,7 @@ func (s *Server) handleInitialSetup(conf *config.Config, loginReq LoginRequest, 
 // handleLoginSuccess 处理登录成功
 func (s *Server) handleLoginSuccess(writer http.ResponseWriter, conf *config.Config) error {
 	// 重置登录检测器
-	globalLoginDetector.ResetTicker.Stop()
-	globalLoginDetector.FailedAttempts = 0
+	globalLoginDetector.Reset()
 
 	// 计算Cookie过期时间
 	var expires time.Time
@@ -199,7 +202,7 @@ func (s *Server) handleLoginSuccess(writer http.ResponseWriter, conf *config.Con
 	}
 
 	// 生成并设置Cookie
-	currentCookie = &http.Cookie{
+	newCookie := &http.Cookie{
 		Name:     CookieName,
 		Value:    generateToken(),
 		Path:     "/",
@@ -209,49 +212,106 @@ func (s *Server) handleLoginSuccess(writer http.ResponseWriter, conf *config.Con
 		SameSite: http.SameSiteStrictMode,
 	}
 
-	http.SetCookie(writer, currentCookie)
+	setCurrentCookie(newCookie)
+
+	http.SetCookie(writer, newCookie)
 	helper.Info(helper.LogTypeSystem, "用户登录成功: %s, Cookie 过期时间: %v", conf.Username, expires)
 
-	helper.ReturnSuccess(writer, "用户登录成功", currentCookie.Value)
+	helper.ReturnSuccess(writer, "用户登录成功", newCookie.Value)
 	return nil
 }
 
-// resetLoginAttempts 重置登录尝试次数（带锁定机制）
-func resetLoginAttempts() {
-	globalLoginDetector.FailedAttempts++
-	globalLoginDetector.ResetTicker.Reset(LoginLockDuration)
-	helper.Info(helper.LogTypeSystem, "登录尝试已锁定 %v，失败次数: %d", LoginLockDuration, globalLoginDetector.FailedAttempts)
+// IsLocked 返回当前是否仍处于锁定状态，过期锁定会被自动清理。
+func (d *LoginDetector) IsLocked(now time.Time) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
-	// 启动后台协程处理解锁
-	go func(ticker *time.Ticker) {
-		defer ticker.Stop() // 确保资源释放
+	d.clearExpiredLock(now)
+	return !d.LockedUntil.IsZero()
+}
 
-		for range ticker.C {
-			// 解锁：重置为最大尝试次数-1，允许再次尝试
-			globalLoginDetector.FailedAttempts = MaxFailedAttempts - 1
-			helper.Info(helper.LogTypeSystem, "登录锁定已解除，可重新尝试登录")
-			return
-		}
-	}(globalLoginDetector.ResetTicker)
+// RecordFailure 记录一次失败尝试，并在到达阈值时立即锁定。
+func (d *LoginDetector) RecordFailure(now time.Time) (uint32, bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.clearExpiredLock(now)
+	if !d.LockedUntil.IsZero() {
+		return d.FailedAttempts, true
+	}
+
+	d.FailedAttempts++
+	if d.FailedAttempts >= MaxFailedAttempts {
+		d.LockedUntil = now.Add(LoginLockDuration)
+		return d.FailedAttempts, true
+	}
+
+	return d.FailedAttempts, false
+}
+
+// Reset 在登录成功后清空失败状态和锁定窗口。
+func (d *LoginDetector) Reset() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.FailedAttempts = 0
+	d.LockedUntil = time.Time{}
+}
+
+func (d *LoginDetector) clearExpiredLock(now time.Time) {
+	if d.LockedUntil.IsZero() {
+		return
+	}
+	if now.Before(d.LockedUntil) {
+		return
+	}
+
+	d.FailedAttempts = 0
+	d.LockedUntil = time.Time{}
+	helper.Info(helper.LogTypeSystem, "登录锁定已解除，可重新尝试登录")
+}
+
+func setCurrentCookie(cookie *http.Cookie) {
+	currentCookieMu.Lock()
+	defer currentCookieMu.Unlock()
+
+	if cookie == nil {
+		currentCookie = &http.Cookie{}
+		return
+	}
+
+	cookieCopy := *cookie
+	currentCookie = &cookieCopy
+}
+
+func getCurrentCookieSnapshot() *http.Cookie {
+	currentCookieMu.RLock()
+	defer currentCookieMu.RUnlock()
+
+	if currentCookie == nil {
+		return nil
+	}
+
+	cookieCopy := *currentCookie
+	return &cookieCopy
 }
 
 // GetCurrentCookie 获取当前Cookie（用于其他模块验证）
 func GetCurrentCookie() *http.Cookie {
-	return currentCookie
+	return getCurrentCookieSnapshot()
 }
 
 // IsValidToken 验证令牌是否有效
 func IsValidToken(token string) bool {
-	if currentCookie == nil || currentCookie.Value == "" {
+	c := getCurrentCookieSnapshot()
+
+	if c == nil || c.Value == "" {
 		return false
 	}
-
-	// 检查Cookie是否过期
-	if time.Now().After(currentCookie.Expires) {
+	if time.Now().After(c.Expires) {
 		return false
 	}
-
-	return currentCookie.Value == token
+	return c.Value == token
 }
 
 // generateToken 生成安全的登录令牌
