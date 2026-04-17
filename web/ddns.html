@@ -786,7 +786,7 @@
                 contentType: 'application/json',
                 data: JSON.stringify(submitData),
                 success: function (response) {
-                    var res = JSON.parse(response)
+                    var res = response
                     if (res.status) {
                         layer.msg('配置保存成功', {
                             icon: 1,

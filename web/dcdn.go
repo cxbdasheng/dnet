@@ -1,11 +1,14 @@
 package web
 
 import (
+	"bytes"
+	"crypto/rand"
 	"embed"
 	"encoding/json"
 	"html/template"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/cxbdasheng/dnet/config"
 	"github.com/cxbdasheng/dnet/helper"
@@ -117,4 +120,72 @@ func (s *Server) DCDNConfigAPI(writer http.ResponseWriter, request *http.Request
 
 	writer.Header().Set("Content-Type", "application/json")
 	writer.Write([]byte(config.GetDCDNConfigJSON(conf.DCDNConfig)))
+}
+
+type upyunTokenReq struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+func (s *Server) UpyunToken(writer http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodPost {
+		helper.ReturnError(writer, "不支持的请求方法")
+		return
+	}
+
+	var req upyunTokenReq
+	if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
+		helper.ReturnError(writer, "请求格式错误")
+		return
+	}
+	req.Username = strings.TrimSpace(req.Username)
+	req.Password = strings.TrimSpace(req.Password)
+	if req.Username == "" || req.Password == "" {
+		helper.ReturnError(writer, "用户名和密码不能为空")
+		return
+	}
+
+	code := generateUpyunCode(24)
+	name := "dnet-" + time.Now().Format("20060102150405")
+
+	apiBody, _ := json.Marshal(map[string]interface{}{
+		"username": req.Username,
+		"password": req.Password,
+		"code":     code,
+		"name":     name,
+		"scope":    "global",
+	})
+
+	httpReq, err := http.NewRequest(http.MethodPost,
+		"https://api.upyun.com/oauth/tokens",
+		bytes.NewBuffer(apiBody))
+	if err != nil {
+		helper.ReturnError(writer, "构建请求失败")
+		return
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	client := helper.CreateHTTPClient()
+	resp, err := client.Do(httpReq)
+
+	var result struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err = helper.GetHTTPResponse(resp, err, &result); err != nil {
+		helper.Error(helper.LogTypeDCDN, "又拍云 Token 获取失败: %v", err)
+		helper.ReturnError(writer, "获取 Token 失败："+err.Error())
+		return
+	}
+
+	helper.ReturnSuccess(writer, "Token 获取成功", result.AccessToken)
+}
+
+func generateUpyunCode(n int) string {
+	const chars = "abcdefghijklmnopqrstuvwxyz0123456789-"
+	b := make([]byte, n)
+	rand.Read(b)
+	for i := range b {
+		b[i] = chars[int(b[i])%len(chars)]
+	}
+	return string(b)
 }

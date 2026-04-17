@@ -19,6 +19,7 @@ func ReturnError(w http.ResponseWriter, msg string) {
 	result.Status = false
 	result.Msg = msg
 
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
 }
 
@@ -29,5 +30,6 @@ func ReturnSuccess(w http.ResponseWriter, msg string, data interface{}) {
 	result.Status = true
 	result.Msg = msg
 	result.Data = data
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
 }

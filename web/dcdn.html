@@ -578,7 +578,7 @@
                 contentType: 'application/json',
                 data: JSON.stringify(submitData),
                 success: function (response) {
-                    var res = JSON.parse(response)
+                    var res = response
                     if (res.status){
                         // 检查是否开启了 DCDN
                         const isDCDNEnabled = $('input[name="dcdn_enable"]').is(':checked');

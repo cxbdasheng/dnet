@@ -169,7 +169,7 @@
                 }),
                 success: function (response) {
                     layer.close(loadingIndex);
-                    var res = JSON.parse(response)
+                    var res = response
                     if (res.status) {
                         layer.msg('登录成功', {
                             icon: 1,

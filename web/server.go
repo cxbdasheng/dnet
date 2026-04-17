@@ -31,6 +31,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/dcdn", s.Auth(s.DCDN))
 	mux.HandleFunc("/ddns", s.Auth(s.DDNS))
 	mux.HandleFunc("/api/dcdn/config", s.Auth(s.DCDNConfigAPI))
+	mux.HandleFunc("/api/dcdn/upyun/token", s.Auth(s.UpyunToken))
 	mux.HandleFunc("/webhook", s.Auth(s.Webhook))
 	mux.HandleFunc("/mock", s.Auth(s.Mock))
 	mux.HandleFunc("/settings", s.Auth(s.Settings))
