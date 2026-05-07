@@ -169,6 +169,22 @@ func TestBaseProviderShouldSendWebhook(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("强制更新成功时不触发 Webhook", func(t *testing.T) {
+		cache := NewCache()
+		b := &BaseProvider{
+			CDN:          &config.CDN{Domain: "example.com"},
+			Cache:        &cache,
+			Status:       UpdatedSuccess,
+			forcedUpdate: true,
+		}
+		if b.ShouldSendWebhook() {
+			t.Error("计数器归零触发的强制更新成功后不应触发 Webhook")
+		}
+		if b.Cache.TimesFailed != 0 {
+			t.Errorf("强制更新成功后 TimesFailed 应归零, got %d", b.Cache.TimesFailed)
+		}
+	})
 }
 
 // TestBaseProviderUpdateCnameIfChanged 测试 CNAME 更新逻辑

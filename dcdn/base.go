@@ -11,6 +11,7 @@ type BaseProvider struct {
 	Cache         *Cache
 	Status        statusType
 	configChanged bool
+	forcedUpdate  bool // 本次更新由计数器归零触发，非 IP 变化
 }
 
 func (b *BaseProvider) GetServiceStatus() string {
@@ -53,7 +54,7 @@ func (b *BaseProvider) validateBaseConfig(providerName string) bool {
 }
 
 // checkDynamicIPChanges 检查所有动态源站的 IP 变化，返回变化数量
-// 若 IP 获取失败，设置 Status=InitGetIPFailed 并返回 (0, false)
+// 若 IP 获取失败，设置 Status = InitGetIPFailed 并返回 (0, false)
 func (b *BaseProvider) checkDynamicIPChanges() (int, bool) {
 	changedIPCount := 0
 	for _, source := range b.CDN.Sources {
@@ -92,6 +93,7 @@ func (b *BaseProvider) hasDynamicSources() bool {
 // shouldUpdate 判断是否需要更新配置（首次运行、IP 变化、计数器归零）
 // 计数器归零的强制更新仅对含动态源站的配置生效
 func (b *BaseProvider) shouldUpdate(providerName string, changedIPCount int) bool {
+	b.forcedUpdate = false
 	if !b.Cache.HasRun {
 		b.Cache.HasRun = true
 		helper.Info(helper.LogTypeDCDN, "首次运行，需要初始化 %s 配置 [域名=%s]", providerName, b.CDN.Domain)
@@ -106,6 +108,7 @@ func (b *BaseProvider) shouldUpdate(providerName string, changedIPCount int) boo
 	}
 	b.Cache.Times--
 	if b.Cache.Times == 0 {
+		b.forcedUpdate = true
 		helper.Info(helper.LogTypeDCDN, "计数器归零，强制更新 %s [域名=%s]", providerName, b.CDN.Domain)
 		return true
 	}
@@ -144,9 +147,13 @@ func (b *BaseProvider) runUpdateOrCreate(providerName string, doUpdate func()) b
 }
 
 // ShouldSendWebhook 默认 webhook 策略：成功立即通知，失败连续 3 次后通知
+// 例外：计数器归零触发的强制更新（forcedUpdate=true）成功时不发通知
 func (b *BaseProvider) ShouldSendWebhook() bool {
 	if b.Status == UpdatedSuccess {
 		b.Cache.TimesFailed = 0
+		if b.forcedUpdate {
+			return false
+		}
 		return true
 	}
 	if b.Status == UpdatedFailed {

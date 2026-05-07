@@ -74,6 +74,7 @@ func (s *Server) handleSettingsPost(writer http.ResponseWriter, request *http.Re
 		hashedPwd, err := conf.GeneratePassword(settingsReq.Password)
 		if err != nil {
 			helper.ReturnError(writer, "密码加密失败")
+			return
 		}
 		conf.Password = hashedPwd
 	}

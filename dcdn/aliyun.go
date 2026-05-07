@@ -654,24 +654,6 @@ func (aliyun *Aliyun) modifyESA(RecordId int64) {
 	helper.Info(helper.LogTypeDCDN, "修改 %s 源站配置成功 [域名=%s, RequestId=%v]", aliyun.getCDNTypeName(), aliyun.CDN.Domain, result["RequestId"])
 }
 
-// ShouldSendWebhook 判断是否应该发送 webhook
-func (aliyun *Aliyun) ShouldSendWebhook() bool {
-	// 更新成功，重置失败计数器并发送 webhook
-	if aliyun.Status == UpdatedSuccess {
-		aliyun.Cache.TimesFailed = 0
-		return true
-	}
-
-	aliyun.Cache.TimesFailed++
-	if aliyun.Cache.TimesFailed >= 3 {
-		helper.Warn(helper.LogTypeDCDN, "连续更新失败 %d 次，触发 Webhook 通知 [域名=%s]", aliyun.Cache.TimesFailed, aliyun.CDN.Domain)
-		aliyun.Cache.TimesFailed = 0
-		return true
-	}
-	helper.Warn(helper.LogTypeDCDN, "更新失败，将不会触发 Webhook，仅在连续失败 3 次时触发，当前失败次数：%d [域名=%s]", aliyun.Cache.TimesFailed, aliyun.CDN.Domain)
-	return false
-}
-
 // request 统一请求接口
 func (aliyun *Aliyun) request(method string, params url.Values, result interface{}) (err error) {
 	// 根据 CDN 类型选择对应的 endpoint 和 API 版本
