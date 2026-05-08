@@ -13,6 +13,21 @@
         padding: 15px;
         background: #fff;
     }
+    .webhook-var {
+        display: inline-block;
+        margin: 2px 4px 2px 0;
+        padding: 2px 8px;
+        border: 1px solid #d2d2d2;
+        border-radius: 3px;
+        background: #f8f8f8;
+        font-size: 12px;
+        font-family: monospace;
+        cursor: pointer;
+        user-select: none;
+        transition: background .15s;
+    }
+    .webhook-var:hover { background: #e0eaf5; border-color: #4a90d9; color: #2c6fb7; }
+    .webhook-var.inserted { background: #d4edda; border-color: #5cb85c; }
 </style>
 <body>
 <div class="layui-fluid">
@@ -40,7 +55,6 @@
                     <textarea type="text" id="headers" name="headers"
                               autocomplete="off" class="layui-textarea" style="min-height: 60px;">{{.WebhookHeaders}}</textarea>
                     <tip> 一行一个Header, 如: Authorization: Bearer API_KEY</tip>
-
                 </div>
             </div>
             <div class="layui-form-item">
@@ -50,8 +64,46 @@
                     <tip>如果请求体为空, 则为 GET 请求, 否则为 POST 请求</tip>
                 </div>
             </div>
+            <div class="layui-form-item">
+                <label class="layui-form-label">可用变量</label>
+                <div class="layui-input-block" style="line-height:2">
+                    <span class="webhook-var" data-var="#{serviceType}">#{serviceType}</span>
+                    <span class="webhook-var" data-var="#{serviceName}">#{serviceName}</span>
+                    <span class="webhook-var" data-var="#{serviceStatus}">#{serviceStatus}</span>
+                    <span class="webhook-var" data-var="#{timestamp}">#{timestamp}</span>
+                    <span class="webhook-var" data-var="#{datetime}">#{datetime}</span>
+                    <span class="webhook-var" data-var="#{hostname}">#{hostname}</span>
+                    <tip style="display:block;margin-top:4px">点击变量可插入到 URL 或请求体的光标位置</tip>
+                </div>
+            </div>
         </form>
     </div>
 </div>
+<script>
+(function () {
+    var insertableFields = ['url', 'request_body'];
+    var lastFocused = document.getElementById('url');
+
+    insertableFields.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('focus', function () { lastFocused = el; });
+    });
+
+    document.querySelectorAll('.webhook-var').forEach(function (chip) {
+        chip.addEventListener('click', function () {
+            var text = chip.getAttribute('data-var');
+            var el = lastFocused;
+            if (!el) return;
+            el.focus();
+            var start = el.selectionStart, end = el.selectionEnd;
+            el.value = el.value.slice(0, start) + text + el.value.slice(end);
+            el.selectionStart = el.selectionEnd = start + text.length;
+
+            chip.classList.add('inserted');
+            setTimeout(function () { chip.classList.remove('inserted'); }, 600);
+        });
+    });
+}());
+</script>
 </body>
 </html>

@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/cxbdasheng/dnet/helper"
 )
@@ -101,9 +103,14 @@ func extractHeaders(s string) map[string]string {
 
 // replacePara 替换参数
 func replacePara(orgPara, serviceType, serviceName, serviceStatus string) string {
+	now := time.Now()
+	hostname, _ := os.Hostname()
 	return strings.NewReplacer(
 		"#{serviceType}", serviceType,
 		"#{serviceName}", serviceName,
 		"#{serviceStatus}", serviceStatus,
+		"#{timestamp}", now.Format("20060102150405"),
+		"#{datetime}", now.Format("2006-01-02 15:04:05"),
+		"#{hostname}", hostname,
 	).Replace(orgPara)
 }
