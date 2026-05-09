@@ -58,11 +58,12 @@ const (
 
 // Cache DDNS 缓存结构
 type Cache struct {
-	Times       int               // 剩余次数
-	TimesFailed int               // 获取 IP 失败的次数
-	DynamicIPs  map[string]string // 动态 IP 缓存: key=source 唯一标识(type:value), value=获取到的 IP
-	mu          sync.RWMutex      // 保护 DynamicIPs 的读写锁
-	HasRun      bool              // 是否已经运行过
+	Times          int               // 剩余次数
+	TimesFailed    int               // 获取 IP 失败的次数
+	DynamicIPs     map[string]string // 动态 IP 缓存: key=source 唯一标识(type:value), value=获取到的 IP
+	mu             sync.RWMutex      // 保护 DynamicIPs 的读写锁
+	HasRun         bool              // 是否已经运行过
+	forcedNoChange bool              // 本轮是计数器归零触发的强制更新（值未变）
 }
 
 // DNS DNS 提供商接口
@@ -301,7 +302,8 @@ func checkDynamicCache(serviceName string, record *config.DNSRecord, cache *Cach
 		return true, RecordResult{RecordType: record.Type, Status: UpdatedNothing}
 	}
 
-	if forceUpdate && !valueChanged {
+	cache.forcedNoChange = forceUpdate && !valueChanged
+	if cache.forcedNoChange {
 		helper.Info(helper.LogTypeDDNS, "[%s] [%s] 达到强制更新阈值，执行更新 [值=%s]", serviceName, record.Type, currentValue)
 	} else if valueChanged {
 		helper.Info(helper.LogTypeDDNS, "[%s] [%s] 检测到值变化 [旧值=%s, 新值=%s]", serviceName, record.Type, oldValue, currentValue)
@@ -315,10 +317,12 @@ func finalizeSuccess(serviceName string, record *config.DNSRecord, cache *Cache,
 		cacheKey := getCacheKey(record.IPType, record.Value, record.Regex)
 		cache.UpdateDynamicIP(cacheKey, currentValue)
 	}
+	forcedNoChange := cache.forcedNoChange
+	cache.forcedNoChange = false
 	cache.HasRun = true
 	cache.TimesFailed = 0
 	cache.ResetTimes()
 	result.Status = UpdatedSuccess
-	result.ShouldWebhook = shouldSendWebhook(cache, UpdatedSuccess)
+	result.ShouldWebhook = !forcedNoChange && shouldSendWebhook(cache, UpdatedSuccess)
 	helper.Info(helper.LogTypeDDNS, "[%s] [%s] DNS 记录更新成功 [值=%s]", serviceName, record.Type, currentValue)
 }
