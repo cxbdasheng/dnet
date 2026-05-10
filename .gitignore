@@ -38,7 +38,6 @@ vendor/
 /bin
 trace.out
 _testmain.go
-CLAUDE.md
 
 # 构建产物
 dnet
