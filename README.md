@@ -124,13 +124,18 @@ go run main.go                          # 直接运行
 
 支持的变量：
 
-| 变量名  | 说明  | 示例值 |
-|---|---|-----|
-|  #{serviceType} | 服务类型  |     |
-| #{serviceName}  | 服务名称  |     |
-| #{serviceStatus}  |  更新结果 |     |
+| 变量名  | 说明  | 示例值                 |
+|---|---|---------------------|
+| `#{serviceType}` | 服务类型 | `DCDN`、`DDNS` |
+| `#{serviceName}` | 服务名称（域名） | `ddns.example.com` |
+| `#{serviceStatus}` | 更新结果 | `成功`、`失败`、`未改变` |
+| #{timestamp}  | 时间戳  | 20060102150405      |
+| #{datetime}  | 日期时间  | 2006-01-02 15:04:05 |
+| #{hostname}  | 主机名  |                     |
 
-
+**请求方式：**
+- RequestBody 为空 → 发送 **GET** 请求
+- RequestBody 不为空 → 发送 **POST** 请求
 
 <details>
 <summary>配置示例</summary>
