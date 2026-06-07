@@ -122,7 +122,15 @@ go run main.go                          # 直接运行
 
 ## Webhook 通知
 
-支持的变量：`#{serviceType}`（服务类型）、`#{serviceName}`（服务名称）、`#{serviceStatus}`（更新结果）
+支持的变量：
+
+| 变量名  | 说明  | 示例值 |
+|---|---|-----|
+|  #{serviceType} | 服务类型  |     |
+| #{serviceName}  | 服务名称  |     |
+| #{serviceStatus}  |  更新结果 |     |
+
+
 
 <details>
 <summary>配置示例</summary>
