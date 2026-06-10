@@ -129,6 +129,7 @@ go run main.go                          # 直接运行
 | `#{serviceType}` | 服务类型 | `DCDN`、`DDNS` |
 | `#{serviceName}` | 服务名称（域名） | `ddns.example.com` |
 | `#{serviceStatus}` | 更新结果 | `成功`、`失败`、`未改变` |
+| `#{changeDetail}` | 本次变更明细（旧值→新值，多条以 `; ` 分隔；无变更时为空） | `A: 1.1.1.1 -> 2.2.2.2`、`ipv4url(https://ipv4.example.com): 1.1.1.1 -> 2.2.2.2` |
 | `#{timestamp}`  | 时间戳  | 20060102150405      |
 | `#{datetime}`  | 日期时间  | 2006-01-02 15:04:05 |
 | `#{hostname}`  | 主机名  |                     |
@@ -137,25 +138,134 @@ go run main.go                          # 直接运行
 - RequestBody 为空 → 发送 **GET** 请求
 - RequestBody 不为空 → 发送 **POST** 请求
 
-<details>
-<summary>配置示例</summary>
+**配置示例：**
 
-**Server酱：**
-```
-https://sctapi.ftqq.com/[SendKey].send?title=DNET通知&desp=#{serviceName} - #{serviceStatus}
-```
+- <details><summary>钉钉机器人</summary>
 
-**钉钉机器人：**
-```json
-{
-  "msgtype": "markdown",
-  "markdown": {
-    "title": "DNET 通知",
-    "text": "#{serviceName} - #{serviceStatus}"
-  }
-}
-```
-</details>
+  - 钉钉群设置 -> 智能群助手 -> 添加机器人 -> 自定义
+  - 安全设置勾选 `自定义关键词`，关键词需包含在 RequestBody 中，如：`D-NET`
+  - URL 中输入钉钉提供的 `Webhook 地址`
+  - RequestBody 中输入
+    ```json
+    {
+      "msgtype": "markdown",
+      "markdown": {
+        "title": "D-NET 同步通知",
+        "text": "#### D-NET 同步通知 \n - 服务类型：#{serviceType} \n - 服务名称：#{serviceName} \n - 更新结果：#{serviceStatus} \n - 变更明细：#{changeDetail} \n - 主机名称：#{hostname} \n - 通知时间：#{datetime} \n"
+      }
+    }
+    ```
+  </details>
+
+- <details><summary>飞书</summary>
+
+  - 飞书电脑端 -> 群设置 -> 添加机器人 -> 自定义机器人
+  - 安全设置只勾选 `自定义关键词`，输入的关键字必须包含在 RequestBody 的 content 中，如：`D-NET`
+  - URL 中输入飞书给你的 `Webhook 地址`
+  - RequestBody 中输入
+    ```json
+    {
+      "msg_type": "post",
+      "content": {
+        "post": {
+          "zh_cn": {
+            "title": "D-NET 同步通知",
+            "content": [
+              [{"tag": "text", "text": "服务类型：#{serviceType}"}],
+              [{"tag": "text", "text": "服务名称：#{serviceName}"}],
+              [{"tag": "text", "text": "更新结果：#{serviceStatus}"}],
+              [{"tag": "text", "text": "变更明细：#{changeDetail}"}],
+              [{"tag": "text", "text": "主机名称：#{hostname}"}],
+              [{"tag": "text", "text": "通知时间：#{datetime}"}]
+            ]
+          }
+        }
+      }
+    }
+    ```
+  </details>
+
+- <details><summary>Server酱</summary>
+
+  - 在 [Server酱](https://sct.ftqq.com/) 获取 `SendKey`
+  - URL 中输入
+    ```
+    https://sctapi.ftqq.com/[SendKey].send?title=D-NET通知&desp=#{serviceName} - #{serviceStatus} - #{changeDetail}
+    ```
+  - RequestBody 留空（发送 GET 请求）
+  </details>
+
+- <details><summary>pushplus 推送加</summary>
+
+  - 在 [pushplus](https://www.pushplus.plus/push1.html) 获取 token
+  - URL 中输入 `https://www.pushplus.plus/send`
+  - RequestBody 中输入
+    ```json
+    {
+      "token": "your token",
+      "title": "D-NET 同步通知",
+      "content": "#### D-NET 同步通知 \n - 服务类型：#{serviceType} \n - 服务名称：#{serviceName} \n - 更新结果：#{serviceStatus} \n - 变更明细：#{changeDetail} \n - 主机名称：#{hostname} \n - 通知时间：#{datetime} \n"
+    }
+    ```
+  </details>
+
+- <details><summary>Discord</summary>
+
+  - Discord 任意客户端 -> 服务器 -> 频道设置 -> 整合 -> 查看 Webhook -> 新 Webhook -> 复制 Webhook 网址
+  - URL 中输入 Discord 复制的 `Webhook 网址`
+  - RequestBody 中输入
+    ```json
+    {
+      "content": "D-NET 同步通知",
+      "embeds": [
+        {
+          "description": "#### D-NET 同步通知 \n - 服务类型：#{serviceType} \n - 服务名称：#{serviceName} \n - 更新结果：#{serviceStatus} \n - 变更明细：#{changeDetail} \n - 主机名称：#{hostname} \n - 通知时间：#{datetime}",
+          "color": 15258703,
+          "author": {"name": "D-NET"},
+          "footer": {"text": "D-NET #{serviceStatus}"}
+        }
+      ]
+    }
+    ```
+  </details>
+
+- <details><summary>微信</summary>
+
+  - 通过 [微信 ClawBot 协议](https://www.npmjs.com/package/@tencent-weixin/openclaw-weixin) 推送消息到微信
+  - 需要先通过协议获取 `$your_bot_token` 和 `$your_user_id`，可参考 [weixin-bot-api](https://github.com/hao-ji-xing/openclaw-weixin/blob/main/weixin-bot-api.md)
+  - URL 中输入 `https://ilinkai.weixin.qq.com/ilink/bot/sendmessage`
+  - RequestBody 中输入
+    ```json
+    {
+      "msg": {
+        "from_user_id": "",
+        "to_user_id": "$your_user_id@im.wechat",
+        "client_id": "dnet-#{timestamp}",
+        "message_type": 2,
+        "message_state": 2,
+        "item_list": [
+          {
+            "type": 1,
+            "text_item": {
+              "text": "📡 D-NET 同步通知\n   服务类型：#{serviceType}\n   服务名称：#{serviceName}\n   更新结果：#{serviceStatus}\n   变更明细：#{changeDetail}\n   主机名称：#{hostname}\n   通知时间：#{datetime}"
+            }
+          }
+        ]
+      },
+      "base_info": {
+        "channel_version": "2.1.7"
+      }
+    }
+    ```
+  - Headers 中输入
+    ```
+    Content-Type: application/json
+    AuthorizationType: ilink_bot_token
+    Authorization: Bearer $your_bot_token
+    iLink-App-Id: bot
+    iLink-App-ClientVersion: 131335
+    ```
+  </details>
 
 ## 贡献与许可
 
