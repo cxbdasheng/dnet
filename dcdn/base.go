@@ -11,7 +11,8 @@ type BaseProvider struct {
 	Cache         *Cache
 	Status        statusType
 	configChanged bool
-	forcedUpdate  bool // 本次更新由计数器归零触发，非 IP 变化
+	forcedUpdate  bool           // 本次更新由计数器归零触发，非 IP 变化
+	updateDetails []UpdateDetail // 本轮检测到的源站 IP 变化明细
 }
 
 func (b *BaseProvider) GetServiceStatus() string {
@@ -30,6 +31,10 @@ func (b *BaseProvider) GetServiceName() string {
 
 func (b *BaseProvider) ConfigChanged() bool {
 	return b.configChanged
+}
+
+func (b *BaseProvider) GetUpdateDetails() []UpdateDetail {
+	return b.updateDetails
 }
 
 // validateBaseConfig 校验公共配置（认证信息、域名、源站）
@@ -73,6 +78,12 @@ func (b *BaseProvider) checkDynamicIPChanges() (int, bool) {
 		if ipChanged {
 			b.Cache.UpdateDynamicIP(cacheKey, addr)
 			changedIPCount++
+			b.updateDetails = append(b.updateDetails, UpdateDetail{
+				SourceType:  source.Type,
+				SourceValue: source.Value,
+				OldIP:       oldIP,
+				NewIP:       addr,
+			})
 			helper.Info(helper.LogTypeDCDN, "检测到源站 IP 变化 [域名=%s, 源类型=%s, 旧IP=%s, 新IP=%s]",
 				b.CDN.Domain, source.Type, oldIP, addr)
 		}
@@ -117,6 +128,8 @@ func (b *BaseProvider) shouldUpdate(providerName string, changedIPCount int) boo
 
 // runUpdateOrCreate 执行通用的检查→判断→更新流程
 func (b *BaseProvider) runUpdateOrCreate(providerName string, doUpdate func()) bool {
+	// 每轮入口清空本轮的更新明细，避免跨轮累积
+	b.updateDetails = nil
 	if b.Status == InitFailed {
 		helper.Warn(helper.LogTypeDCDN, "%s 更新跳过：初始化失败 [域名=%s]", providerName, b.CDN.Domain)
 		return false

@@ -120,7 +120,7 @@ func (n *NameSilo) processRecord(record *config.DNSRecord, cache *Cache, existin
 	}
 
 	// 2. 检查缓存
-	if skip, r := checkDynamicCache(n.GetServiceName(), record, cache, currentValue); skip {
+	if skip, r := checkDynamicCache(n.GetServiceName(), record, cache, currentValue, &result); skip {
 		return r
 	}
 

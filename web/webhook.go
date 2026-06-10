@@ -29,7 +29,7 @@ func (s *Server) Mock(writer http.ResponseWriter, request *http.Request) {
 		helper.ReturnError(writer, "请输入 Webhook 的 URL")
 		return
 	}
-	success := config.ExecWebhook(&webhook, "Webhook", "模拟请求", "测试成功")
+	success := config.ExecWebhook(&webhook, "Webhook", "模拟请求", "测试成功", "A: 1.1.1.1 -> 2.2.2.2")
 
 	if success {
 		helper.ReturnSuccess(writer, "Webhook 测试成功", nil)

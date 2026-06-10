@@ -59,7 +59,16 @@ type CDN interface {
 	ShouldSendWebhook() bool
 	GetServiceStatus() string
 	GetServiceName() string
-	ConfigChanged() bool // 检查配置是否发生变化（需要保存）
+	GetUpdateDetails() []UpdateDetail // 本轮检测到的源站 IP 变更明细
+	ConfigChanged() bool              // 检查配置是否发生变化（需要保存）
+}
+
+// UpdateDetail 记录单个动态源站本轮的 IP 变化
+type UpdateDetail struct {
+	SourceType  string // 源类型，如 ipv4url / ipv6interface
+	SourceValue string // 源的配置值，如 URL 或网卡名
+	OldIP       string // 变化前缓存的 IP（首次为空）
+	NewIP       string // 本轮探测到的新 IP
 }
 
 // NewCache 创建新的缓存实例

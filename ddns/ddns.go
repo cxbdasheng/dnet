@@ -79,6 +79,8 @@ type RecordResult struct {
 	Status        statusType // 处理状态
 	ShouldWebhook bool       // 是否需要发送 Webhook
 	ErrorMessage  string     // 错误信息（如果有）
+	OldValue      string     // 变化前的记录值（仅动态类型且发生变化时填充，首次为空）
+	NewValue      string     // 本轮探测到的新记录值（仅动态类型填充）
 }
 
 // NewCache 创建新的缓存实例
@@ -288,7 +290,8 @@ func getCurrentValue(serviceName string, record *config.DNSRecord, cache *Cache)
 }
 
 // checkDynamicCache 步骤2：检查动态 IP 缓存，返回 (是否跳过, 跳过时的结果)
-func checkDynamicCache(serviceName string, record *config.DNSRecord, cache *Cache, currentValue string) (bool, RecordResult) {
+// 当返回 skip=false 时，会将本轮探测到的新值与缓存中的旧值写入 result（仅动态类型）
+func checkDynamicCache(serviceName string, record *config.DNSRecord, cache *Cache, currentValue string, result *RecordResult) (bool, RecordResult) {
 	if !IsDynamicType(record.IPType) {
 		return false, RecordResult{}
 	}
@@ -307,6 +310,12 @@ func checkDynamicCache(serviceName string, record *config.DNSRecord, cache *Cach
 		helper.Info(helper.LogTypeDDNS, "[%s] [%s] 达到强制更新阈值，执行更新 [值=%s]", serviceName, record.Type, currentValue)
 	} else if valueChanged {
 		helper.Info(helper.LogTypeDDNS, "[%s] [%s] 检测到值变化 [旧值=%s, 新值=%s]", serviceName, record.Type, oldValue, currentValue)
+	}
+	if result != nil {
+		result.NewValue = currentValue
+		if valueChanged {
+			result.OldValue = oldValue
+		}
 	}
 	return false, RecordResult{}
 }

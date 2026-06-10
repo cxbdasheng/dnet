@@ -139,7 +139,7 @@ func (t *TencentCloud) processRecord(record *config.DNSRecord, cache *Cache, exi
 	}
 
 	// 2. 检查缓存
-	if skip, r := checkDynamicCache(t.GetServiceName(), record, cache, currentValue); skip {
+	if skip, r := checkDynamicCache(t.GetServiceName(), record, cache, currentValue, &result); skip {
 		return r
 	}
 

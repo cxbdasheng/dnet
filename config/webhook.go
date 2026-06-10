@@ -19,7 +19,7 @@ type Webhook struct {
 	WebhookRequestBody string `json:"webhook_request_body"`
 }
 
-func ExecWebhook(conf *Webhook, serviceType, serviceName, serviceStatus string) bool {
+func ExecWebhook(conf *Webhook, serviceType, serviceName, serviceStatus, changeDetail string) bool {
 	if conf.WebhookURL == "" {
 		return false
 	}
@@ -30,7 +30,7 @@ func ExecWebhook(conf *Webhook, serviceType, serviceName, serviceStatus string) 
 
 	if conf.WebhookRequestBody != "" {
 		method = http.MethodPost
-		body = replacePara(conf.WebhookRequestBody, serviceType, serviceName, serviceStatus)
+		body = replacePara(conf.WebhookRequestBody, serviceType, serviceName, serviceStatus, changeDetail)
 		if json.Valid([]byte(body)) {
 			contentType = "application/json"
 		} else if hasJSONPrefix(body) {
@@ -38,7 +38,7 @@ func ExecWebhook(conf *Webhook, serviceType, serviceName, serviceStatus string) 
 			helper.Info(helper.LogTypeSystem, "Webhook 中的 RequestBody JSON 无效")
 		}
 	}
-	u, err := url.Parse(replacePara(conf.WebhookURL, serviceType, serviceName, serviceStatus))
+	u, err := url.Parse(replacePara(conf.WebhookURL, serviceType, serviceName, serviceStatus, changeDetail))
 	if err != nil {
 		helper.Error(helper.LogTypeSystem, "Webhook 配置中的 URL 不正确: %s", err)
 		return false
@@ -102,13 +102,14 @@ func extractHeaders(s string) map[string]string {
 }
 
 // replacePara 替换参数
-func replacePara(orgPara, serviceType, serviceName, serviceStatus string) string {
+func replacePara(orgPara, serviceType, serviceName, serviceStatus, changeDetail string) string {
 	now := time.Now()
 	hostname, _ := os.Hostname()
 	return strings.NewReplacer(
 		"#{serviceType}", serviceType,
 		"#{serviceName}", serviceName,
 		"#{serviceStatus}", serviceStatus,
+		"#{changeDetail}", changeDetail,
 		"#{timestamp}", now.Format("20060102150405"),
 		"#{datetime}", now.Format("2006-01-02 15:04:05"),
 		"#{hostname}", hostname,

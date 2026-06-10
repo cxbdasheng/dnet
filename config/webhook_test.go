@@ -189,8 +189,18 @@ func TestReplacePara(t *testing.T) {
 		serviceType   string
 		serviceName   string
 		serviceStatus string
+		changeDetail  string
 		want          string
 	}{
+		{
+			name:          "替换 changeDetail 占位符",
+			orgPara:       "Changes: #{changeDetail}",
+			serviceType:   "DDNS",
+			serviceName:   "example.com",
+			serviceStatus: "success",
+			changeDetail:  "A: 1.1.1.1 -> 2.2.2.2",
+			want:          "Changes: A: 1.1.1.1 -> 2.2.2.2",
+		},
 		{
 			name:          "替换所有占位符",
 			orgPara:       "Type: #{serviceType}, Name: #{serviceName}, Status: #{serviceStatus}",
@@ -275,7 +285,7 @@ func TestReplacePara(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := replacePara(tt.orgPara, tt.serviceType, tt.serviceName, tt.serviceStatus)
+			got := replacePara(tt.orgPara, tt.serviceType, tt.serviceName, tt.serviceStatus, tt.changeDetail)
 			if got != tt.want {
 				t.Errorf("replacePara() = %q, want %q", got, tt.want)
 			}
@@ -464,7 +474,7 @@ func TestExecWebhook(t *testing.T) {
 				}
 			}
 
-			got := ExecWebhook(tt.conf, tt.serviceType, tt.serviceName, tt.serviceStatus)
+			got := ExecWebhook(tt.conf, tt.serviceType, tt.serviceName, tt.serviceStatus, "")
 			if got != tt.want {
 				t.Errorf("ExecWebhook() = %v, want %v", got, tt.want)
 			}
@@ -479,7 +489,7 @@ func TestExecWebhook_InvalidURL(t *testing.T) {
 		WebhookURL:     "ht!tp://invalid url with spaces",
 	}
 
-	got := ExecWebhook(conf, "DCDN", "test.com", "success")
+	got := ExecWebhook(conf, "DCDN", "test.com", "success", "")
 	if got != false {
 		t.Errorf("ExecWebhook() with invalid URL should return false, got %v", got)
 	}
@@ -500,7 +510,7 @@ func TestExecWebhook_InvalidJSON(t *testing.T) {
 	}
 
 	// 这应该仍然发送请求，但会记录JSON无效的日志
-	got := ExecWebhook(conf, "DCDN", "test.com", "success")
+	got := ExecWebhook(conf, "DCDN", "test.com", "success", "")
 	// 由于服务器返回200，所以应该返回true
 	if got != true {
 		t.Errorf("ExecWebhook() with invalid JSON should still succeed if server responds OK, got %v", got)

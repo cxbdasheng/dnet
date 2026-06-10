@@ -111,7 +111,7 @@ func (a *Aliyun) processRecord(record *config.DNSRecord, cache *Cache, existing 
 	}
 
 	// 2. 检查缓存
-	if skip, r := checkDynamicCache(a.GetServiceName(), record, cache, currentValue); skip {
+	if skip, r := checkDynamicCache(a.GetServiceName(), record, cache, currentValue, &result); skip {
 		return r
 	}
 

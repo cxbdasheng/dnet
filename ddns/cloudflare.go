@@ -174,7 +174,7 @@ func (cf *Cloudflare) processRecord(record *config.DNSRecord, cache *Cache, exis
 	}
 
 	// 2. 检查缓存
-	if skip, r := checkDynamicCache(cf.GetServiceName(), record, cache, currentValue); skip {
+	if skip, r := checkDynamicCache(cf.GetServiceName(), record, cache, currentValue, &result); skip {
 		return r
 	}
 

@@ -124,7 +124,7 @@ func (r *Runner) processDCDNServices(conf *config.Config) {
 		cdnSelected.Init(&conf.DCDNConfig.DCDN[i], &r.dcdnCaches[i])
 		cdnSelected.UpdateOrCreateSources()
 		if conf.WebhookEnabled && cdnSelected.ShouldSendWebhook() {
-			config.ExecWebhook(&conf.Webhook, string(helper.LogTypeDCDN), cdnSelected.GetServiceName(), cdnSelected.GetServiceStatus())
+			config.ExecWebhook(&conf.Webhook, string(helper.LogTypeDCDN), cdnSelected.GetServiceName(), cdnSelected.GetServiceStatus(), formatDCDNChanges(cdnSelected.GetUpdateDetails()))
 		}
 		if cdnSelected.ConfigChanged() {
 			configChanged = true
@@ -187,11 +187,13 @@ func (r *Runner) processDDNSServices(conf *config.Config) {
 			successCount := 0
 			failedCount := 0
 			recordTypes := make([]string, 0)
+			webhookResults := make([]ddns.RecordResult, 0)
 
 			for _, result := range results {
 				if result.ShouldWebhook {
 					needWebhook = true
 					recordTypes = append(recordTypes, result.RecordType)
+					webhookResults = append(webhookResults, result)
 					if result.Status == ddns.UpdatedSuccess {
 						successCount++
 					} else {
@@ -213,7 +215,7 @@ func (r *Runner) processDDNSServices(conf *config.Config) {
 				}
 
 				serviceName := fmt.Sprintf("%s [%s]", dnsSelected.GetServiceName(), strings.Join(recordTypes, ", "))
-				config.ExecWebhook(&conf.Webhook, string(helper.LogTypeDDNS), serviceName, status)
+				config.ExecWebhook(&conf.Webhook, string(helper.LogTypeDDNS), serviceName, status, formatDDNSChanges(webhookResults))
 			}
 		}
 	}
@@ -285,4 +287,33 @@ func buildDDNSCacheKey(group *config.DNSGroup, record *config.DNSRecord) string 
 		record.Value,
 		record.Regex,
 	}, "\x1f")
+}
+
+// formatDCDNChanges 将 DCDN 变更明细格式化为单行字符串供 webhook 模板替换
+// 形如: "ipv4url(https://x): 1.1.1.1 -> 2.2.2.2; ipv4interface(eth0): 3.3.3.3 -> 4.4.4.4"
+func formatDCDNChanges(details []dcdn.UpdateDetail) string {
+	if len(details) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(details))
+	for _, d := range details {
+		parts = append(parts, fmt.Sprintf("%s(%s): %s -> %s", d.SourceType, d.SourceValue, d.OldIP, d.NewIP))
+	}
+	return strings.Join(parts, "; ")
+}
+
+// formatDDNSChanges 将 DDNS 变更明细格式化为单行字符串供 webhook 模板替换
+// 仅包含填充了 NewValue 的动态记录；形如: "A: 1.1.1.1 -> 2.2.2.2; AAAA: ::1 -> ::2"
+func formatDDNSChanges(results []ddns.RecordResult) string {
+	if len(results) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(results))
+	for _, r := range results {
+		if r.NewValue == "" {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s: %s -> %s", r.RecordType, r.OldValue, r.NewValue))
+	}
+	return strings.Join(parts, "; ")
 }
