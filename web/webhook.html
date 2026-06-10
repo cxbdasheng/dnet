@@ -26,6 +26,13 @@
         user-select: none;
         transition: background .15s;
     }
+    .webhook-tip {
+        display: inline-block;
+        margin-top: 10px;
+        line-height: 10px;
+        font-size: 10px;
+        color: #a29c9c;
+    }
     .webhook-var:hover { background: #e0eaf5; border-color: #4a90d9; color: #2c6fb7; }
     .webhook-var.inserted { background: #d4edda; border-color: #5cb85c; }
 </style>
@@ -35,11 +42,11 @@
         <form class="layui-form">
             <div class="layui-form-item">
                 <label for="webhook_enable" class="layui-form-label">启用状态</label>
-                <div class="layui-input-inline">
+                <div class="layui-input-block">
                     <input type="checkbox" id="webhook_enable" name="webhook_enable" lay-skin="switch"
                            lay-text="开启|关闭" {{if .WebhookEnabled}}checked{{end}}>
-                    <tip>关闭后，Webhook 所有配置失效。</tip>
                 </div>
+                <tip class="webhook-tip">关闭后 Webhook 所有配置失效，使用可参考 <a style="color: #1e9fff" href="https://github.com/cxbdasheng/dnet/wiki/WebHook-%E9%85%8D%E7%BD%AE%E6%8C%87%E5%8D%97" target="_blank">WebHook 配置指南</a>。</tip>
             </div>
             <div class="layui-form-item">
                 <label for="url" class="layui-form-label">URL</label>
