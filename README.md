@@ -129,7 +129,7 @@ go run main.go                          # 直接运行
 | `#{serviceType}` | 服务类型 | `DCDN`、`DDNS` |
 | `#{serviceName}` | 服务名称（域名） | `ddns.example.com` |
 | `#{serviceStatus}` | 更新结果 | `成功`、`失败`、`未改变` |
-| `#{changeDetail}` | 本次变更明细（旧值→新值，多条以 `; ` 分隔；无变更时为空） | `A: 1.1.1.1 -> 2.2.2.2`、`ipv4url(https://ipv4.example.com): 1.1.1.1 -> 2.2.2.2` |
+| `#{changeDetail}` | 本次变更明细（旧值→新值） | `A: 1.1.1.1 -> 2.2.2.2` |
 | `#{timestamp}`  | 时间戳  | 20060102150405      |
 | `#{datetime}`  | 日期时间  | 2006-01-02 15:04:05 |
 | `#{hostname}`  | 主机名  |                     |
