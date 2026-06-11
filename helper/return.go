@@ -20,7 +20,9 @@ func ReturnError(w http.ResponseWriter, msg string) {
 	result.Msg = msg
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	if err := json.NewEncoder(w).Encode(result); err != nil {
+		Warn(LogTypeSystem, "返回错误响应序列化失败: %v", err)
+	}
 }
 
 // ReturnSuccess 返回成功信息
@@ -31,5 +33,7 @@ func ReturnSuccess(w http.ResponseWriter, msg string, data interface{}) {
 	result.Msg = msg
 	result.Data = data
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	if err := json.NewEncoder(w).Encode(result); err != nil {
+		Warn(LogTypeSystem, "返回成功响应序列化失败: %v", err)
+	}
 }

@@ -36,13 +36,13 @@ const (
 // SetDNS 设置自定义DNS服务器
 func SetDNS(dnsServer string) {
 	if dnsServer == "" {
-		Info(LogTypeSystem, "DNS服务器地址为空，跳过设置")
+		Warn(LogTypeNetwork, "DNS服务器地址为空，跳过设置")
 		return
 	}
 
 	// 验证DNS服务器地址格式
 	if !isValidDNSServer(dnsServer) {
-		Info(LogTypeSystem, "无效的DNS服务器地址: %s", dnsServer)
+		Warn(LogTypeNetwork, "无效的DNS服务器地址: %s", dnsServer)
 		return
 	}
 
@@ -53,7 +53,7 @@ func SetDNS(dnsServer string) {
 
 	// 测试DNS服务器连通性
 	if !testDNSConnectivity(dnsServer) {
-		Info(LogTypeSystem, "DNS服务器 %s 连接测试失败", dnsServer)
+		Warn(LogTypeNetwork, "DNS服务器 %s 连接测试失败", dnsServer)
 		return
 	}
 
@@ -67,7 +67,7 @@ func SetDNS(dnsServer string) {
 			return d.DialContext(ctx, network, dnsServer)
 		},
 	}
-	Info(LogTypeSystem, "已设置自定义 DNS 服务器: %s", dnsServer)
+	Info(LogTypeNetwork, "已设置自定义 DNS 服务器: %s", dnsServer)
 }
 
 // isValidDNSServer 验证DNS服务器地址格式
@@ -167,7 +167,7 @@ func testDNSConnectivity(dnsServer string) bool {
 func InitBackupDNS(customDNS string) {
 	if customDNS != "" {
 		SetDNS(customDNS)
-		Info(LogTypeSystem, "使用自定义DNS: %s", customDNS)
+		Info(LogTypeNetwork, "使用自定义DNS: %s", customDNS)
 		return
 	}
 
@@ -202,15 +202,15 @@ func InitBackupDNS(customDNS string) {
 		case result := <-resultChan:
 			if result.works {
 				SetDNS(result.dns)
-				Info(LogTypeSystem, "使用备用 DNS: %s", result.dns)
+				Info(LogTypeNetwork, "使用备用 DNS: %s", result.dns)
 				return
 			}
 		case <-ctx.Done():
-			Info(LogTypeSystem, "DNS 测试超时，使用系统默认 DNS")
+			Warn(LogTypeNetwork, "DNS 测试超时，使用系统默认 DNS")
 			return
 		}
 	}
-	Info(LogTypeSystem, "所有备用 DNS 服务器均不可用，使用系统默认 DNS")
+	Warn(LogTypeNetwork, "所有备用 DNS 服务器均不可用，使用系统默认 DNS")
 }
 
 // IsLocalAddress 检查IP地址是否为私有地址
@@ -309,8 +309,8 @@ func GetAddrFromUrl(urlsStr string, addrType string) string {
 		// 发送 HTTP 请求
 		resp, err := client.Get(url)
 		if err != nil {
-			Info(LogTypeSystem, "通过接口获取 %s 失败! 接口地址: %s", config.addrTypeName, url)
-			Warn(LogTypeSystem, "异常信息: %s", err)
+			Warn(LogTypeNetwork, "通过接口获取 %s 失败! 接口地址: %s", config.addrTypeName, url)
+			Warn(LogTypeNetwork, "异常信息: %s", err)
 			continue
 		}
 
@@ -320,14 +320,14 @@ func GetAddrFromUrl(urlsStr string, addrType string) string {
 		_ = resp.Body.Close()
 
 		if err != nil {
-			Warn(LogTypeSystem, "读取响应失败: %s", err)
+			Warn(LogTypeNetwork, "读取响应失败: %s", err)
 			continue
 		}
 
 		// 使用正则提取地址
 		result := config.regex.FindString(string(body))
 		if result == "" {
-			Info(LogTypeSystem, "获取 %s 结果失败! 接口: %s, 返回值: %s", config.addrTypeName, url, string(body))
+			Warn(LogTypeNetwork, "获取 %s 结果失败! 接口: %s, 返回值: %s", config.addrTypeName, url, string(body))
 			continue
 		}
 
@@ -342,7 +342,7 @@ func GetAddrFromUrl(urlsStr string, addrType string) string {
 // GetAddrFromCmd 从命令输出中获取地址
 func GetAddrFromCmd(cmd string, addrType string) string {
 	if cmd == "" {
-		Info(LogTypeSystem, "命令为空，无法获取地址")
+		Warn(LogTypeNetwork, "命令为空，无法获取地址")
 		return ""
 	}
 
@@ -366,14 +366,14 @@ func GetAddrFromCmd(cmd string, addrType string) string {
 	// 执行命令
 	out, err := execCmd.CombinedOutput()
 	if err != nil {
-		Info(LogTypeSystem, "执行命令失败: %s, 错误: %v", cmd, err)
+		Warn(LogTypeNetwork, "执行命令失败: %s, 错误: %v", cmd, err)
 		return ""
 	}
 
 	// 使用正则提取地址
 	result := regex.FindString(string(out))
 	if result == "" {
-		Info(LogTypeSystem, "未能从命令输出中提取%s地址: %s", addrType, cmd)
+		Warn(LogTypeNetwork, "未能从命令输出中提取%s地址: %s", addrType, cmd)
 	}
 	return result
 }
@@ -411,7 +411,7 @@ func findAddrInInterfacesWithRegex(interfaces []NetInterface, interfaceName, reg
 			// 使用正则表达式匹配
 			regex, err := regexp.Compile(regexStr)
 			if err != nil {
-				Info(LogTypeSystem, "正则表达式编译失败: %s, 错误: %v", regexStr, err)
+				Warn(LogTypeNetwork, "正则表达式编译失败: %s, 错误: %v", regexStr, err)
 				// 正则错误时返回第一个地址
 				return netInterface.Address[0]
 			}
@@ -424,7 +424,7 @@ func findAddrInInterfacesWithRegex(interfaces []NetInterface, interfaceName, reg
 			}
 
 			// 没有匹配到，返回第一个地址作为后备
-			Info(LogTypeSystem, "正则表达式未匹配到地址: %s, 使用第一个地址", regexStr)
+			Warn(LogTypeNetwork, "正则表达式未匹配到地址: %s, 使用第一个地址", regexStr)
 			return netInterface.Address[0]
 		}
 	}
@@ -435,7 +435,7 @@ func findAddrInInterfacesWithRegex(interfaces []NetInterface, interfaceName, reg
 func GetAddrFromInterface(interfaceName string, addrType string) string {
 	ipv4, ipv6, err := GetNetInterface()
 	if err != nil {
-		Info(LogTypeSystem, "获取网络接口失败: %v", err)
+		Warn(LogTypeNetwork, "获取网络接口失败: %v", err)
 		return ""
 	}
 
@@ -443,12 +443,12 @@ func GetAddrFromInterface(interfaceName string, addrType string) string {
 	if addrType == IPv4 {
 		result = findAddrInInterfaces(ipv4, interfaceName)
 		if result == "" {
-			Info(LogTypeSystem, "未找到IPv4接口: %s", interfaceName)
+			Warn(LogTypeNetwork, "未找到IPv4接口: %s", interfaceName)
 		}
 	} else if addrType == IPv6 {
 		result = findAddrInInterfaces(ipv6, interfaceName)
 		if result == "" {
-			Info(LogTypeSystem, "未找到IPv6接口: %s", interfaceName)
+			Warn(LogTypeNetwork, "未找到IPv6接口: %s", interfaceName)
 		}
 	}
 
@@ -459,7 +459,7 @@ func GetAddrFromInterface(interfaceName string, addrType string) string {
 func GetAddrFromInterfaceWithRegex(interfaceName string, addrType string, regexStr string) string {
 	ipv4, ipv6, err := GetNetInterface()
 	if err != nil {
-		Info(LogTypeSystem, "获取网络接口失败: %v", err)
+		Warn(LogTypeNetwork, "获取网络接口失败: %v", err)
 		return ""
 	}
 
@@ -467,12 +467,12 @@ func GetAddrFromInterfaceWithRegex(interfaceName string, addrType string, regexS
 	if addrType == IPv4 {
 		result = findAddrInInterfacesWithRegex(ipv4, interfaceName, regexStr)
 		if result == "" {
-			Info(LogTypeSystem, "未找到IPv4接口: %s", interfaceName)
+			Warn(LogTypeNetwork, "未找到IPv4接口: %s", interfaceName)
 		}
 	} else if addrType == IPv6 {
 		result = findAddrInInterfacesWithRegex(ipv6, interfaceName, regexStr)
 		if result == "" {
-			Info(LogTypeSystem, "未找到IPv6接口: %s", interfaceName)
+			Warn(LogTypeNetwork, "未找到IPv6接口: %s", interfaceName)
 		}
 	}
 

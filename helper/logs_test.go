@@ -8,9 +8,10 @@ import (
 // newTestLogger 创建一个用于测试的独立 Logger 实例
 func newTestLogger(maxSize int) *Logger {
 	return &Logger{
-		logs:    make([]LogEntry, 0, maxSize),
-		maxSize: maxSize,
-		enabled: true,
+		logs:     make([]LogEntry, 0, maxSize),
+		maxSize:  maxSize,
+		enabled:  true,
+		minLevel: LogLevelDEBUG,
 	}
 }
 
@@ -363,5 +364,43 @@ func BenchmarkLoggerGetLogsByLevel(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		l.GetLogsByLevel(LogLevelINFO)
+	}
+}
+
+// TestLoggerMinLevelFilter 验证 minLevel 会丢弃低于阈值的日志
+func TestLoggerMinLevelFilter(t *testing.T) {
+	l := newTestLogger(10)
+	l.SetMinLevel(LogLevelINFO)
+
+	if got := l.GetMinLevel(); got != LogLevelINFO {
+		t.Fatalf("GetMinLevel() = %q, want %q", got, LogLevelINFO)
+	}
+
+	l.Debug(LogTypeSystem, "dropped")
+	l.Info(LogTypeSystem, "kept-info")
+	l.Warn(LogTypeSystem, "kept-warn")
+	l.Error(LogTypeSystem, "kept-error")
+
+	logs := l.GetLogs()
+	if len(logs) != 3 {
+		t.Fatalf("GetLogs() len = %d, want 3 (debug should be dropped)", len(logs))
+	}
+	for _, e := range logs {
+		if e.Level == LogLevelDEBUG {
+			t.Errorf("DEBUG entry leaked through filter: %+v", e)
+		}
+	}
+
+	// 放宽阈值后,新的 Debug 应当被记录
+	l.SetMinLevel(LogLevelDEBUG)
+	l.Debug(LogTypeSystem, "now-kept")
+	if got := len(l.GetLogsByLevel(LogLevelDEBUG)); got != 1 {
+		t.Errorf("DEBUG count after lowering minLevel = %d, want 1", got)
+	}
+
+	// 非法级别应当被忽略,minLevel 保持不变
+	l.SetMinLevel(LogLevel("BOGUS"))
+	if got := l.GetMinLevel(); got != LogLevelDEBUG {
+		t.Errorf("GetMinLevel() after invalid SetMinLevel = %q, want %q", got, LogLevelDEBUG)
 	}
 }

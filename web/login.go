@@ -81,7 +81,7 @@ func (s *Server) Login(writer http.ResponseWriter, request *http.Request) {
 func (s *Server) handleLoginGet(writer http.ResponseWriter, _ *http.Request) {
 	tmpl, err := template.ParseFS(loginEmbedFile, "login.html")
 	if err != nil {
-		helper.Info(helper.LogTypeSystem, "模板解析失败: %v", err)
+		helper.Error(helper.LogTypeAuth, "模板解析失败: %v", err)
 		helper.ReturnError(writer, "页面加载失败")
 		return
 	}
@@ -97,7 +97,7 @@ func (s *Server) handleLoginGet(writer http.ResponseWriter, _ *http.Request) {
 	}
 
 	if err = tmpl.Execute(writer, data); err != nil {
-		helper.Info(helper.LogTypeSystem, "模板执行失败: %v", err)
+		helper.Error(helper.LogTypeAuth, "模板执行失败: %v", err)
 		helper.ReturnError(writer, "页面渲染失败")
 	}
 }
@@ -113,7 +113,7 @@ func (s *Server) handleLoginPost(writer http.ResponseWriter, request *http.Reque
 	// 解析请求体
 	var loginReq LoginRequest
 	if err := json.NewDecoder(request.Body).Decode(&loginReq); err != nil {
-		helper.Info(helper.LogTypeSystem, "请求解析失败: %v", err)
+		helper.Warn(helper.LogTypeAuth, "请求解析失败: %v", err)
 		helper.ReturnError(writer, "请求格式错误")
 		return
 	}
@@ -133,9 +133,9 @@ func (s *Server) handleLoginPost(writer http.ResponseWriter, request *http.Reque
 	if conf.Username == "" || conf.Password == "" {
 		// 获取客户端IP
 		clientIP := helper.GetClientIP(request)
-		helper.Info(helper.LogTypeSystem, "登录尝试 - 用户: %s, IP: %s", loginReq.Username, clientIP)
+		helper.Info(helper.LogTypeAuth, "登录尝试 - 用户: %s, IP: %s", loginReq.Username, clientIP)
 		if err := s.handleInitialSetup(&conf, loginReq, clientIP); err != nil {
-			helper.Info(helper.LogTypeSystem, "初始设置失败: %v", err)
+			helper.Error(helper.LogTypeAuth, "初始设置失败: %v", err)
 			helper.ReturnError(writer, err.Error())
 			return
 		}
@@ -145,7 +145,7 @@ func (s *Server) handleLoginPost(writer http.ResponseWriter, request *http.Reque
 	if loginReq.Username == conf.Username && conf.VerifyPassword(loginReq.Password) {
 		// 登录成功处理
 		if err := s.handleLoginSuccess(writer, &conf); err != nil {
-			helper.Info(helper.LogTypeSystem, "登录成功处理失败: %v", err)
+			helper.Error(helper.LogTypeAuth, "登录成功处理失败: %v", err)
 			helper.ReturnError(writer, "登录处理失败")
 			return
 		}
@@ -155,11 +155,11 @@ func (s *Server) handleLoginPost(writer http.ResponseWriter, request *http.Reque
 	// 登录失败处理
 	attempts, locked := globalLoginDetector.RecordFailure(time.Now())
 	if locked {
-		helper.Info(helper.LogTypeSystem, "登录尝试已锁定 %v，失败次数: %d", LoginLockDuration, attempts)
+		helper.Warn(helper.LogTypeAuth, "登录尝试已锁定 %v，失败次数: %d", LoginLockDuration, attempts)
 		helper.ReturnError(writer, "登录失败次数过多，请稍后再试")
 		return
 	}
-	helper.Info(helper.LogTypeSystem, "登录失败 - 用户: %s, 失败次数: %d", loginReq.Username, attempts)
+	helper.Warn(helper.LogTypeAuth, "登录失败 - 用户: %s, 失败次数: %d", loginReq.Username, attempts)
 	helper.ReturnError(writer, "用户名或密码错误")
 }
 
@@ -184,7 +184,7 @@ func (s *Server) handleInitialSetup(conf *config.Config, loginReq LoginRequest, 
 	if err = s.configRepo.Save(conf); err != nil {
 		return fmt.Errorf("保存配置失败: %v", err)
 	}
-	helper.Info(helper.LogTypeSystem, "初始设置完成 - 用户: %s, 内网模式: %v", conf.Username, conf.NotAllowWanAccess)
+	helper.Info(helper.LogTypeAuth, "初始设置完成 - 用户: %s, 内网模式: %v", conf.Username, conf.NotAllowWanAccess)
 	return nil
 }
 
@@ -215,7 +215,7 @@ func (s *Server) handleLoginSuccess(writer http.ResponseWriter, conf *config.Con
 	setCurrentCookie(newCookie)
 
 	http.SetCookie(writer, newCookie)
-	helper.Info(helper.LogTypeSystem, "用户登录成功: %s, Cookie 过期时间: %v", conf.Username, expires)
+	helper.Info(helper.LogTypeAuth, "用户登录成功: %s, Cookie 过期时间: %v", conf.Username, expires)
 
 	helper.ReturnSuccess(writer, "用户登录成功", newCookie.Value)
 	return nil
@@ -268,7 +268,7 @@ func (d *LoginDetector) clearExpiredLock(now time.Time) {
 
 	d.FailedAttempts = 0
 	d.LockedUntil = time.Time{}
-	helper.Info(helper.LogTypeSystem, "登录锁定已解除，可重新尝试登录")
+	helper.Info(helper.LogTypeAuth, "登录锁定已解除，可重新尝试登录")
 }
 
 func setCurrentCookie(cookie *http.Cookie) {
@@ -319,7 +319,7 @@ func generateToken() string {
 	randomBytes := make([]byte, TokenLength)
 	if _, err := rand.Read(randomBytes); err != nil {
 		// 容错处理：使用时间戳作为后备方案
-		helper.Info(helper.LogTypeSystem, "生成随机令牌失败，使用时间戳后备: %v", err)
+		helper.Warn(helper.LogTypeAuth, "生成随机令牌失败，使用时间戳后备: %v", err)
 		return hex.EncodeToString([]byte(time.Now().Format("20060102150405.000000")))
 	}
 

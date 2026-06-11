@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cxbdasheng/dnet/bootstrap"
@@ -71,6 +72,9 @@ var webServer *web.Server
 
 func main() {
 	helper.InitLoggerWithConsole(helper.MaxSize, true)
+	if !strings.EqualFold(version, "DEV") {
+		helper.SetMinLevel(helper.LogLevelINFO)
+	}
 	flag.Parse()
 
 	// 显示版本
@@ -174,7 +178,7 @@ func run() {
 			// 启动web服务
 			err := runWebServer()
 			if err != nil {
-				helper.Info(helper.LogTypeSystem, "启动web服务失败: %v\n", err)
+				helper.Error(helper.LogTypeSystem, "启动web服务失败: %v\n", err)
 				time.Sleep(time.Minute)
 				os.Exit(1)
 			}

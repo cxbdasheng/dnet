@@ -175,7 +175,7 @@ func (h *Huawei) processRecord(record *config.DNSRecord, cache *Cache, existing 
 		if len(existing.cnameRecords) > 0 {
 			existingCNAME := existing.cnameRecords[0]
 			if len(existingCNAME.Records) == 1 && existingCNAME.Records[0] == currentValue {
-				helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 记录值未变化，无需更新 [RecordID=%s, 值=%s]", h.GetServiceName(), existingCNAME.ID, currentValue)
+				helper.Debug(helper.LogTypeDDNS, "[%s] [CNAME] 记录值未变化，无需更新 [RecordID=%s, 值=%s]", h.GetServiceName(), existingCNAME.ID, currentValue)
 			} else {
 				helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 更新已有 CNAME 记录 [RecordID=%s, 旧值=%v]", h.GetServiceName(), existingCNAME.ID, existingCNAME.Records)
 				updateErr = h.updateRecordSet(existingCNAME.ID, record.Type, currentValue)
@@ -198,7 +198,7 @@ func (h *Huawei) processRecord(record *config.DNSRecord, cache *Cache, existing 
 		targetRecord := existing.otherRecords[record.Type]
 		if targetRecord != nil {
 			if len(targetRecord.Records) == 1 && targetRecord.Records[0] == currentValue {
-				helper.Info(helper.LogTypeDDNS, "[%s] [%s] 记录值未变化，无需更新 [RecordID=%s, 值=%s]", h.GetServiceName(), record.Type, targetRecord.ID, currentValue)
+				helper.Debug(helper.LogTypeDDNS, "[%s] [%s] 记录值未变化，无需更新 [RecordID=%s, 值=%s]", h.GetServiceName(), record.Type, targetRecord.ID, currentValue)
 			} else {
 				helper.Info(helper.LogTypeDDNS, "[%s] [%s] 记录已存在 [RecordID=%s, 旧值=%v]", h.GetServiceName(), record.Type, targetRecord.ID, targetRecord.Records)
 				updateErr = h.updateRecordSet(targetRecord.ID, record.Type, currentValue)

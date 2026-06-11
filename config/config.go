@@ -142,7 +142,7 @@ func (conf *Config) SaveConfig() error {
 	if stat, err := os.Stat(configFilePath); err == nil {
 		globalCache.modTime = stat.ModTime()
 	}
-	helper.Info(helper.LogTypeSystem, "配置文件已保存在: %s", configFilePath)
+	helper.Info(helper.LogTypeConfig, "配置文件已保存在: %s", configFilePath)
 	return nil
 }
 func (conf *Config) GetPort() string {

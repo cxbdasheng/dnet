@@ -138,7 +138,7 @@ func (a *Aliyun) processRecord(record *config.DNSRecord, cache *Cache, existing 
 		if len(existing.cnameRecords) > 0 {
 			existingCNAME := existing.cnameRecords[0]
 			if existingCNAME.Value == currentValue {
-				helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 记录值未变化，无需更新 [RecordId=%s, 值=%s]", a.GetServiceName(), existingCNAME.RecordId, currentValue)
+				helper.Debug(helper.LogTypeDDNS, "[%s] [CNAME] 记录值未变化，无需更新 [RecordId=%s, 值=%s]", a.GetServiceName(), existingCNAME.RecordId, currentValue)
 			} else {
 				helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 更新已有 CNAME 记录 [RecordId=%s, 旧值=%s]", a.GetServiceName(), existingCNAME.RecordId, existingCNAME.Value)
 				updateErr = a.updateDomainRecord(existingCNAME.RecordId, record.Type, currentValue)
@@ -162,7 +162,7 @@ func (a *Aliyun) processRecord(record *config.DNSRecord, cache *Cache, existing 
 		targetRecord := existing.otherRecords[record.Type]
 		if targetRecord != nil {
 			if targetRecord.Value == currentValue {
-				helper.Info(helper.LogTypeDDNS, "[%s] [%s] 记录值未变化，无需更新 [RecordId=%s, 值=%s]", a.GetServiceName(), record.Type, targetRecord.RecordId, currentValue)
+				helper.Debug(helper.LogTypeDDNS, "[%s] [%s] 记录值未变化，无需更新 [RecordId=%s, 值=%s]", a.GetServiceName(), record.Type, targetRecord.RecordId, currentValue)
 			} else {
 				helper.Info(helper.LogTypeDDNS, "[%s] [%s] 记录已存在 [RecordId=%s, 旧值=%s]", a.GetServiceName(), record.Type, targetRecord.RecordId, targetRecord.Value)
 				updateErr = a.updateDomainRecord(targetRecord.RecordId, record.Type, currentValue)

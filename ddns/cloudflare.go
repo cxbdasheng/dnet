@@ -199,7 +199,7 @@ func (cf *Cloudflare) processRecord(record *config.DNSRecord, cache *Cache, exis
 		if len(existing.cnameRecords) > 0 {
 			existingCNAME := existing.cnameRecords[0]
 			if existingCNAME.Content == currentValue {
-				helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 记录值未变化，无需更新 [RecordID=%s, 值=%s]", cf.GetServiceName(), existingCNAME.ID, currentValue)
+				helper.Debug(helper.LogTypeDDNS, "[%s] [CNAME] 记录值未变化，无需更新 [RecordID=%s, 值=%s]", cf.GetServiceName(), existingCNAME.ID, currentValue)
 			} else {
 				helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 更新已有 CNAME 记录 [RecordID=%s, 旧值=%s]", cf.GetServiceName(), existingCNAME.ID, existingCNAME.Content)
 				updateErr = cf.updateDNSRecord(existingCNAME.ID, record.Type, currentValue)
@@ -222,7 +222,7 @@ func (cf *Cloudflare) processRecord(record *config.DNSRecord, cache *Cache, exis
 		targetRecord := existing.otherRecords[record.Type]
 		if targetRecord != nil {
 			if targetRecord.Content == currentValue {
-				helper.Info(helper.LogTypeDDNS, "[%s] [%s] 记录值未变化，无需更新 [RecordID=%s, 值=%s]", cf.GetServiceName(), record.Type, targetRecord.ID, currentValue)
+				helper.Debug(helper.LogTypeDDNS, "[%s] [%s] 记录值未变化，无需更新 [RecordID=%s, 值=%s]", cf.GetServiceName(), record.Type, targetRecord.ID, currentValue)
 			} else {
 				helper.Info(helper.LogTypeDDNS, "[%s] [%s] 记录已存在 [RecordID=%s, 旧值=%s]", cf.GetServiceName(), record.Type, targetRecord.ID, targetRecord.Content)
 				updateErr = cf.updateDNSRecord(targetRecord.ID, record.Type, currentValue)

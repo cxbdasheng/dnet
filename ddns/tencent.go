@@ -164,7 +164,7 @@ func (t *TencentCloud) processRecord(record *config.DNSRecord, cache *Cache, exi
 		if len(existing.cnameRecords) > 0 {
 			existingCNAME := existing.cnameRecords[0]
 			if existingCNAME.Value == currentValue {
-				helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 记录值未变化，无需更新 [RecordId=%d, 值=%s]", t.GetServiceName(), existingCNAME.RecordId, currentValue)
+				helper.Debug(helper.LogTypeDDNS, "[%s] [CNAME] 记录值未变化，无需更新 [RecordId=%d, 值=%s]", t.GetServiceName(), existingCNAME.RecordId, currentValue)
 			} else {
 				helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 更新已有 CNAME 记录 [RecordId=%d, 旧值=%s]", t.GetServiceName(), existingCNAME.RecordId, existingCNAME.Value)
 				updateErr = t.updateDomainRecord(existingCNAME.RecordId, record.Type, currentValue)
@@ -187,7 +187,7 @@ func (t *TencentCloud) processRecord(record *config.DNSRecord, cache *Cache, exi
 		targetRecord := existing.otherRecords[record.Type]
 		if targetRecord != nil {
 			if targetRecord.Value == currentValue {
-				helper.Info(helper.LogTypeDDNS, "[%s] [%s] 记录值未变化，无需更新 [RecordId=%d, 值=%s]", t.GetServiceName(), record.Type, targetRecord.RecordId, currentValue)
+				helper.Debug(helper.LogTypeDDNS, "[%s] [%s] 记录值未变化，无需更新 [RecordId=%d, 值=%s]", t.GetServiceName(), record.Type, targetRecord.RecordId, currentValue)
 			} else {
 				helper.Info(helper.LogTypeDDNS, "[%s] [%s] 记录已存在 [RecordId=%d, 旧值=%s]", t.GetServiceName(), record.Type, targetRecord.RecordId, targetRecord.Value)
 				updateErr = t.updateDomainRecord(targetRecord.RecordId, record.Type, currentValue)

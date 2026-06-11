@@ -131,7 +131,7 @@ func (d *Dnspod) processRecord(record *config.DNSRecord, cache *Cache, existing 
 		if len(existing.cnameRecords) > 0 {
 			existingCNAME := existing.cnameRecords[0]
 			if existingCNAME.Value == currentValue {
-				helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 记录值未变化，无需更新 [RecordId=%s, 值=%s]", d.GetServiceName(), existingCNAME.ID, currentValue)
+				helper.Debug(helper.LogTypeDDNS, "[%s] [CNAME] 记录值未变化，无需更新 [RecordId=%s, 值=%s]", d.GetServiceName(), existingCNAME.ID, currentValue)
 			} else {
 				helper.Info(helper.LogTypeDDNS, "[%s] [CNAME] 更新已有 CNAME 记录 [RecordId=%s, 旧值=%s]", d.GetServiceName(), existingCNAME.ID, existingCNAME.Value)
 				updateErr = d.updateDomainRecord(existingCNAME.ID, record.Type, currentValue)
@@ -154,7 +154,7 @@ func (d *Dnspod) processRecord(record *config.DNSRecord, cache *Cache, existing 
 		targetRecord := existing.otherRecords[record.Type]
 		if targetRecord != nil {
 			if targetRecord.Value == currentValue {
-				helper.Info(helper.LogTypeDDNS, "[%s] [%s] 记录值未变化，无需更新 [RecordId=%s, 值=%s]", d.GetServiceName(), record.Type, targetRecord.ID, currentValue)
+				helper.Debug(helper.LogTypeDDNS, "[%s] [%s] 记录值未变化，无需更新 [RecordId=%s, 值=%s]", d.GetServiceName(), record.Type, targetRecord.ID, currentValue)
 			} else {
 				helper.Info(helper.LogTypeDDNS, "[%s] [%s] 记录已存在 [RecordId=%s, 旧值=%s]", d.GetServiceName(), record.Type, targetRecord.ID, targetRecord.Value)
 				updateErr = d.updateDomainRecord(targetRecord.ID, record.Type, currentValue)

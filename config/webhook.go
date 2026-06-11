@@ -35,12 +35,12 @@ func ExecWebhook(conf *Webhook, serviceType, serviceName, serviceStatus, changeD
 			contentType = "application/json"
 		} else if hasJSONPrefix(body) {
 			// 如果 RequestBody 的 JSON 无效但前缀为 JSON，提示无效
-			helper.Info(helper.LogTypeSystem, "Webhook 中的 RequestBody JSON 无效")
+			helper.Warn(helper.LogTypeWebhook, "Webhook 中的 RequestBody JSON 无效")
 		}
 	}
 	u, err := url.Parse(replacePara(conf.WebhookURL, serviceType, serviceName, serviceStatus, changeDetail))
 	if err != nil {
-		helper.Error(helper.LogTypeSystem, "Webhook 配置中的 URL 不正确: %s", err)
+		helper.Error(helper.LogTypeWebhook, "Webhook 配置中的 URL 不正确: %s", err)
 		return false
 	}
 	q, _ := url.ParseQuery(u.RawQuery)
@@ -48,7 +48,7 @@ func ExecWebhook(conf *Webhook, serviceType, serviceName, serviceStatus, changeD
 
 	req, err := http.NewRequest(method, u.String(), strings.NewReader(body))
 	if err != nil {
-		helper.Error(helper.LogTypeSystem, "Webhook 调用失败! 异常信息：%s", err)
+		helper.Error(helper.LogTypeWebhook, "Webhook 调用失败! 异常信息：%s", err)
 		return false
 	}
 
@@ -62,11 +62,11 @@ func ExecWebhook(conf *Webhook, serviceType, serviceName, serviceStatus, changeD
 	resp, err := clt.Do(req)
 	respBody, err := helper.GetHTTPResponseOrg(resp, err)
 	if err == nil {
-		helper.Info(helper.LogTypeSystem, "Webhook 调用成功! 返回数据：%s", string(respBody))
+		helper.Info(helper.LogTypeWebhook, "Webhook 调用成功! 返回数据：%s", string(respBody))
 		return true
 	}
 
-	helper.Error(helper.LogTypeSystem, "Webhook 调用失败! 异常信息：%s", err)
+	helper.Error(helper.LogTypeWebhook, "Webhook 调用失败! 异常信息：%s", err)
 	return false
 }
 
@@ -90,7 +90,7 @@ func extractHeaders(s string) map[string]string {
 
 		parts := strings.Split(line, ":")
 		if len(parts) != 2 {
-			helper.Info(helper.LogTypeSystem, "Webhook Header不正确: %s", line)
+			helper.Warn(helper.LogTypeWebhook, "Webhook Header不正确: %s", line)
 			continue
 		}
 

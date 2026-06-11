@@ -19,6 +19,14 @@ const (
 	LogLevelFATAL LogLevel = "FATAL"
 )
 
+var logLevelOrder = map[LogLevel]int{
+	LogLevelDEBUG: 0,
+	LogLevelINFO:  1,
+	LogLevelWARN:  2,
+	LogLevelERROR: 3,
+	LogLevelFATAL: 4,
+}
+
 var MaxSize = 100
 
 // LogType 日志类型
@@ -48,6 +56,7 @@ type Logger struct {
 	logs          []LogEntry
 	maxSize       int         // 最大日志条数
 	enabled       bool        // 是否启用日志记录
+	minLevel      LogLevel    // 最低记录级别，低于此级别的日志直接丢弃
 	consoleOutput bool        // 是否输出到控制台
 	logger        *log.Logger // 标准库 logger，用于控制台输出
 }
@@ -73,6 +82,7 @@ func InitLoggerWithConsole(maxSize int, consoleOutput bool) {
 			logs:          make([]LogEntry, 0, maxSize),
 			maxSize:       maxSize,
 			enabled:       true,
+			minLevel:      LogLevelDEBUG,
 			consoleOutput: consoleOutput,
 		}
 		// 如果启用控制台输出，初始化 logger
@@ -98,6 +108,10 @@ func (l *Logger) addLog(level LogLevel, logType LogType, format string, args ...
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
+	if logLevelOrder[level] < logLevelOrder[l.minLevel] {
+		return
+	}
 
 	// 格式化消息
 	message := fmt.Sprintf(format, args...)
@@ -239,6 +253,23 @@ func (l *Logger) IsEnabled() bool {
 	return l.enabled
 }
 
+// SetMinLevel 设置最低记录级别，低于此级别的日志会被直接丢弃
+func (l *Logger) SetMinLevel(level LogLevel) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if _, ok := logLevelOrder[level]; !ok {
+		return
+	}
+	l.minLevel = level
+}
+
+// GetMinLevel 获取当前最低记录级别
+func (l *Logger) GetMinLevel() LogLevel {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.minLevel
+}
+
 // SetMaxSize 设置最大日志条数
 func (l *Logger) SetMaxSize(maxSize int) {
 	l.mu.Lock()
@@ -359,6 +390,11 @@ func ClearLogs() {
 // SetConsoleOutput 全局设置控制台输出
 func SetConsoleOutput(enabled bool) {
 	GetLogger().SetConsoleOutput(enabled)
+}
+
+// SetMinLevel 全局设置最低记录级别
+func SetMinLevel(level LogLevel) {
+	GetLogger().SetMinLevel(level)
 }
 
 // IsConsoleOutputEnabled 全局检查控制台输出是否启用
