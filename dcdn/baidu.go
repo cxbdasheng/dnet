@@ -221,12 +221,12 @@ func (baidu *Baidu) getSourceContent(source *config.Source) string {
 	var addr string
 	if IsDynamicType(source.Type) {
 		// 对于动态类型，从缓存获取IP
-		cacheKey := helper.GetIPCacheKey(source.Type, source.Value)
+		cacheKey := getSourceCacheKey(source)
 		if ip, ok := baidu.Cache.DynamicIPs[cacheKey]; ok {
 			addr = ip
 		} else {
 			// 如果缓存中没有，尝试获取
-			if ip, ok := helper.GetOrSetDynamicIPWithCache(source.Type, source.Value); ok {
+			if ip, ok := getOrSetSourceIP(source); ok {
 				addr = ip
 			} else {
 				helper.Warn(helper.LogTypeDCDN, "无法获取动态源站IP [类型=%s, 值=%s]，使用配置值", source.Type, source.Value)
@@ -274,12 +274,12 @@ func (baidu *Baidu) getSourceContentWithProtocol(source *config.Source, protocol
 	var addr string
 	if IsDynamicType(source.Type) {
 		// 对于动态类型，从缓存获取IP
-		cacheKey := helper.GetIPCacheKey(source.Type, source.Value)
+		cacheKey := getSourceCacheKey(source)
 		if ip, ok := baidu.Cache.DynamicIPs[cacheKey]; ok {
 			addr = ip
 		} else {
 			// 如果缓存中没有，尝试获取
-			if ip, ok := helper.GetOrSetDynamicIPWithCache(source.Type, source.Value); ok {
+			if ip, ok := getOrSetSourceIP(source); ok {
 				addr = ip
 			} else {
 				helper.Warn(helper.LogTypeDCDN, "无法获取动态源站IP [类型=%s, 值=%s]，使用配置值", source.Type, source.Value)

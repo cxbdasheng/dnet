@@ -3,7 +3,60 @@ package dcdn
 import (
 	"sync"
 	"testing"
+
+	"github.com/cxbdasheng/dnet/config"
+	"github.com/cxbdasheng/dnet/helper"
 )
+
+// TestCache_PruneTo 验证 PruneTo 只保留 validKeys 中的条目
+func TestCache_PruneTo(t *testing.T) {
+	cache := NewCache()
+	cache.UpdateDynamicIP("dynamic_ipv6_interface:en0:@1", "::1")
+	cache.UpdateDynamicIP("dynamic_ipv6_interface:en0:@2", "::2")
+	cache.UpdateDynamicIP("dynamic_ipv4_url:https://x", "1.1.1.1")
+
+	cache.PruneTo(map[string]struct{}{
+		"dynamic_ipv6_interface:en0:@2": {},
+		"dynamic_ipv4_url:https://x":    {},
+	})
+
+	if _, ok := cache.DynamicIPs["dynamic_ipv6_interface:en0:@1"]; ok {
+		t.Error("@1 应被清理")
+	}
+	if _, ok := cache.DynamicIPs["dynamic_ipv6_interface:en0:@2"]; !ok {
+		t.Error("@2 应保留")
+	}
+	if _, ok := cache.DynamicIPs["dynamic_ipv4_url:https://x"]; !ok {
+		t.Error("URL 类型应保留")
+	}
+}
+
+// TestGetSourceCacheKey 验证仅 IPv6 网卡 + regex 非空时缓存键带 regex
+func TestGetSourceCacheKey(t *testing.T) {
+	t.Run("IPv6 网卡不同 regex 产生不同 key", func(t *testing.T) {
+		s1 := &config.Source{Type: helper.DynamicIPv6Interface, Value: "eth0", Regex: "@1"}
+		s2 := &config.Source{Type: helper.DynamicIPv6Interface, Value: "eth0", Regex: "@2"}
+		if getSourceCacheKey(s1) == getSourceCacheKey(s2) {
+			t.Errorf("@1 与 @2 的 key 应不同：%q vs %q", getSourceCacheKey(s1), getSourceCacheKey(s2))
+		}
+	})
+
+	t.Run("IPv6 网卡无 regex 时退化为基础 key", func(t *testing.T) {
+		s := &config.Source{Type: helper.DynamicIPv6Interface, Value: "eth0"}
+		want := helper.GetIPCacheKey(s.Type, s.Value)
+		if getSourceCacheKey(s) != want {
+			t.Errorf("got %q, want %q", getSourceCacheKey(s), want)
+		}
+	})
+
+	t.Run("非 IPv6 网卡类型忽略 regex", func(t *testing.T) {
+		s1 := &config.Source{Type: helper.DynamicIPv4Interface, Value: "eth0", Regex: "@1"}
+		s2 := &config.Source{Type: helper.DynamicIPv4Interface, Value: "eth0", Regex: "@2"}
+		if getSourceCacheKey(s1) != getSourceCacheKey(s2) {
+			t.Errorf("IPv4 网卡类型应忽略 regex，但 key 不一致：%q vs %q", getSourceCacheKey(s1), getSourceCacheKey(s2))
+		}
+	})
+}
 
 // TestCacheConcurrency 测试 Cache 的并发安全性
 func TestCacheConcurrency(t *testing.T) {

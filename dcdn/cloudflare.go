@@ -281,12 +281,12 @@ func (cf *Cloudflare) getSourceContent() (content string, recordType string, err
 	// 获取源站值
 	if IsDynamicType(source.Type) {
 		// 动态 IP，从缓存中获取
-		cacheKey := helper.GetIPCacheKey(source.Type, source.Value)
+		cacheKey := getSourceCacheKey(&source)
 		dynamicIPs := cf.Cache.GetDynamicIPs()
 		content = dynamicIPs[cacheKey]
 		if content == "" {
 			// 如果缓存中没有，尝试获取
-			addr, ok := helper.GetOrSetDynamicIPWithCache(source.Type, source.Value)
+			addr, ok := getOrSetSourceIP(&source)
 			if !ok {
 				return "", "", fmt.Errorf("获取动态 IP 失败")
 			}

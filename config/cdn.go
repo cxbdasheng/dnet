@@ -44,6 +44,7 @@ func (c *CDN) GetRootDomain() string {
 type Source struct {
 	Type      string `json:"type"`
 	Value     string `json:"value"`
+	Regex     string `json:"regex"` // IPv6 正则表达式匹配（仅用于 dynamic_ipv6_interface）
 	Priority  string `json:"priority"`
 	Weight    string `json:"weight"`
 	Port      string `json:"port"`       // HTTP 端口

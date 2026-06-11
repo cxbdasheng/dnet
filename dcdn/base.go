@@ -58,22 +58,40 @@ func (b *BaseProvider) validateBaseConfig(providerName string) bool {
 	return true
 }
 
+// pruneStaleSourceCacheEntries 删除 DynamicIPs 中不再对应任何当前源站的条目
+// 当源站 regex 等配置变化导致 cacheKey 变化时，旧 key 下的快照必须清理，
+// 否则配置回滚回旧 key 后 CheckIPChanged 会命中陈旧值，误判为"无变化"导致跳过推送。
+func (b *BaseProvider) pruneStaleSourceCacheEntries() {
+	valid := make(map[string]struct{}, len(b.CDN.Sources))
+	for i := range b.CDN.Sources {
+		source := &b.CDN.Sources[i]
+		if IsDynamicType(source.Type) {
+			valid[getSourceCacheKey(source)] = struct{}{}
+		}
+	}
+	b.Cache.PruneTo(valid)
+}
+
 // checkDynamicIPChanges 检查所有动态源站的 IP 变化，返回变化数量
 // 若 IP 获取失败，设置 Status = InitGetIPFailed 并返回 (0, false)
 func (b *BaseProvider) checkDynamicIPChanges() (int, bool) {
+	b.pruneStaleSourceCacheEntries()
 	changedIPCount := 0
-	for _, source := range b.CDN.Sources {
+	for i := range b.CDN.Sources {
+		source := &b.CDN.Sources[i]
 		if !IsDynamicType(source.Type) {
 			continue
 		}
-		addr, ok := helper.GetOrSetDynamicIPWithCache(source.Type, source.Value)
+		addr, ok := getOrSetSourceIP(source)
 		if !ok {
 			b.Status = InitGetIPFailed
 			helper.Error(helper.LogTypeDCDN, "获取动态 IP 失败 [域名=%s, 源类型=%s, 配置值=%s]",
 				b.CDN.Domain, source.Type, source.Value)
 			return 0, false
 		}
-		cacheKey := helper.GetIPCacheKey(source.Type, source.Value)
+		helper.Debug(helper.LogTypeDCDN, "源站解析结果 [域名=%s, 源类型=%s, 配置值=%s, regex=%q, 解析IP=%s]",
+			b.CDN.Domain, source.Type, source.Value, source.Regex, addr)
+		cacheKey := getSourceCacheKey(source)
 		ipChanged, oldIP := b.Cache.CheckIPChanged(cacheKey, addr)
 		if ipChanged {
 			b.Cache.UpdateDynamicIP(cacheKey, addr)
@@ -194,11 +212,11 @@ func (b *BaseProvider) updateCnameIfChanged(newCname string) {
 // getSourceAddr 获取源站的实际地址（处理动态 IP，返回原始 IP 或域名）
 func (b *BaseProvider) getSourceAddr(source *config.Source) string {
 	if IsDynamicType(source.Type) {
-		cacheKey := helper.GetIPCacheKey(source.Type, source.Value)
+		cacheKey := getSourceCacheKey(source)
 		if ip, ok := b.Cache.DynamicIPs[cacheKey]; ok {
 			return ip
 		}
-		if addr, ok := helper.GetOrSetDynamicIPWithCache(source.Type, source.Value); ok {
+		if addr, ok := getOrSetSourceIP(source); ok {
 			return addr
 		}
 		helper.Warn(helper.LogTypeDCDN, "无法获取动态源站IP [类型=%s, 值=%s]，使用配置值", source.Type, source.Value)

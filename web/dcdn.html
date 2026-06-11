@@ -197,6 +197,8 @@
                         {{if not .IPv6}}
                         <tip style="color: red">当前系统未检测到 IPv6 网卡，请确保系统已启用 IPv6 支持</tip>
                         {{end}}
+                        <textarea name="sources_dynamic_ipv6_regex" placeholder="请输入正则表达式（留空则不启用）" class="layui-textarea" style="margin-top: 5px;"></textarea>
+                        <tip>可使用 @1 指定第一个 IPv6 地址, @2 指定第二个IPv6地址... 也可使用正则表达式匹配指定的 IPv6 地址, 留空则不启用</tip>
                     </div>
                     <div class="layui-input-inline dnet-form-value" data-type="sources_dynamic_ipv6_command">
                         <textarea name="sources_dynamic_ipv6_command" placeholder="请输入命令内容" lay-verify="command" class="layui-textarea"></textarea>
@@ -915,6 +917,7 @@
                 configObj.sources.push({
                     type: sourceType,
                     value: sourceValue,
+                    regex: $row.find('textarea[name="sources_dynamic_ipv6_regex"]').val() || '',
                     priority: $row.find('select[name="sources_priority"]').val(),
                     weight: $row.find('input[name="sources_weight"]').val(),
                     port: $row.find('input[name="sources_port"]').val(),
@@ -1088,6 +1091,9 @@
                 const defaultValue = (sourceData.type && sourceData.type.indexOf('interface') !== -1) ? '1' : '';
                 $field.val(sourceData.value || defaultValue);
             }
+
+            // 设置正则匹配（仅 IPv6 网卡获取使用，其他类型保留空值即可）
+            $row.find('textarea[name="sources_dynamic_ipv6_regex"]').val(sourceData.regex || '');
 
             // 设置其他字段
             $row.find('select[name="sources_priority"]').val(sourceData.priority || defaultConfig.sources_priority);

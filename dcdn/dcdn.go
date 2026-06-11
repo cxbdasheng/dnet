@@ -88,6 +88,22 @@ func IsDynamicType(sourceType string) bool {
 	return dynamicTypes[sourceType]
 }
 
+// getSourceCacheKey 获取源站 IP 缓存键（仅 IPv6 网卡且 regex 非空时使用 regex-aware key）
+func getSourceCacheKey(source *config.Source) string {
+	if source.Type == helper.DynamicIPv6Interface && source.Regex != "" {
+		return helper.GetIPCacheKeyWithRegex(source.Type, source.Value, source.Regex)
+	}
+	return helper.GetIPCacheKey(source.Type, source.Value)
+}
+
+// getOrSetSourceIP 获取或设置动态 IP（仅 IPv6 网卡且 regex 非空时走带 regex 的版本）
+func getOrSetSourceIP(source *config.Source) (string, bool) {
+	if source.Type == helper.DynamicIPv6Interface && source.Regex != "" {
+		return helper.GetOrSetDynamicIPWithCacheAndRegex(source.Type, source.Value, source.Regex)
+	}
+	return helper.GetOrSetDynamicIPWithCache(source.Type, source.Value)
+}
+
 // IsDomainType 判断 sourceType 是否为域名类型
 func IsDomainType(sourceType string) bool {
 	return sourceType == "domain"
@@ -138,4 +154,17 @@ func (c *Cache) GetDynamicIPs() map[string]string {
 		result[k] = v
 	}
 	return result
+}
+
+// PruneTo 删除 DynamicIPs 中所有不在 validKeys 中的条目（线程安全）
+// 用于源站配置（如 regex）变化后，清理不再对应任何当前源站的旧快照，
+// 避免配置回滚到旧 key 时被误判为"无变化"而跳过推送。
+func (c *Cache) PruneTo(validKeys map[string]struct{}) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for k := range c.DynamicIPs {
+		if _, ok := validKeys[k]; !ok {
+			delete(c.DynamicIPs, k)
+		}
+	}
 }
