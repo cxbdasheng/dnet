@@ -71,14 +71,14 @@ sudo ./dnet -s restart            # Mac/Linux
 | 参数                | 说明                       | 示例                        |
 |-------------------|----------------------------|---------------------------|
 | `-l`              | 监听地址                   | `-l :9877`                |
-| `-f`              | 同步间隔时间（秒）          | `-f 600`                  |
+| `-f`              | 同步间隔时间（秒）          | `-f 300`                  |
 | `-c`              | 自定义配置文件路径          | `-c /path/to/config.yaml` |
 | `-u`              | 升级当前 D-NET 版本        | `-u`                      |
 | `-noweb`          | 不启动 Web 服务            | `-noweb`                  |
 | `-skipVerify`     | 跳过 HTTPS 证书验证        | `-skipVerify`             |
 | `-dns`            | 自定义 DNS 服务器          | `-dns 8.8.8.8`            |
-| `-dcdnCacheTimes` | 每隔 N 次强制同步一次 CDN 记录 | `-dcdnCacheTimes 10`  |
-| `-ddnsCacheTimes` | 每隔 N 次强制同步一次 DNS 记录 | `-ddnsCacheTimes 10`  |
+| `-dcdnCacheTimes` | 每隔 N 次强制同步一次 CDN 记录 | `-dcdnCacheTimes 10`      |
+| `-ddnsCacheTimes` | 每隔 N 次强制同步一次 DNS 记录 | `-ddnsCacheTimes 10`      |
 | `-resetPassword`  | 重置密码                   | `-resetPassword newpass`  |
 
 > 更多使用参数，请查看 [Wiki 文档 - D‐NET 使用指南](https://github.com/cxbdasheng/dnet/wiki/D%E2%80%90NET-%E4%BD%BF%E7%94%A8%E6%8C%87%E5%8D%97#%E5%91%BD%E4%BB%A4%E5%8F%82%E6%95%B0)。
@@ -86,7 +86,7 @@ sudo ./dnet -s restart            # Mac/Linux
 **使用示例：**
 ```bash
 # 自定义同步间隔和配置文件路径
-./dnet -s install -f 600 -c /path/to/config.yaml
+./dnet -s install -f 300 -c /path/to/config.yaml
 
 # 重置密码
 ./dnet -resetPassword 123456
