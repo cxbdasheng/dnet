@@ -27,10 +27,10 @@ func NewRunner(repo config.Repository) *Runner {
 	}
 }
 
-func (r *Runner) RunTimer(delay time.Duration) {
+func (r *Runner) RunTimer(nextInterval func() time.Duration) {
 	for {
 		r.RunOnce()
-		time.Sleep(delay)
+		time.Sleep(nextInterval())
 	}
 }
 

@@ -17,6 +17,7 @@ type SettingsRequest struct {
 	Username          string `json:"username"`
 	Password          string `json:"password"`
 	NotAllowWanAccess bool   `json:"not_allow_wan_access"`
+	Every             int    `json:"every"`
 }
 
 func (s *Server) Settings(writer http.ResponseWriter, request *http.Request) {
@@ -68,8 +69,13 @@ func (s *Server) handleSettingsPost(writer http.ResponseWriter, request *http.Re
 		helper.ReturnError(writer, "获取配置失败")
 		return
 	}
+	if settingsReq.Every != 0 && (settingsReq.Every < 10 || settingsReq.Every > 86400) {
+		helper.ReturnError(writer, "同步间隔需在 10 – 86400 秒之间")
+		return
+	}
 	conf.NotAllowWanAccess = settingsReq.NotAllowWanAccess
 	conf.Username = settingsReq.Username
+	conf.Every = settingsReq.Every
 	if settingsReq.Password != "" {
 		hashedPwd, err := conf.GeneratePassword(settingsReq.Password)
 		if err != nil {

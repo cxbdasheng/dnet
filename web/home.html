@@ -69,8 +69,8 @@
                         <img src="/static/default.jpg" class="layui-nav-img">
                     </a>
                     <dl class="layui-nav-child">
-                        <dd><a href="javascript:;" id="webhook-config">Webhook</a></dd>
                         <dd><a href="javascript:;" id="settings">系统设置</a></dd>
+                        <dd><a href="javascript:;" id="webhook-config">Webhook</a></dd>
                         <hr>
                         <dd style="text-align: center;"><a href="./logout">退出</a></dd>
                     </dl>
@@ -643,11 +643,11 @@
                     } else if (window.innerWidth <= 1024) {
                         return ['60%', '50%']; // 平板端
                     } else {
-                        return ['40%', '35%']; // 桌面端
+                        return ['40%', '40%']; // 桌面端
                     }
                 }(),
                 maxWidth: 800,
-                maxHeight: 500,
+                maxHeight: 600,
                 shadeClose: true,
                 resize: false, // 禁用调整大小
                 move: '.layui-layer-title', // 只允许通过标题栏拖拽
@@ -662,15 +662,24 @@
                     var iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
 
                     // 获取表单数据
+                    var everyRaw = iframeDocument.getElementById('every').value;
                     var settingsData = {
                         not_allow_wan_access: iframeDocument.getElementById('not_allow_wan_access').checked,
                         username: iframeDocument.getElementById('username').value,
-                        password: iframeDocument.getElementById('password').value
+                        password: iframeDocument.getElementById('password').value,
+                        every: everyRaw === '' ? 0 : parseInt(everyRaw, 10)
                     };
 
                     // 验证数据
                     if (!settingsData.username.trim()) {
                         layer.msg('用户名不能为空', {
+                            icon: 2,
+                            time: 2000
+                        });
+                        return false;
+                    }
+                    if (settingsData.every !== 0 && (isNaN(settingsData.every) || settingsData.every < 10 || settingsData.every > 86400)) {
+                        layer.msg('同步间隔需在 10 – 86400 秒之间', {
                             icon: 2,
                             time: 2000
                         });

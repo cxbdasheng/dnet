@@ -189,7 +189,30 @@ func run() {
 	helper.InitBackupDNS(*customDNS)
 
 	// 等待网络连接
-	syncRunner.RunTimer(time.Duration(*every) * time.Second)
+	syncRunner.RunTimer(intervalProvider())
+}
+
+// intervalProvider 返回一个闭包，每次调用会重新计算同步间隔：
+//   - 若 CLI 显式传入 -f，则始终使用该值（用户主动覆盖）
+//   - 否则读取配置文件里的 every 字段（>0 生效，支持 Web UI 热更新）
+//   - 都不满足则回退到 -f 的默认值 300
+func intervalProvider() func() time.Duration {
+	explicit := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "f" {
+			explicit = true
+		}
+	})
+	fallback := time.Duration(*every) * time.Second
+	return func() time.Duration {
+		if explicit {
+			return fallback
+		}
+		if conf, err := configRepo.Load(); err == nil && conf.Every > 0 {
+			return time.Duration(conf.Every) * time.Second
+		}
+		return fallback
+	}
 }
 
 // program 实现 service.Interface 接口

@@ -38,6 +38,13 @@
                     <input type="password" id="password" name="password" class="layui-input" lay-affix="eye">
                 </div>
             </div>
+            <div class="layui-form-item">
+                <label for="every" class="layui-form-label">同步间隔</label>
+                <div class="layui-input-inline">
+                    <input type="text" id="every" name="every" value="{{.Every}}" placeholder="留空使用默认 300" lay-affix="number" value="0" step="1" max="86400" min="1" class="layui-input">
+                </div>
+                <div class="layui-form-mid layui-word-aux">秒</div>
+            </div>
         </form>
     </div>
 </div>
