@@ -80,6 +80,20 @@ const CDN_PROVIDERS = {
             "<tip></tip>",
         ]
     },
+    mock: {
+        name: "模拟测试",
+        idLabel: "",
+        secretLabel: "",
+        typeSelect: [
+            "MOCK",
+        ],
+        idHelpHtml: "<tip>模拟测试不发起真实请求，用于验证配置与 Webhook 通道</tip>",
+        typeHelpHtml: "<tip>所有操作仅打印日志，不调用云商 API</tip>",
+        maxSources: [10],
+        protocolTipHtml: [
+            "<tip></tip>",
+        ]
+    },
 }
 // 又拍云获取 Token
 function openUpyunTokenDialog() {

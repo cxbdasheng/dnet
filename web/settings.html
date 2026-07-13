@@ -42,27 +42,29 @@
             <fieldset class="layui-elem-field layui-field-title">
                 <legend>同步频率设置</legend>
             </fieldset>
+            <div class="layui-word-aux" style="margin: 0 0 12px 15px;">
+                三个参数配合使用，具体含义与推荐值可参考 <a style="color: #1e9fff" href="https://github.com/cxbdasheng/dnet/wiki/%E5%90%8C%E6%AD%A5%E9%A2%91%E7%8E%87%E8%AE%BE%E7%BD%AE" target="_blank">同步频率设置文档</a>。
+            </div>
             <div class="layui-form-item">
                 <label for="every" class="layui-form-label">同步间隔</label>
                 <div class="layui-input-inline">
-                    <input type="text" id="every" name="every" value="{{.Every}}" lay-affix="number" step="1" max="86400" min="10" class="layui-input">
-                    <tip>每 N 秒同步一次</tip>
+                    <input type="text" id="every" name="every" value="{{.Every}}" lay-affix="number" step="1" max="86400" min="10" class="layui-input" {{if .EveryLocked}}disabled{{end}}>
                 </div>
-                <div class="layui-form-mid layui-word-aux">秒</div>
+                <div class="layui-form-mid layui-word-aux">秒{{if .EveryLocked}} · <span style="color:#FF5722;">已被命令行参数 -f 锁定，修改无效</span>{{end}}</div>
             </div>
             <div class="layui-form-item">
                 <label for="dcdn_cache_times" class="layui-form-label">DCDN 强制同步</label>
                 <div class="layui-input-inline">
-                    <input type="text" id="dcdn_cache_times" name="dcdn_cache_times" value="{{.DCDNCacheTimes}}" lay-affix="number" step="1" max="1000" min="1" class="layui-input">
+                    <input type="text" id="dcdn_cache_times" name="dcdn_cache_times" value="{{.DCDNCacheTimes}}" lay-affix="number" step="1" max="1000" min="1" class="layui-input" {{if .DCDNCacheTimesLocked}}disabled{{end}}>
                 </div>
-                <div class="layui-form-mid layui-word-aux">次</div>
+                <div class="layui-form-mid layui-word-aux">次{{if .DCDNCacheTimesLocked}} · <span style="color:#FF5722;">已被命令行参数 -dcdnCacheTimes 锁定，修改无效</span>{{end}}</div>
             </div>
             <div class="layui-form-item">
                 <label for="ddns_cache_times" class="layui-form-label">DDNS 强制同步</label>
                 <div class="layui-input-inline">
-                    <input type="text" id="ddns_cache_times" name="ddns_cache_times" value="{{.DDNSCacheTimes}}" lay-affix="number" step="1" max="1000" min="1" class="layui-input">
+                    <input type="text" id="ddns_cache_times" name="ddns_cache_times" value="{{.DDNSCacheTimes}}" lay-affix="number" step="1" max="1000" min="1" class="layui-input" {{if .DDNSCacheTimesLocked}}disabled{{end}}>
                 </div>
-                <div class="layui-form-mid layui-word-aux">次</div>
+                <div class="layui-form-mid layui-word-aux">次{{if .DDNSCacheTimesLocked}} · <span style="color:#FF5722;">已被命令行参数 -ddnsCacheTimes 锁定，修改无效</span>{{end}}</div>
             </div>
         </form>
     </div>

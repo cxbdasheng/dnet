@@ -21,6 +21,14 @@ const (
 	DefaultCacheTimes = 5   // DCDN / DDNS 强制同步计数器初始值
 )
 
+// CLI 显式传入时写入的环境变量，供 bootstrap / web 判断字段是否被命令行锁定
+// 存在 = 已锁定，值 = CLI 传入的生效值
+const (
+	CLIEveryENV          = "DNET_CLI_EVERY"
+	CLIDCDNCacheTimesENV = "DNET_CLI_DCDN_CACHE_TIMES"
+	CLIDDNSCacheTimesENV = "DNET_CLI_DDNS_CACHE_TIMES"
+)
+
 func GetConfigFilePathDefault() string {
 	dir, err := os.UserHomeDir()
 	if err != nil {

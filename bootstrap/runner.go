@@ -55,11 +55,12 @@ func (r *Runner) RunOnce() {
 // applyCacheTimesFromConfig 将配置中的 CacheTimes 同步到环境变量，
 // 供 dcdn.NewCache/ResetTimes、ddns.NewCache/ResetTimes 使用。
 // 仅在 >0 时覆盖，等于 0 表示未配置，保留启动时 CLI 传入的值。
+// 若对应参数已被 CLI 显式锁定，则不覆盖，CLI 值持续生效。
 func applyCacheTimesFromConfig(conf *config.Config) {
-	if conf.DCDNConfig.CacheTimes > 0 {
+	if os.Getenv(config.CLIDCDNCacheTimesENV) == "" && conf.DCDNConfig.CacheTimes > 0 {
 		os.Setenv(dcdn.CacheTimesENV, strconv.Itoa(conf.DCDNConfig.CacheTimes))
 	}
-	if conf.DDNSConfig.CacheTimes > 0 {
+	if os.Getenv(config.CLIDDNSCacheTimesENV) == "" && conf.DDNSConfig.CacheTimes > 0 {
 		os.Setenv(ddns.CacheTimesENV, strconv.Itoa(conf.DDNSConfig.CacheTimes))
 	}
 }
@@ -136,6 +137,8 @@ func (r *Runner) processDCDNServices(conf *config.Config) {
 			cdnSelected = &dcdn.Cloudflare{}
 		case "upyun":
 			cdnSelected = &dcdn.Upyun{}
+		case "mock":
+			cdnSelected = &dcdn.Mock{}
 		default:
 			cdnSelected = &dcdn.Aliyun{}
 		}
@@ -192,6 +195,8 @@ func (r *Runner) processDDNSServices(conf *config.Config) {
 			dnsSelected = &ddns.Dnspod{}
 		case ddns.ProviderNameSilo:
 			dnsSelected = &ddns.NameSilo{}
+		case ddns.ProviderMock:
+			dnsSelected = &ddns.Mock{}
 		default:
 			helper.Warn(helper.LogTypeDDNS, "不支持的 DNS 提供商: %s，跳过", group.Service)
 			continue

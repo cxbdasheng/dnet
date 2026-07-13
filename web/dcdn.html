@@ -587,8 +587,8 @@
                         // 获取当前服务商
                         const currentService = $('input[name="service"]:checked').val();
 
-                        // Cloudflare 不需要获取 CNAME，直接显示成功
-                        if (currentService === 'cloudflare') {
+                        // Cloudflare / Mock 不需要获取 CNAME，直接显示成功
+                        if (currentService === 'cloudflare' || currentService === 'mock') {
                             layer.msg('配置保存成功', {
                                 icon: 1,
                                 time: 1000
@@ -1069,8 +1069,8 @@
             const currentCname = data.cname || '';
             const currentService = data.service || firstCDNProvider;
 
-            // Cloudflare 不需要轮询 CNAME
-            if (isDCDNEnabled && !currentCname && currentService !== 'cloudflare') {
+            // Cloudflare / Mock 不需要轮询 CNAME
+            if (isDCDNEnabled && !currentCname && currentService !== 'cloudflare' && currentService !== 'mock') {
                 // 延迟500ms启动轮询，确保表单已完全加载
                 setTimeout(function() {
                     startCnamePolling();

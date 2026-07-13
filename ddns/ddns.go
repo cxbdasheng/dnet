@@ -29,6 +29,7 @@ const (
 	ProviderHuawei     = "huawei"     // 华为云 DNS
 	ProviderDnspod     = "dnspod"     // DNSPod DNS
 	ProviderNameSilo   = "namesilo"   // NameSilo DNS
+	ProviderMock       = "mock"       // 模拟测试（不发起真实请求）
 )
 
 var dynamicTypes = map[string]bool{

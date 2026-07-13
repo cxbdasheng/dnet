@@ -5,10 +5,25 @@ import (
 	"encoding/json"
 	"html/template"
 	"net/http"
+	"os"
+	"strconv"
 
 	"github.com/cxbdasheng/dnet/config"
 	"github.com/cxbdasheng/dnet/helper"
 )
+
+// cliOverride 读取 CLI 锁定 env 变量，返回 (locked, cliValue)
+func cliOverride(envName string) (bool, int) {
+	raw := os.Getenv(envName)
+	if raw == "" {
+		return false, 0
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil {
+		return false, 0
+	}
+	return true, v
+}
 
 //go:embed settings.html
 var settingsEmbedFile embed.FS
@@ -60,16 +75,36 @@ func (s *Server) handleSettingsGet(writer http.ResponseWriter, request *http.Req
 		ddnsCacheTimes = config.DefaultCacheTimes
 	}
 
+	// 如果 CLI 显式锁定了对应参数，展示 CLI 值（Web UI 修改无效）
+	everyLocked, cliEvery := cliOverride(config.CLIEveryENV)
+	if everyLocked {
+		settings.Every = cliEvery
+	}
+	dcdnLocked, cliDCDN := cliOverride(config.CLIDCDNCacheTimesENV)
+	if dcdnLocked {
+		dcdnCacheTimes = cliDCDN
+	}
+	ddnsLocked, cliDDNS := cliOverride(config.CLIDDNSCacheTimesENV)
+	if ddnsLocked {
+		ddnsCacheTimes = cliDDNS
+	}
+
 	err = tmpl.Execute(writer, struct {
 		config.User
 		config.Settings
-		DCDNCacheTimes int
-		DDNSCacheTimes int
+		DCDNCacheTimes       int
+		DDNSCacheTimes       int
+		EveryLocked          bool
+		DCDNCacheTimesLocked bool
+		DDNSCacheTimesLocked bool
 	}{
 		conf.User,
 		settings,
 		dcdnCacheTimes,
 		ddnsCacheTimes,
+		everyLocked,
+		dcdnLocked,
+		ddnsLocked,
 	})
 	if err != nil {
 		helper.Error(helper.LogTypeConfig, "执行 settings 模板失败: %v", err)
@@ -103,9 +138,17 @@ func (s *Server) handleSettingsPost(writer http.ResponseWriter, request *http.Re
 	}
 	conf.NotAllowWanAccess = settingsReq.NotAllowWanAccess
 	conf.Username = settingsReq.Username
-	conf.Every = settingsReq.Every
-	conf.DCDNConfig.CacheTimes = settingsReq.DCDNCacheTimes
-	conf.DDNSConfig.CacheTimes = settingsReq.DDNSCacheTimes
+	// CLI 锁定的字段不接受 Web UI 更新，保留用户已有的 config 值
+	// （用户后续移除 CLI 参数重启后，仍能拿回之前的配置）
+	if everyLocked, _ := cliOverride(config.CLIEveryENV); !everyLocked {
+		conf.Every = settingsReq.Every
+	}
+	if dcdnLocked, _ := cliOverride(config.CLIDCDNCacheTimesENV); !dcdnLocked {
+		conf.DCDNConfig.CacheTimes = settingsReq.DCDNCacheTimes
+	}
+	if ddnsLocked, _ := cliOverride(config.CLIDDNSCacheTimesENV); !ddnsLocked {
+		conf.DDNSConfig.CacheTimes = settingsReq.DDNSCacheTimes
+	}
 	if settingsReq.Password != "" {
 		hashedPwd, err := conf.GeneratePassword(settingsReq.Password)
 		if err != nil {

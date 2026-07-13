@@ -77,6 +77,7 @@ func main() {
 		helper.SetMinLevel(helper.LogLevelINFO)
 	}
 	flag.Parse()
+	recordCLIOverrides()
 
 	// 显示版本
 	if *showVersion {
@@ -191,6 +192,22 @@ func run() {
 
 	// 等待网络连接
 	syncRunner.RunTimer(intervalProvider())
+}
+
+// recordCLIOverrides 将 CLI 显式传入的调优参数写入环境变量，
+// 供 bootstrap / web 判断"此字段是否被命令行锁定"。
+// 环境变量存在 = 已锁定；值 = CLI 传入的生效值。
+func recordCLIOverrides() {
+	flag.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "f":
+			os.Setenv(config.CLIEveryENV, strconv.Itoa(*every))
+		case "dcdnCacheTimes":
+			os.Setenv(config.CLIDCDNCacheTimesENV, strconv.Itoa(*dcdnCacheTimes))
+		case "ddnsCacheTimes":
+			os.Setenv(config.CLIDDNSCacheTimesENV, strconv.Itoa(*ddnsCacheTimes))
+		}
+	})
 }
 
 // intervalProvider 返回一个闭包，每次调用会重新计算同步间隔：
