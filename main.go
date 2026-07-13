@@ -35,7 +35,7 @@ var updateFlag = flag.Bool("u", false, "Upgrade D-NET to the latest version")
 var listen = flag.String("l", ":9877", "Listen address")
 
 // 更新频率(秒)
-var every = flag.Int("f", 300, "Update frequency(seconds)")
+var every = flag.Int("f", config.DefaultEvery, "Update frequency(seconds)")
 
 // 服务管理
 var serviceType = flag.String("s", "", "Service management (install|uninstall|restart)")
@@ -49,10 +49,11 @@ var customDNS = flag.String("dns", "", "Custom DNS server address, example: 8.8.
 // Web 服务
 var noWebService = flag.Bool("noweb", false, "No web service")
 
-// 缓存次数
-var dcdnCacheTimes = flag.Int("dcdnCacheTimes", 5, "dcdn Cache times")
+// dcdn 缓存次数
+var dcdnCacheTimes = flag.Int("dcdnCacheTimes", config.DefaultCacheTimes, "dcdn Cache times")
 
-var ddnsCacheTimes = flag.Int("ddnsCacheTimes", 5, "ddns Cache times")
+// ddns 缓存次数
+var ddnsCacheTimes = flag.Int("ddnsCacheTimes", config.DefaultCacheTimes, "ddns Cache times")
 
 // D-NET 版本
 var showVersion = flag.Bool("v", false, "D-NET version")

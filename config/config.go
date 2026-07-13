@@ -15,6 +15,12 @@ const PathENV = "DNET_CONFIG_FILE_PATH"
 
 const DNETPort = "DNET_PORT"
 
+// 全局默认值：CLI flag、后端填充、模板展示均引用这些常量，作为唯一事实来源
+const (
+	DefaultEvery      = 300 // 同步循环间隔（秒）
+	DefaultCacheTimes = 5   // DCDN / DDNS 强制同步计数器初始值
+)
+
 func GetConfigFilePathDefault() string {
 	dir, err := os.UserHomeDir()
 	if err != nil {

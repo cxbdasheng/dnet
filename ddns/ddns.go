@@ -87,7 +87,7 @@ type RecordResult struct {
 func NewCache() Cache {
 	times, err := strconv.Atoi(os.Getenv(CacheTimesENV))
 	if err != nil {
-		times = 5
+		times = config.DefaultCacheTimes
 	}
 	return Cache{
 		Times:      times,
@@ -133,7 +133,7 @@ func (c *Cache) GetDynamicIP(cacheKey string) (string, bool) {
 func (c *Cache) ResetTimes() {
 	times, err := strconv.Atoi(os.Getenv(CacheTimesENV))
 	if err != nil {
-		times = 5
+		times = config.DefaultCacheTimes
 	}
 	c.Times = times
 }

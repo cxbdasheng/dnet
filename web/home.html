@@ -639,15 +639,15 @@
                 area: function () {
                     // 根据屏幕宽度自适应
                     if (window.innerWidth <= 768) {
-                        return ['90%', '60%']; // 移动端
+                        return ['90%', '70%']; // 移动端
                     } else if (window.innerWidth <= 1024) {
-                        return ['60%', '50%']; // 平板端
+                        return ['60%', '60%']; // 平板端
                     } else {
-                        return ['40%', '40%']; // 桌面端
+                        return ['40%', '50%']; // 桌面端
                     }
                 }(),
                 maxWidth: 800,
-                maxHeight: 600,
+                maxHeight: 700,
                 shadeClose: true,
                 resize: false, // 禁用调整大小
                 move: '.layui-layer-title', // 只允许通过标题栏拖拽
@@ -663,11 +663,15 @@
 
                     // 获取表单数据
                     var everyRaw = iframeDocument.getElementById('every').value;
+                    var dcdnCacheRaw = iframeDocument.getElementById('dcdn_cache_times').value;
+                    var ddnsCacheRaw = iframeDocument.getElementById('ddns_cache_times').value;
                     var settingsData = {
                         not_allow_wan_access: iframeDocument.getElementById('not_allow_wan_access').checked,
                         username: iframeDocument.getElementById('username').value,
                         password: iframeDocument.getElementById('password').value,
-                        every: everyRaw === '' ? 0 : parseInt(everyRaw, 10)
+                        every: everyRaw === '' ? 0 : parseInt(everyRaw, 10),
+                        dcdn_cache_times: dcdnCacheRaw === '' ? 0 : parseInt(dcdnCacheRaw, 10),
+                        ddns_cache_times: ddnsCacheRaw === '' ? 0 : parseInt(ddnsCacheRaw, 10)
                     };
 
                     // 验证数据
@@ -683,6 +687,14 @@
                             icon: 2,
                             time: 2000
                         });
+                        return false;
+                    }
+                    if (settingsData.dcdn_cache_times !== 0 && (isNaN(settingsData.dcdn_cache_times) || settingsData.dcdn_cache_times < 1 || settingsData.dcdn_cache_times > 1000)) {
+                        layer.msg('DCDN 强制同步次数需在 1 – 1000 之间', {icon: 2, time: 2000});
+                        return false;
+                    }
+                    if (settingsData.ddns_cache_times !== 0 && (isNaN(settingsData.ddns_cache_times) || settingsData.ddns_cache_times < 1 || settingsData.ddns_cache_times > 1000)) {
+                        layer.msg('DDNS 强制同步次数需在 1 – 1000 之间', {icon: 2, time: 2000});
                         return false;
                     }
                     // 发送 ajax 事件

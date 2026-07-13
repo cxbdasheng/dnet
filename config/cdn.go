@@ -7,6 +7,8 @@ import (
 type DCDNConfig struct {
 	DCDNEnabled bool  `json:"dcdn_enable"`
 	DCDN        []CDN `json:"dcdn"`
+	// 强制同步计数器初始值
+	CacheTimes int `json:"dcdn_cache_times,omitempty" yaml:"dcdn_cache_times,omitempty"`
 }
 
 type CDN struct {

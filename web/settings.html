@@ -38,12 +38,31 @@
                     <input type="password" id="password" name="password" class="layui-input" lay-affix="eye">
                 </div>
             </div>
+            <!--同步频率-->
+            <fieldset class="layui-elem-field layui-field-title">
+                <legend>同步频率设置</legend>
+            </fieldset>
             <div class="layui-form-item">
                 <label for="every" class="layui-form-label">同步间隔</label>
                 <div class="layui-input-inline">
-                    <input type="text" id="every" name="every" value="{{.Every}}" placeholder="留空使用默认 300" lay-affix="number" value="0" step="1" max="86400" min="0" class="layui-input">
+                    <input type="text" id="every" name="every" value="{{.Every}}" lay-affix="number" step="1" max="86400" min="10" class="layui-input">
+                    <tip>每 N 秒同步一次</tip>
                 </div>
                 <div class="layui-form-mid layui-word-aux">秒</div>
+            </div>
+            <div class="layui-form-item">
+                <label for="dcdn_cache_times" class="layui-form-label">DCDN 强制同步</label>
+                <div class="layui-input-inline">
+                    <input type="text" id="dcdn_cache_times" name="dcdn_cache_times" value="{{.DCDNCacheTimes}}" lay-affix="number" step="1" max="1000" min="1" class="layui-input">
+                </div>
+                <div class="layui-form-mid layui-word-aux">次</div>
+            </div>
+            <div class="layui-form-item">
+                <label for="ddns_cache_times" class="layui-form-label">DDNS 强制同步</label>
+                <div class="layui-input-inline">
+                    <input type="text" id="ddns_cache_times" name="ddns_cache_times" value="{{.DDNSCacheTimes}}" lay-affix="number" step="1" max="1000" min="1" class="layui-input">
+                </div>
+                <div class="layui-form-mid layui-word-aux">次</div>
             </div>
         </form>
     </div>

@@ -9,6 +9,8 @@ import (
 type DDNSConfig struct {
 	DDNSEnabled bool       `json:"ddns_enable"`
 	DDNS        []DNSGroup `json:"ddns"`
+	// 强制同步计数器初始值
+	CacheTimes int `json:"ddns_cache_times,omitempty" yaml:"ddns_cache_times,omitempty"`
 }
 
 // RestoreSensitiveFieldsForDDNS 恢复 DDNS 脱敏字段的原始值
@@ -48,6 +50,7 @@ func GetDCDNConfigJSON(DCDNConf DCDNConfig) string {
 	}
 
 	// 创建副本以避免修改原始配置
+	// CacheTimes 由「系统设置」页面管理，DCDN 页面不消费，无需序列化
 	maskedConf := DCDNConfig{
 		DCDNEnabled: DCDNConf.DCDNEnabled,
 		DCDN:        make([]CDN, len(DCDNConf.DCDN)),
@@ -138,6 +141,7 @@ func GetDDNSConfigJSON(DDNSConf DDNSConfig) string {
 	}
 
 	// 创建副本以避免修改原始配置
+	// CacheTimes 由「系统设置」页面管理，DDNS 页面不消费，无需序列化
 	maskedConf := DDNSConfig{
 		DDNSEnabled: DDNSConf.DDNSEnabled,
 		DDNS:        make([]DNSGroup, len(DDNSConf.DDNS)),

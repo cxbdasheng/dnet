@@ -18,6 +18,8 @@ type SettingsRequest struct {
 	Password          string `json:"password"`
 	NotAllowWanAccess bool   `json:"not_allow_wan_access"`
 	Every             int    `json:"every"`
+	DCDNCacheTimes    int    `json:"dcdn_cache_times"`
+	DDNSCacheTimes    int    `json:"ddns_cache_times"`
 }
 
 func (s *Server) Settings(writer http.ResponseWriter, request *http.Request) {
@@ -44,12 +46,30 @@ func (s *Server) handleSettingsGet(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
+	// 未配置时填充默认值，前端直接展示"生效值"
+	settings := conf.Settings
+	if settings.Every == 0 {
+		settings.Every = config.DefaultEvery
+	}
+	dcdnCacheTimes := conf.DCDNConfig.CacheTimes
+	if dcdnCacheTimes == 0 {
+		dcdnCacheTimes = config.DefaultCacheTimes
+	}
+	ddnsCacheTimes := conf.DDNSConfig.CacheTimes
+	if ddnsCacheTimes == 0 {
+		ddnsCacheTimes = config.DefaultCacheTimes
+	}
+
 	err = tmpl.Execute(writer, struct {
 		config.User
 		config.Settings
+		DCDNCacheTimes int
+		DDNSCacheTimes int
 	}{
 		conf.User,
-		conf.Settings,
+		settings,
+		dcdnCacheTimes,
+		ddnsCacheTimes,
 	})
 	if err != nil {
 		helper.Error(helper.LogTypeConfig, "执行 settings 模板失败: %v", err)
@@ -73,9 +93,19 @@ func (s *Server) handleSettingsPost(writer http.ResponseWriter, request *http.Re
 		helper.ReturnError(writer, "同步间隔需在 10 – 86400 秒之间")
 		return
 	}
+	if settingsReq.DCDNCacheTimes != 0 && (settingsReq.DCDNCacheTimes < 1 || settingsReq.DCDNCacheTimes > 1000) {
+		helper.ReturnError(writer, "DCDN 强制同步次数需在 1 – 1000 之间")
+		return
+	}
+	if settingsReq.DDNSCacheTimes != 0 && (settingsReq.DDNSCacheTimes < 1 || settingsReq.DDNSCacheTimes > 1000) {
+		helper.ReturnError(writer, "DDNS 强制同步次数需在 1 – 1000 之间")
+		return
+	}
 	conf.NotAllowWanAccess = settingsReq.NotAllowWanAccess
 	conf.Username = settingsReq.Username
 	conf.Every = settingsReq.Every
+	conf.DCDNConfig.CacheTimes = settingsReq.DCDNCacheTimes
+	conf.DDNSConfig.CacheTimes = settingsReq.DDNSCacheTimes
 	if settingsReq.Password != "" {
 		hashedPwd, err := conf.GeneratePassword(settingsReq.Password)
 		if err != nil {

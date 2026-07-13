@@ -2,6 +2,8 @@ package bootstrap
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -43,9 +45,23 @@ func (r *Runner) RunOnce() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	applyCacheTimesFromConfig(&conf)
+
 	helper.ClearGlobalIPCache()
 	r.processDCDNServices(&conf)
 	r.processDDNSServices(&conf)
+}
+
+// applyCacheTimesFromConfig 将配置中的 CacheTimes 同步到环境变量，
+// 供 dcdn.NewCache/ResetTimes、ddns.NewCache/ResetTimes 使用。
+// 仅在 >0 时覆盖，等于 0 表示未配置，保留启动时 CLI 传入的值。
+func applyCacheTimesFromConfig(conf *config.Config) {
+	if conf.DCDNConfig.CacheTimes > 0 {
+		os.Setenv(dcdn.CacheTimesENV, strconv.Itoa(conf.DCDNConfig.CacheTimes))
+	}
+	if conf.DDNSConfig.CacheTimes > 0 {
+		os.Setenv(ddns.CacheTimesENV, strconv.Itoa(conf.DDNSConfig.CacheTimes))
+	}
 }
 
 func (r *Runner) SyncDCDNOnce() {
@@ -57,6 +73,7 @@ func (r *Runner) SyncDCDNOnce() {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	applyCacheTimesFromConfig(&conf)
 	r.processDCDNServices(&conf)
 }
 
@@ -69,6 +86,7 @@ func (r *Runner) SyncDDNSOnce() {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	applyCacheTimesFromConfig(&conf)
 	r.processDDNSServices(&conf)
 }
 

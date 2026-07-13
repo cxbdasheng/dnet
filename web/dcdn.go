@@ -89,6 +89,9 @@ func (s *Server) handleDCDNPost(writer http.ResponseWriter, request *http.Reques
 	// 恢复脱敏字段的原始值（如果前端发送的是脱敏数据）
 	configData = config.RestoreSensitiveFields(configData, conf.DCDNConfig)
 
+	// CacheTimes 由「系统设置」页面管理，此接口不携带，需保留旧值
+	configData.CacheTimes = conf.DCDNConfig.CacheTimes
+
 	// 更新 DCDN 配置
 	conf.DCDNConfig = configData
 
