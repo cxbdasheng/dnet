@@ -302,7 +302,7 @@ func checkDynamicCache(serviceName string, record *config.DNSRecord, cache *Cach
 
 	if !valueChanged && cache.HasRun && !ForceCompareGlobal && !forceUpdate {
 		cache.Times--
-		helper.Debug(helper.LogTypeDDNS, "[%s] [%s] 值未变化，跳过更新 [当前=%s, 剩余次数=%d]", serviceName, record.Type, currentValue, cache.Times)
+		helper.Info(helper.LogTypeDDNS, "[%s] [%s] 未改变，将等待 %d 次后与服务商进行比对 [当前=%s]", serviceName, record.Type, cache.Times, currentValue)
 		return true, RecordResult{RecordType: record.Type, Status: UpdatedNothing}
 	}
 

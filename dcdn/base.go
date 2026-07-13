@@ -172,8 +172,12 @@ func (b *BaseProvider) runUpdateOrCreate(providerName string, doUpdate func()) b
 		return true
 	}
 	b.Status = UpdatedNothing
-	helper.Debug(helper.LogTypeDCDN, "无需更新 %s 配置 [域名=%s, 计数器剩余=%d]",
-		providerName, b.CDN.Domain, b.Cache.Times)
+	if b.hasDynamicSources() {
+		helper.Info(helper.LogTypeDCDN, "%s 源站未改变，将等待 %d 次后与服务商进行比对 [域名=%s]",
+			providerName, b.Cache.Times, b.CDN.Domain)
+	} else {
+		helper.Debug(helper.LogTypeDCDN, "无需更新 %s 配置 [域名=%s]", providerName, b.CDN.Domain)
+	}
 	return false
 }
 
