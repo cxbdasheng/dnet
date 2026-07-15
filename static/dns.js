@@ -41,10 +41,10 @@ const DNS_PROVIDERS = {
         secretLabel: "API Key：",
         idHelpHtml: "<a target='_blank' href='https://www.namesilo.com/account/api-manager'>获取 NameSilo API Key</a>",
     },
-    // mock: {
-    //     name: "模拟测试",
-    //     idLabel: "",
-    //     secretLabel: "",
-    //     idHelpHtml: "<tip>模拟测试不发起真实请求，仅打印日志，用于验证配置与 Webhook 通道</tip>",
-    // },
+    mock: {
+        name: "模拟测试",
+        idLabel: "",
+        secretLabel: "",
+        idHelpHtml: "<tip>模拟测试不发起真实请求，仅打印日志，用于验证配置与 Webhook 通道</tip>",
+    },
 }
