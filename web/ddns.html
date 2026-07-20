@@ -505,6 +505,11 @@
                     return; // 跳过验证
                 }
 
+                // 自定义回调的 RequestBody 为可选项，允许为空
+                if ($('input[name="service"]:checked').val() === 'callback') {
+                    return;
+                }
+
                 var labelText = $('#access-secret-label').text().replace('：', '').trim();
                 if (!value) {
                     return labelText + ' 不能为空';

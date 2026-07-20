@@ -195,6 +195,10 @@ func (r *Runner) processDDNSServices(conf *config.Config) {
 			dnsSelected = &ddns.Dnspod{}
 		case ddns.ProviderNameSilo:
 			dnsSelected = &ddns.NameSilo{}
+		case ddns.ProviderGoDaddy:
+			dnsSelected = &ddns.GoDaddy{}
+		case ddns.ProviderCallback:
+			dnsSelected = &ddns.Callback{}
 		case ddns.ProviderMock:
 			dnsSelected = &ddns.Mock{}
 		default:

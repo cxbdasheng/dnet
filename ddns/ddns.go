@@ -29,6 +29,8 @@ const (
 	ProviderHuawei     = "huawei"     // 华为云 DNS
 	ProviderDnspod     = "dnspod"     // DNSPod DNS
 	ProviderNameSilo   = "namesilo"   // NameSilo DNS
+	ProviderGoDaddy    = "godaddy"    // GoDaddy DNS
+	ProviderCallback   = "callback"   // 自定义回调（HTTP GET/POST）
 	ProviderMock       = "mock"       // 模拟测试（不发起真实请求）
 )
 

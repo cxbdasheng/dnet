@@ -41,6 +41,18 @@ const DNS_PROVIDERS = {
         secretLabel: "API Key：",
         idHelpHtml: "<a target='_blank' href='https://www.namesilo.com/account/api-manager'>获取 NameSilo API Key</a>",
     },
+    godaddy: {
+        name: "GoDaddy",
+        idLabel: "API Key：",
+        secretLabel: "API Secret：",
+        idHelpHtml: "<a target='_blank' href='https://developer.godaddy.com/keys'>创建 GoDaddy API 密钥</a>",
+    },
+    callback: {
+        name: "Callback",
+        idLabel: "Callback URL：",
+        secretLabel: "请求内容 RequestBody（可选）：",
+        idHelpHtml: "<tip>支持变量：#{ip} #{domain} #{recordType} #{ttl}。RequestBody 为空发 GET，否则发 POST。</tip>",
+    },
     // mock: {
     //     name: "模拟测试",
     //     idLabel: "",
