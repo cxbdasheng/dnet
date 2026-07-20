@@ -137,6 +137,8 @@ func (r *Runner) processDCDNServices(conf *config.Config) {
 			cdnSelected = &dcdn.Cloudflare{}
 		case "upyun":
 			cdnSelected = &dcdn.Upyun{}
+		case "callback":
+			cdnSelected = &dcdn.Callback{}
 		case "mock":
 			cdnSelected = &dcdn.Mock{}
 		default:

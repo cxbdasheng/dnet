@@ -80,6 +80,20 @@ const CDN_PROVIDERS = {
             "<tip></tip>",
         ]
     },
+    callback: {
+        name: "Callback",
+        idLabel: "Callback URL：",
+        secretLabel: "请求内容 RequestBody（可选）：",
+        typeSelect: [
+            "CALLBACK",
+        ],
+        idHelpHtml: "<tip><a target='_blank' href='https://github.com/cxbdasheng/dnet/wiki/DCDN-%E4%BD%BF%E7%94%A8%E6%8C%87%E5%8D%97#%E8%87%AA%E5%AE%9A%E4%B9%89%E5%9B%9E%E8%B0%83callback'>自定义回调</a>  支持变量：#{domain} #{ips}（逗号分隔地址） #{sources}（源站 JSON 数组）。RequestBody 为空发 GET，否则发 POST。</tip>",
+        typeHelpHtml: "<tip>源站 IP 变化时向回调 URL 推送，用于对接自建 CDN 或内部接口</tip>",
+        maxSources: [20],
+        protocolTipHtml: [
+            "<tip></tip>",
+        ]
+    },
     // mock: {
     //     name: "模拟测试",
     //     idLabel: "",

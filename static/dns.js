@@ -51,7 +51,7 @@ const DNS_PROVIDERS = {
         name: "Callback",
         idLabel: "Callback URL：",
         secretLabel: "请求内容 RequestBody（可选）：",
-        idHelpHtml: "<tip>支持变量：#{ip} #{domain} #{recordType} #{ttl}。RequestBody 为空发 GET，否则发 POST。</tip>",
+        idHelpHtml: "<tip><a target='_blank' href='https://github.com/cxbdasheng/dnet/wiki/DDNS-%E4%BD%BF%E7%94%A8%E6%8C%87%E5%8D%97#%E8%87%AA%E5%AE%9A%E4%B9%89%E5%9B%9E%E8%B0%83callback'>自定义回调</a>  支持变量：#{ip} #{domain} #{recordType} #{ttl}。RequestBody 为空发 GET，否则发 POST。</tip>",
     },
     // mock: {
     //     name: "模拟测试",
