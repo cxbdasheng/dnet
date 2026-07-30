@@ -20,6 +20,19 @@ function isValidDomain(domain) {
     return DOMAIN_REGEX.test(domainToCheck) && domainToCheck.indexOf('.') !== -1;
 }
 
+// 允许以 _ 开头主机记录的域名验证函数（如 _esaauth、_acme-challenge 等 TXT 归属验证记录）
+const DOMAIN_AUTH_REGEX = /^[a-zA-Z0-9_]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9_]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/;
+function isValidAuthDomain(domain) {
+    var domainToCheck = domain;
+    if (domain.startsWith('*.')) {
+        domainToCheck = domain.substring(2); // 去掉 '*.' 前缀
+        if (!domainToCheck) {
+            return false; // 泛解析域名格式错误
+        }
+    }
+    return DOMAIN_AUTH_REGEX.test(domainToCheck) && domainToCheck.indexOf('.') !== -1;
+}
+
 // 获取配置显示文本
 function getConfigDisplayText(config) {
     if (config.name) {

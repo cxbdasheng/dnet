@@ -491,8 +491,7 @@
                 if (domainToCheck.length < 3 || value.length > 253) {
                     return '域名长度必须在3-253个字符之间';
                 }
-                // 允许每个标签以字母、数字或下划线开头（下划线用于 _esaauth 等验证记录）
-                var DOMAIN_AUTH_REGEX = /^[a-zA-Z0-9_]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9_]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/;
+                // 允许每个标签以字母、数字或下划线开头（下划线用于 _esaauth 等验证记录，DOMAIN_AUTH_REGEX 定义于 common.js）
                 if (!DOMAIN_AUTH_REGEX.test(domainToCheck)) {
                     return '请输入正确的域名格式，例如：example.com、*.example.com 或 _esaauth.example.com';
                 }
@@ -706,7 +705,7 @@
                 return false;
             }
             // 验证域名格式
-            if (!isValidDomain(domainValue)) {
+            if (!isValidAuthDomain(domainValue)) {
                 layer.msg('请输入正确的域名格式，例如：www.example.com', {
                     icon: 2,
                     time: 3000,
@@ -1138,7 +1137,7 @@
                 return false;
             }
             // 验证域名格式
-            if (!isValidDomain(domainValue)) {
+            if (!isValidAuthDomain(domainValue)) {
                 layer.msg('请输入正确的域名格式后再添加新配置，例如：dns.example.com', {
                     icon: 2,
                     time: 3000,
@@ -1289,7 +1288,7 @@
             }
             if (domainValue) {
                 // 验证域名格式
-                if (isValidDomain(domainValue)) {
+                if (isValidAuthDomain(domainValue)) {
                     // 域名格式正确，更新当前选中的配置项显示
                     const newDisplayText = currentValue + ' - ' + domainValue;
                     $select.find('option[value="' + currentValue + '"]').text(newDisplayText);
