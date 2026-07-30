@@ -60,7 +60,7 @@
                 <div class="layui-row layui-form-item">
                     <label class="layui-form-label" for="domain">域名：</label>
                     <div class="layui-input-block">
-                        <input type="text" id="domain" name="domain" lay-verify="domain" autocomplete="off"
+                        <input type="text" id="domain" name="domain" lay-verify="domainAuth" autocomplete="off"
                                placeholder="请输域名" class="layui-input">
                         <tip>填写需要 DNS 解析的域名（如 ddns.example.com），第一次使用可参考 <a style="color: #1e9fff" href="https://github.com/cxbdasheng/dnet/wiki/DDNS-%E4%BD%BF%E7%94%A8%E6%8C%87%E5%8D%97" target="_blank">DDNS 使用指南</a>。</tip>
                     </div>
@@ -462,6 +462,48 @@
                 const labels = domainToCheck.split('.');
                 for (var i = 0; i < labels.length; i++) {
                     if (labels[i].length > 63) {
+                        return '域名的每个部分不能超过63个字符';
+                    }
+                }
+            },
+            // 域名验证（允许以 _ 开头的主机记录，如 _esaauth、_acme-challenge 等 TXT 归属验证记录）
+            domainAuth: function (value, elem) {
+                // 如果父容器被隐藏，跳过验证
+                var $parent = $(elem).closest('.layui-form-item');
+                if ($parent.length && $parent.is(':hidden')) {
+                    return; // 跳过验证
+                }
+
+                if (!value) {
+                    return '域名不能为空';
+                }
+
+                // 检查是否为泛解析（通配符域名）
+                var domainToCheck = value;
+                if (value.startsWith('*.')) {
+                    domainToCheck = value.substring(2); // 去掉 '*.' 前缀
+                    if (!domainToCheck) {
+                        return '泛解析域名格式错误，应为 *.example.com';
+                    }
+                }
+
+                // 域名长度检查
+                if (domainToCheck.length < 3 || value.length > 253) {
+                    return '域名长度必须在3-253个字符之间';
+                }
+                // 允许每个标签以字母、数字或下划线开头（下划线用于 _esaauth 等验证记录）
+                var DOMAIN_AUTH_REGEX = /^[a-zA-Z0-9_]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9_]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/;
+                if (!DOMAIN_AUTH_REGEX.test(domainToCheck)) {
+                    return '请输入正确的域名格式，例如：example.com、*.example.com 或 _esaauth.example.com';
+                }
+                // 检查是否包含至少一个点（顶级域名）
+                if (domainToCheck.indexOf('.') === -1) {
+                    return '域名必须包含顶级域名';
+                }
+                // 检查标签长度（每个部分不能超过63个字符）
+                const authLabels = domainToCheck.split('.');
+                for (var j = 0; j < authLabels.length; j++) {
+                    if (authLabels[j].length > 63) {
                         return '域名的每个部分不能超过63个字符';
                     }
                 }
