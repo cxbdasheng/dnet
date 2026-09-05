@@ -6,6 +6,11 @@ import (
 )
 
 func (s *Server) Logout(w http.ResponseWriter, r *http.Request) {
+	// 仅注销当前请求携带的会话令牌，不影响其他设备的在线会话
+	if c, err := r.Cookie(CookieName); err == nil {
+		globalSessions.remove(c.Value)
+	}
+
 	expiredCookie := &http.Cookie{
 		Name:     CookieName,
 		Value:    "",
@@ -14,7 +19,6 @@ func (s *Server) Logout(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   -1,
 		HttpOnly: true,
 	}
-	setCurrentCookie(expiredCookie)
 	// 设置过期的 Cookie
 	http.SetCookie(w, expiredCookie)
 

@@ -31,7 +31,7 @@ func (r *stubRepository) ResetPassword(string) error {
 
 func resetAuthStateForTest() {
 	globalLoginDetector.Reset()
-	setCurrentCookie(&http.Cookie{})
+	globalSessions.reset()
 }
 
 func decodeResult(t *testing.T, recorder *httptest.ResponseRecorder) helper.Result {
@@ -93,12 +93,7 @@ func TestLogoutClearsCurrentCookie(t *testing.T) {
 	t.Cleanup(resetAuthStateForTest)
 
 	token := "token-to-clear"
-	setCurrentCookie(&http.Cookie{
-		Name:    CookieName,
-		Value:   token,
-		Path:    "/",
-		Expires: time.Now().Add(time.Hour),
-	})
+	globalSessions.add(token, time.Now().Add(time.Hour))
 
 	if !IsValidToken(token) {
 		t.Fatal("expected token to be valid before logout")
@@ -107,6 +102,7 @@ func TestLogoutClearsCurrentCookie(t *testing.T) {
 	server := &Server{}
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/logout", nil)
+	request.AddCookie(&http.Cookie{Name: CookieName, Value: token})
 	server.Logout(recorder, request)
 
 	if recorder.Code != http.StatusFound {
@@ -115,35 +111,58 @@ func TestLogoutClearsCurrentCookie(t *testing.T) {
 	if IsValidToken(token) {
 		t.Fatal("expected token to be invalid after logout")
 	}
-
-	current := GetCurrentCookie()
-	if current == nil {
-		t.Fatal("expected current cookie snapshot after logout")
-	}
-	if current.Value != "" {
-		t.Fatalf("current cookie value = %q, want empty", current.Value)
-	}
-	if current.MaxAge != -1 {
-		t.Fatalf("current cookie MaxAge = %d, want -1", current.MaxAge)
-	}
 }
 
-func TestGetCurrentCookieReturnsSnapshot(t *testing.T) {
+func TestLogoutOnlyClearsCurrentSession(t *testing.T) {
 	resetAuthStateForTest()
 	t.Cleanup(resetAuthStateForTest)
 
-	setCurrentCookie(&http.Cookie{
-		Name:    CookieName,
-		Value:   "snapshot-token",
-		Path:    "/",
-		Expires: time.Now().Add(time.Hour),
-	})
+	// 两个设备各自的会话令牌
+	tokenA := "device-a-token"
+	tokenB := "device-b-token"
+	globalSessions.add(tokenA, time.Now().Add(time.Hour))
+	globalSessions.add(tokenB, time.Now().Add(time.Hour))
 
-	snapshot := GetCurrentCookie()
-	snapshot.Value = "mutated"
+	// 设备 A 登出
+	server := &Server{}
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/logout", nil)
+	request.AddCookie(&http.Cookie{Name: CookieName, Value: tokenA})
+	server.Logout(recorder, request)
 
-	current := GetCurrentCookie()
-	if current.Value != "snapshot-token" {
-		t.Fatalf("current cookie value = %q, want snapshot-token", current.Value)
+	if IsValidToken(tokenA) {
+		t.Fatal("expected device A token to be invalid after its logout")
+	}
+	// 设备 B 的会话不应受影响
+	if !IsValidToken(tokenB) {
+		t.Fatal("expected device B token to remain valid after device A logout")
+	}
+}
+
+func TestSessionStoreRejectsExpiredToken(t *testing.T) {
+	resetAuthStateForTest()
+	t.Cleanup(resetAuthStateForTest)
+
+	expired := "expired-token"
+	globalSessions.add(expired, time.Now().Add(-time.Minute))
+
+	if IsValidToken(expired) {
+		t.Fatal("expected expired token to be rejected")
+	}
+}
+
+func TestMultipleSessionsCoexist(t *testing.T) {
+	resetAuthStateForTest()
+	t.Cleanup(resetAuthStateForTest)
+
+	// 模拟同一账号在多个设备并发登录：后登录不应挤掉先登录
+	tokens := []string{"t1", "t2", "t3"}
+	for _, tk := range tokens {
+		globalSessions.add(tk, time.Now().Add(time.Hour))
+	}
+	for _, tk := range tokens {
+		if !IsValidToken(tk) {
+			t.Fatalf("expected token %q to remain valid", tk)
+		}
 	}
 }

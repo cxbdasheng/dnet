@@ -41,9 +41,70 @@ const (
 	LoginLockDuration = 30 * time.Minute // 登录失败锁定时间
 )
 
-// currentCookie 当前系统Cookie实例（单例模式）
-var currentCookie = &http.Cookie{}
-var currentCookieMu sync.RWMutex
+// globalSessions 保存所有有效登录令牌，支持多设备 / 多浏览器并发在线。
+// 替代此前的单例 Cookie：新登录不再挤掉已有会话。
+var globalSessions = newSessionStore()
+
+// sessionStore 是并发安全的令牌集合，记录 token -> 过期时间。
+type sessionStore struct {
+	mu       sync.RWMutex
+	sessions map[string]time.Time
+}
+
+func newSessionStore() *sessionStore {
+	return &sessionStore{sessions: make(map[string]time.Time)}
+}
+
+// add 新增一个有效会话令牌，并顺带清理已过期的令牌。
+func (s *sessionStore) add(token string, expires time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pruneLocked(time.Now())
+	s.sessions[token] = expires
+}
+
+// remove 删除指定令牌（登出时调用），不存在则无操作。
+func (s *sessionStore) remove(token string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.sessions, token)
+}
+
+// valid 判断令牌是否有效且未过期。
+// 逐个恒定时间比对，避免针对令牌值的时序侧信道；会话数通常很少，开销可忽略。
+func (s *sessionStore) valid(token string) bool {
+	if token == "" {
+		return false
+	}
+	now := time.Now()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for t, exp := range s.sessions {
+		if now.After(exp) {
+			continue
+		}
+		if subtle.ConstantTimeCompare([]byte(t), []byte(token)) == 1 {
+			return true
+		}
+	}
+	return false
+}
+
+// reset 清空所有会话（仅用于测试与登录状态复位）。
+func (s *sessionStore) reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sessions = make(map[string]time.Time)
+}
+
+// pruneLocked 删除已过期令牌，调用方须持有写锁。
+func (s *sessionStore) pruneLocked(now time.Time) {
+	for t, exp := range s.sessions {
+		if now.After(exp) {
+			delete(s.sessions, t)
+		}
+	}
+}
 
 // serverStartTime 服务启动时间
 var serverStartTime = time.Now()
@@ -145,7 +206,7 @@ func (s *Server) handleLoginPost(writer http.ResponseWriter, request *http.Reque
 	// 验证登录信息
 	if loginReq.Username == conf.Username && conf.VerifyPassword(loginReq.Password) {
 		// 登录成功处理
-		if err := s.handleLoginSuccess(writer, &conf); err != nil {
+		if err := s.handleLoginSuccess(writer, request, &conf); err != nil {
 			helper.Error(helper.LogTypeAuth, "登录成功处理失败: %v", err)
 			helper.ReturnError(writer, "登录处理失败")
 			return
@@ -190,7 +251,7 @@ func (s *Server) handleInitialSetup(conf *config.Config, loginReq LoginRequest, 
 }
 
 // handleLoginSuccess 处理登录成功
-func (s *Server) handleLoginSuccess(writer http.ResponseWriter, conf *config.Config) error {
+func (s *Server) handleLoginSuccess(writer http.ResponseWriter, request *http.Request, conf *config.Config) error {
 	// 重置登录检测器
 	globalLoginDetector.Reset()
 
@@ -209,17 +270,33 @@ func (s *Server) handleLoginSuccess(writer http.ResponseWriter, conf *config.Con
 		Path:     "/",
 		Expires:  expires,
 		HttpOnly: true,
-		Secure:   false, // 根据需要调整
+		Secure:   isHTTPS(request), // HTTPS 下置 Secure，防止令牌在明文 HTTP 中传输
 		SameSite: http.SameSiteStrictMode,
 	}
 
-	setCurrentCookie(newCookie)
+	// 登记新会话，不覆盖已有会话，支持多设备并发在线
+	globalSessions.add(newCookie.Value, expires)
 
 	http.SetCookie(writer, newCookie)
 	helper.Info(helper.LogTypeAuth, "用户登录成功: %s, Cookie 过期时间: %v", conf.Username, expires)
 
 	helper.ReturnSuccess(writer, "用户登录成功", newCookie.Value)
 	return nil
+}
+
+// isHTTPS 判断请求是否经由 HTTPS 到达（含反向代理场景）。
+func isHTTPS(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+	if r.TLS != nil {
+		return true
+	}
+	// 反向代理透传的协议头
+	if proto := r.Header.Get("X-Forwarded-Proto"); strings.EqualFold(proto, "https") {
+		return true
+	}
+	return false
 }
 
 // IsLocked 返回当前是否仍处于锁定状态，过期锁定会被自动清理。
@@ -272,47 +349,9 @@ func (d *LoginDetector) clearExpiredLock(now time.Time) {
 	helper.Info(helper.LogTypeAuth, "登录锁定已解除，可重新尝试登录")
 }
 
-func setCurrentCookie(cookie *http.Cookie) {
-	currentCookieMu.Lock()
-	defer currentCookieMu.Unlock()
-
-	if cookie == nil {
-		currentCookie = &http.Cookie{}
-		return
-	}
-
-	cookieCopy := *cookie
-	currentCookie = &cookieCopy
-}
-
-func getCurrentCookieSnapshot() *http.Cookie {
-	currentCookieMu.RLock()
-	defer currentCookieMu.RUnlock()
-
-	if currentCookie == nil {
-		return nil
-	}
-
-	cookieCopy := *currentCookie
-	return &cookieCopy
-}
-
-// GetCurrentCookie 获取当前Cookie（用于其他模块验证）
-func GetCurrentCookie() *http.Cookie {
-	return getCurrentCookieSnapshot()
-}
-
 // IsValidToken 验证令牌是否有效
 func IsValidToken(token string) bool {
-	c := getCurrentCookieSnapshot()
-
-	if c == nil || c.Value == "" {
-		return false
-	}
-	if time.Now().After(c.Expires) {
-		return false
-	}
-	return subtle.ConstantTimeCompare([]byte(c.Value), []byte(token)) == 1
+	return globalSessions.valid(token)
 }
 
 // generateToken 生成安全的登录令牌
