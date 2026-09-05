@@ -74,6 +74,9 @@ func (r *Runner) SyncDCDNOnce() {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	// Web 保存配置后触发的同步：强制重建缓存并与服务商全量比对一次，
+	// 确保端口/权重/密钥等非缓存键字段的变更能立即下发。
+	dcdn.ForceCompareGlobal = true
 	applyCacheTimesFromConfig(&conf)
 	r.processDCDNServices(&conf)
 }
@@ -87,6 +90,9 @@ func (r *Runner) SyncDDNSOnce() {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	// Web 保存配置后触发的同步：强制重建缓存并与服务商全量比对一次，
+	// 确保缓存键之外的字段变更能立即下发。
+	ddns.ForceCompareGlobal = true
 	applyCacheTimesFromConfig(&conf)
 	r.processDDNSServices(&conf)
 }
