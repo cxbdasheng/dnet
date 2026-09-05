@@ -3,46 +3,81 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
-// TestHashPassword 测试密码哈希函数
+// TestHashPassword 测试密码哈希函数（bcrypt）
 func TestHashPassword(t *testing.T) {
 	tests := []struct {
 		name     string
 		password string
-		want     string
 	}{
-		{
-			name:     "空密码",
-			password: "",
-			want:     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-		},
-		{
-			name:     "简单密码",
-			password: "123456",
-			want:     "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
-		},
-		{
-			name:     "复杂密码",
-			password: "Test@123!#$%",
-			want:     "a87ff679a2f3e71d9181a67b7542122c0a05fdca30dc9fcdf995cbc0b6f4f2b9", // 需要实际计算
-		},
+		{name: "空密码", password: ""},
+		{name: "简单密码", password: "123456"},
+		{name: "复杂密码", password: "Test@123!#$%"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := hashPassword(tt.password)
-			if len(got) != 64 { // SHA256 输出固定 64 个字符
-				t.Errorf("hashPassword() 长度 = %d, 期望 64", len(got))
+			got, err := hashPassword(tt.password)
+			if err != nil {
+				t.Fatalf("hashPassword() error = %v", err)
 			}
-			// 测试相同输入产生相同输出
-			got2 := hashPassword(tt.password)
-			if got != got2 {
-				t.Errorf("hashPassword() 不一致: %s != %s", got, got2)
+			// bcrypt 哈希应以 $2 开头，且能校验通过
+			if !strings.HasPrefix(got, "$2") {
+				t.Errorf("hashPassword() = %q, 期望 bcrypt 格式", got)
+			}
+			// bcrypt 每次输出不同（带随机盐）
+			got2, err := hashPassword(tt.password)
+			if err != nil {
+				t.Fatalf("hashPassword() error = %v", err)
+			}
+			if got == got2 {
+				t.Error("hashPassword() 两次输出相同，bcrypt 应带随机盐")
+			}
+			// 生成的哈希应能校验原始密码
+			if bcrypt.CompareHashAndPassword([]byte(got), []byte(tt.password)) != nil {
+				t.Error("hashPassword() 生成的哈希无法校验原始密码")
 			}
 		})
+	}
+}
+
+// TestVerifyPasswordLegacyUpgrade 测试旧版 SHA256 密码自动升级为 bcrypt
+func TestVerifyPasswordLegacyUpgrade(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "legacy_upgrade.yaml")
+	oldPath := os.Getenv(PathENV)
+	defer os.Setenv(PathENV, oldPath)
+	os.Setenv(PathENV, tmpFile)
+
+	conf := &Config{
+		User: User{
+			Username: "admin",
+			Password: legacyHashPassword("legacy-pass"),
+		},
+	}
+
+	// 旧密码校验应通过，并触发升级
+	if !conf.VerifyPassword("legacy-pass") {
+		t.Fatal("旧版 SHA256 密码校验失败")
+	}
+	// 升级后存储的应为 bcrypt 格式
+	if !strings.HasPrefix(conf.Password, "$2") {
+		t.Errorf("升级后 Password = %q, 期望 bcrypt 格式", conf.Password)
+	}
+	// 升级后仍能用原密码登录
+	if !conf.VerifyPassword("legacy-pass") {
+		t.Error("升级后原密码校验失败")
+	}
+	// 错误的旧密码不应通过
+	conf2 := &Config{User: User{Password: legacyHashPassword("legacy-pass")}}
+	if conf2.VerifyPassword("wrong-pass") {
+		t.Error("错误的旧版密码不应校验通过")
 	}
 }
 
@@ -90,18 +125,32 @@ func TestGeneratePassword(t *testing.T) {
 			if got == "" {
 				t.Error("GeneratePassword() 返回空字符串")
 			}
-			if len(got) != 64 {
-				t.Errorf("GeneratePassword() 长度 = %d, 期望 64", len(got))
+			// bcrypt 哈希应能校验原始密码
+			if bcrypt.CompareHashAndPassword([]byte(got), []byte(tt.password)) != nil {
+				t.Errorf("GeneratePassword() 生成的哈希无法校验原始密码")
 			}
 		})
 	}
+}
+
+// mustHashPassword 测试辅助：生成 bcrypt 哈希，失败即终止
+func mustHashPassword(t *testing.T, password string) string {
+	t.Helper()
+	h, err := hashPassword(password)
+	if err != nil {
+		t.Fatalf("hashPassword() error = %v", err)
+	}
+	return h
 }
 
 // TestVerifyPassword 测试密码验证
 func TestVerifyPassword(t *testing.T) {
 	conf := &Config{}
 	password := "test123456"
-	hashedPassword := hashPassword(password)
+	hashedPassword, err := hashPassword(password)
+	if err != nil {
+		t.Fatalf("hashPassword() error = %v", err)
+	}
 	conf.Password = hashedPassword
 
 	tests := []struct {
@@ -167,7 +216,7 @@ func TestResetPassword(t *testing.T) {
 	conf := &Config{
 		User: User{
 			Username: "admin",
-			Password: hashPassword("oldpassword"),
+			Password: mustHashPassword(t, "oldpassword"),
 		},
 	}
 
@@ -341,7 +390,7 @@ func TestConfigCache(t *testing.T) {
 	conf := &Config{
 		User: User{
 			Username: "admin",
-			Password: hashPassword("password"),
+			Password: mustHashPassword(t, "password"),
 		},
 		Settings: Settings{
 			Port: "9877",
@@ -414,7 +463,7 @@ func TestSaveConfig(t *testing.T) {
 	conf := &Config{
 		User: User{
 			Username: "testuser",
-			Password: hashPassword("testpass"),
+			Password: mustHashPassword(t, "testpass"),
 		},
 		Lang: "zh-CN",
 	}
@@ -448,15 +497,19 @@ func TestSaveConfig(t *testing.T) {
 func BenchmarkHashPassword(b *testing.B) {
 	password := "test123456"
 	for i := 0; i < b.N; i++ {
-		hashPassword(password)
+		_, _ = hashPassword(password)
 	}
 }
 
 // BenchmarkVerifyPassword 密码验证性能测试
 func BenchmarkVerifyPassword(b *testing.B) {
+	hashed, err := hashPassword("test123456")
+	if err != nil {
+		b.Fatalf("hashPassword() error = %v", err)
+	}
 	conf := &Config{
 		User: User{
-			Password: hashPassword("test123456"),
+			Password: hashed,
 		},
 	}
 	for i := 0; i < b.N; i++ {

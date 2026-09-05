@@ -2,12 +2,15 @@ package config
 
 import (
 	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/cxbdasheng/dnet/helper"
+	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/yaml.v3"
 )
 
@@ -175,9 +178,8 @@ func (conf *Config) GeneratePassword(newPassword string) (string, error) {
 	//	return "", fmt.Errorf("密码长度不能少于6位")
 	//}
 
-	// 使用SHA256加密密码
-	hashedPassword := hashPassword(newPassword)
-	return hashedPassword, nil
+	// 使用 bcrypt 加密密码（带盐、慢哈希）
+	return hashPassword(newPassword)
 }
 
 // ResetPassword 重置密码
@@ -191,13 +193,15 @@ func (conf *Config) ResetPassword(newPassword string) error {
 		return fmt.Errorf("密码长度不能少于6位")
 	}
 
-	// 使用SHA256加密密码
-	hashedPassword := hashPassword(newPassword)
+	// 使用 bcrypt 加密密码
+	hashedPassword, err := hashPassword(newPassword)
+	if err != nil {
+		return fmt.Errorf("密码加密失败: %v", err)
+	}
 	conf.Password = hashedPassword
 
 	// 保存配置到文件
-	err := conf.SaveConfig()
-	if err != nil {
+	if err := conf.SaveConfig(); err != nil {
 		return fmt.Errorf("保存密码失败: %v", err)
 	}
 
@@ -205,18 +209,63 @@ func (conf *Config) ResetPassword(newPassword string) error {
 	return nil
 }
 
-// VerifyPassword 验证密码
+// VerifyPassword 验证密码。
+// 兼容历史遗留的 SHA256 哈希：若存储的是旧格式且校验通过，会自动升级为 bcrypt 并写回配置。
 func (conf *Config) VerifyPassword(inputPassword string) bool {
 	if inputPassword == "" || conf.Password == "" {
 		return false
 	}
 
-	hashedInput := hashPassword(inputPassword)
-	return hashedInput == conf.Password
+	// 旧版 SHA256 哈希（64 位十六进制），校验通过后自动迁移到 bcrypt
+	if isLegacySHA256Hash(conf.Password) {
+		if subtle.ConstantTimeCompare([]byte(legacyHashPassword(inputPassword)), []byte(conf.Password)) != 1 {
+			return false
+		}
+		conf.upgradeLegacyPassword(inputPassword)
+		return true
+	}
+
+	// bcrypt 校验（内部为恒定时间比较）
+	return bcrypt.CompareHashAndPassword([]byte(conf.Password), []byte(inputPassword)) == nil
 }
 
-// hashPassword 对密码进行SHA256加密
-func hashPassword(password string) string {
+// upgradeLegacyPassword 将旧 SHA256 密码静默升级为 bcrypt 并写回配置文件。
+// 升级失败不影响本次登录，仅记录日志，下次登录会再次尝试。
+func (conf *Config) upgradeLegacyPassword(plainPassword string) {
+	newHash, err := hashPassword(plainPassword)
+	if err != nil {
+		helper.Warn(helper.LogTypeConfig, "密码哈希升级失败: %v", err)
+		return
+	}
+	conf.Password = newHash
+	if err := conf.SaveConfig(); err != nil {
+		helper.Warn(helper.LogTypeConfig, "密码哈希升级后保存配置失败: %v", err)
+		return
+	}
+	helper.Info(helper.LogTypeConfig, "检测到旧版密码哈希，已自动升级为 bcrypt")
+}
+
+// hashPassword 使用 bcrypt 对密码进行哈希（带盐、慢哈希）
+func hashPassword(password string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(hash), nil
+}
+
+// isLegacySHA256Hash 判断存储值是否为旧版 SHA256 哈希（64 位十六进制字符串）。
+// bcrypt 哈希以 "$2a$" / "$2b$" / "$2y$" 开头，长度 60，可据此区分。
+func isLegacySHA256Hash(stored string) bool {
+	if len(stored) != 64 {
+		return false
+	}
+	_, err := hex.DecodeString(stored)
+	return err == nil
+}
+
+// legacyHashPassword 复现旧版 SHA256 哈希，仅用于兼容校验与迁移
+func legacyHashPassword(password string) string {
 	hash := sha256.Sum256([]byte(password))
 	return fmt.Sprintf("%x", hash)
 }

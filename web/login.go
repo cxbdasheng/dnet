@@ -2,6 +2,7 @@ package web
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"embed"
 	"encoding/hex"
 	"encoding/json"
@@ -311,7 +312,7 @@ func IsValidToken(token string) bool {
 	if time.Now().After(c.Expires) {
 		return false
 	}
-	return c.Value == token
+	return subtle.ConstantTimeCompare([]byte(c.Value), []byte(token)) == 1
 }
 
 // generateToken 生成安全的登录令牌
