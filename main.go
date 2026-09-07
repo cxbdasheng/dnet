@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"errors"
 	"flag"
@@ -49,6 +50,9 @@ var customDNS = flag.String("dns", "", "Custom DNS server address, example: 8.8.
 // Web 服务
 var noWebService = flag.Bool("noweb", false, "No web service")
 
+// 跳过 HTTPS 证书验证
+var skipVerify = flag.Bool("skipVerify", false, "Skip HTTPS certificate verification")
+
 // dcdn 缓存次数
 var dcdnCacheTimes = flag.Int("dcdnCacheTimes", config.DefaultCacheTimes, "dcdn Cache times")
 
@@ -89,6 +93,12 @@ func main() {
 		updateDNET()
 		return
 	}
+
+	helper.ConfigureHTTPClients(*skipVerify)
+	if *skipVerify {
+		helper.Warn(helper.LogTypeNetwork, "已跳过 HTTPS 证书验证，服务端身份将不再校验，存在中间人攻击风险")
+	}
+
 	// 设置配置文件路径
 	if *configFilePath != "" {
 		absPath, _ := filepath.Abs(*configFilePath)
@@ -124,11 +134,12 @@ func main() {
 		}
 		return
 	}
-	// 设置自定义DNS
-	if *customDNS != "" {
-		helper.SetDNS(*customDNS)
-	}
 	// 设置缓存次数
+	if *customDNS != "" {
+		if err := helper.ValidateDNSServer(*customDNS); err != nil {
+			helper.Fatalf(helper.LogTypeNetwork, "自定义 DNS 配置无效: %v", err)
+		}
+	}
 	os.Setenv(dcdn.CacheTimesENV, strconv.Itoa(*dcdnCacheTimes))
 	os.Setenv(ddns.CacheTimesENV, strconv.Itoa(*ddnsCacheTimes))
 
@@ -174,7 +185,6 @@ func runWebServer() error {
 	return http.Serve(l, mux)
 }
 func run() {
-
 	if !*noWebService {
 		go func() {
 			// 启动web服务
@@ -187,10 +197,12 @@ func run() {
 		}()
 	}
 
-	// 初始化备用DNS
-	helper.InitBackupDNS(*customDNS)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	if err := helper.WaitInternet(ctx, *customDNS); err != nil {
+		helper.Warn(helper.LogTypeNetwork, "等待网络连接未成功，将继续启动同步任务并由后续周期重试: %v", err)
+	}
+	cancel()
 
-	// 等待网络连接
 	syncRunner.RunTimer(intervalProvider())
 }
 
@@ -309,9 +321,13 @@ func getService() service.Service {
 	if *noWebService {
 		svcConfig.Arguments = append(svcConfig.Arguments, "-noweb")
 	}
-	// 添加DNS配置参数
+	// 添加 DNS 配置参数
 	if *customDNS != "" {
 		svcConfig.Arguments = append(svcConfig.Arguments, "-dns", *customDNS)
+	}
+	// 跳过 HTTPS 证书验证
+	if *skipVerify {
+		svcConfig.Arguments = append(svcConfig.Arguments, "-skipVerify")
 	}
 
 	prg := &program{}

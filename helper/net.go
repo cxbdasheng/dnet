@@ -2,16 +2,21 @@ package helper
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os/exec"
 	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -27,190 +32,118 @@ const (
 
 	// maxResponseBodySize 最大响应体大小（约1MB）
 	maxResponseBodySize = 1024000
-	// dnsTestTimeout DNS连接测试超时时间
-	dnsTestTimeout = 1 * time.Second
 	// dnsResolverTimeout DNS解析器超时时间
 	dnsResolverTimeout = 3 * time.Second
 )
 
-// SetDNS 设置自定义DNS服务器
-func SetDNS(dnsServer string) {
-	if dnsServer == "" {
-		Warn(LogTypeNetwork, "DNS服务器地址为空，跳过设置")
-		return
-	}
+var applicationResolver atomic.Pointer[net.Resolver]
 
-	// 验证DNS服务器地址格式
-	if !isValidDNSServer(dnsServer) {
-		Warn(LogTypeNetwork, "无效的DNS服务器地址: %s", dnsServer)
-		return
-	}
+// ValidateDNSServer 验证自定义 DNS 服务器配置。
+func ValidateDNSServer(dnsServer string) error {
+	_, _, err := parseDNSServer(dnsServer)
+	return err
+}
 
-	// 添加默认端口
-	if !strings.Contains(dnsServer, ":") {
-		dnsServer = dnsServer + ":53"
-	}
+func setApplicationResolver(resolver *net.Resolver) {
+	applicationResolver.Store(resolver)
+}
 
-	// 测试DNS服务器连通性
-	if !testDNSConnectivity(dnsServer) {
-		Warn(LogTypeNetwork, "DNS服务器 %s 连接测试失败", dnsServer)
-		return
+func currentResolver() *net.Resolver {
+	if resolver := applicationResolver.Load(); resolver != nil {
+		return resolver
 	}
+	return net.DefaultResolver
+}
 
-	// 设置自定义DNS解析器
-	net.DefaultResolver = &net.Resolver{
+func newDNSResolver(dnsServer string) (*net.Resolver, error) {
+	network, address, err := parseDNSServer(dnsServer)
+	if err != nil {
+		return nil, err
+	}
+	return &net.Resolver{
 		PreferGo: true,
-		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			d := net.Dialer{
-				Timeout: dnsResolverTimeout,
+		Dial: func(ctx context.Context, requestedNetwork, _ string) (net.Conn, error) {
+			resolvedNetwork := requestedNetwork
+			if network == "tcp" {
+				resolvedNetwork = "tcp"
 			}
-			return d.DialContext(ctx, network, dnsServer)
+			dialer := net.Dialer{Timeout: dnsResolverTimeout}
+			return dialer.DialContext(ctx, resolvedNetwork, address)
 		},
-	}
-	Info(LogTypeNetwork, "已设置自定义 DNS 服务器: %s", dnsServer)
+	}, nil
 }
 
-// isValidDNSServer 验证DNS服务器地址格式
-func isValidDNSServer(dnsServer string) bool {
-	// 移除端口部分进行IP验证
-	host := dnsServer
-	if strings.Contains(dnsServer, ":") {
-		host, _, _ = net.SplitHostPort(dnsServer)
-	}
-
-	// 验证是否为有效IP地址
-	ip := net.ParseIP(host)
-	if ip == nil {
-		// 如果不是IP，检查是否为有效域名
-		if !isValidDomainName(host) {
-			return false
-		}
-	}
-
-	return true
-}
-
-// isValidDomainName 验证域名格式
-func isValidDomainName(domain string) bool {
-	if len(domain) == 0 || len(domain) > 253 {
+func isValidDNSHostname(host string) bool {
+	host = strings.TrimSuffix(host, ".")
+	if len(host) == 0 || len(host) > 253 {
 		return false
 	}
-
-	// 简单的域名格式检查
-	labels := strings.Split(domain, ".")
-	for _, label := range labels {
-		if len(label) == 0 || len(label) > 63 {
+	for _, label := range strings.Split(host, ".") {
+		if len(label) == 0 || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
 			return false
 		}
-		// 检查是否只包含字母、数字和连字符
 		for _, char := range label {
 			if !((char >= 'a' && char <= 'z') ||
 				(char >= 'A' && char <= 'Z') ||
-				(char >= '0' && char <= '9') ||
-				char == '-') {
+				(char >= '0' && char <= '9') || char == '-') {
 				return false
 			}
 		}
 	}
-
 	return true
 }
 
-// testProtocolConnectivity 测试特定协议的连接性
-func testProtocolConnectivity(protocol, address string, timeout time.Duration) bool {
-	conn, err := net.DialTimeout(protocol, address, timeout)
-	if err != nil {
-		return false
+func parseDNSServer(dnsServer string) (network, address string, err error) {
+	dnsServer = strings.TrimSpace(dnsServer)
+	if dnsServer == "" {
+		return "", "", errors.New("DNS 服务器地址为空")
 	}
-	_ = conn.Close()
-	return true
-}
 
-// testDNSConnectivity 测试DNS服务器连通性
-func testDNSConnectivity(dnsServer string) bool {
-	// 并发测试TCP和UDP连接，提高成功率
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	// 使用channel收集结果
-	resultChan := make(chan bool, 2)
-
-	// 测试UDP连接
-	go func() {
-		resultChan <- testProtocolConnectivity("udp", dnsServer, dnsTestTimeout)
-	}()
-
-	// 测试TCP连接(作为备用)
-	go func() {
-		resultChan <- testProtocolConnectivity("tcp", dnsServer, dnsTestTimeout)
-	}()
-
-	// 等待任意一个连接成功
-	select {
-	case result := <-resultChan:
-		if result {
-			return true
+	if strings.Contains(dnsServer, "://") {
+		parsed, parseErr := url.Parse(dnsServer)
+		if parseErr != nil {
+			return "", "", fmt.Errorf("解析 DNS 服务器地址失败: %w", parseErr)
 		}
-		// 等待第二个结果
-		select {
-		case result2 := <-resultChan:
-			return result2
-		case <-ctx.Done():
-			return false
+		switch parsed.Scheme {
+		case "udp", "tcp":
+			network = parsed.Scheme
+		default:
+			return "", "", fmt.Errorf("不支持的 DNS 协议: %s", parsed.Scheme)
 		}
-	case <-ctx.Done():
-		return false
-	}
-}
-
-// InitBackupDNS 初始化备用DNS，使用并发测试提高速度
-func InitBackupDNS(customDNS string) {
-	if customDNS != "" {
-		SetDNS(customDNS)
-		Info(LogTypeNetwork, "使用自定义DNS: %s", customDNS)
-		return
+		if parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") {
+			return "", "", fmt.Errorf("无效的 DNS 服务器地址: %s", dnsServer)
+		}
+		dnsServer = parsed.Host
 	}
 
-	// 设置默认的备用DNS服务器
-	defaultDNS := []string{"223.5.5.5", "114.114.114.114", "119.29.29.29"}
-
-	// 并发测试所有DNS服务器
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	type dnsResult struct {
-		dns   string
-		works bool
-	}
-
-	resultChan := make(chan dnsResult, len(defaultDNS))
-
-	// 并发测试所有DNS
-	for _, dns := range defaultDNS {
-		go func(dnsAddr string) {
-			works := testDNSConnectivity(dnsAddr + ":53")
-			select {
-			case resultChan <- dnsResult{dns: dnsAddr, works: works}:
-			case <-ctx.Done():
+	host, port := "", "53"
+	switch {
+	case net.ParseIP(dnsServer) != nil:
+		host = dnsServer
+	case strings.HasPrefix(dnsServer, "[") && strings.HasSuffix(dnsServer, "]"):
+		host = strings.TrimSuffix(strings.TrimPrefix(dnsServer, "["), "]")
+		if net.ParseIP(host) == nil {
+			return "", "", fmt.Errorf("无效的 DNS 服务器地址: %s", dnsServer)
+		}
+	default:
+		var splitErr error
+		host, port, splitErr = net.SplitHostPort(dnsServer)
+		if splitErr != nil {
+			if strings.Contains(dnsServer, ":") {
+				return "", "", fmt.Errorf("无效的 DNS 服务器地址: %s", dnsServer)
 			}
-		}(dns)
-	}
-
-	// 选择第一个可用的DNS
-	for i := 0; i < len(defaultDNS); i++ {
-		select {
-		case result := <-resultChan:
-			if result.works {
-				SetDNS(result.dns)
-				Info(LogTypeNetwork, "使用备用 DNS: %s", result.dns)
-				return
-			}
-		case <-ctx.Done():
-			Warn(LogTypeNetwork, "DNS 测试超时，使用系统默认 DNS")
-			return
+			host, port = dnsServer, "53"
 		}
 	}
-	Warn(LogTypeNetwork, "所有备用 DNS 服务器均不可用，使用系统默认 DNS")
+
+	if net.ParseIP(host) == nil && !isValidDNSHostname(host) {
+		return "", "", fmt.Errorf("无效的 DNS 服务器主机: %s", host)
+	}
+	portNumber, parseErr := strconv.Atoi(port)
+	if parseErr != nil || portNumber < 1 || portNumber > 65535 {
+		return "", "", fmt.Errorf("无效的 DNS 服务器端口: %s", port)
+	}
+	return network, net.JoinHostPort(host, port), nil
 }
 
 // IsLocalAddress 检查IP地址是否为私有地址
@@ -493,24 +426,96 @@ var dialer = &net.Dialer{
 	KeepAlive: dialerKeepAlive,
 }
 
-var defaultTransport = &http.Transport{
-	Proxy: http.ProxyFromEnvironment,
-	DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-		return dialer.DialContext(ctx, network, address)
-	},
-	ForceAttemptHTTP2:     true,
-	MaxIdleConns:          100,
-	MaxIdleConnsPerHost:   10, // 限制每个主机的最大空闲连接数
-	IdleConnTimeout:       idleConnTimeout,
-	TLSHandshakeTimeout:   tlsHandshakeTimeout,
-	ExpectContinueTimeout: expectContinueTimeout,
+func dialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	requestDialer := *dialer
+	requestDialer.Resolver = currentResolver()
+	return requestDialer.DialContext(ctx, network, address)
+}
+
+func tlsClientConfig(skipVerify bool) *tls.Config {
+	if !skipVerify {
+		return nil
+	}
+	// #nosec G402 -- 仅在用户显式传入 -skipVerify 时启用。
+	return &tls.Config{InsecureSkipVerify: true}
+}
+
+func createDefaultTransport(skipVerify bool) *http.Transport {
+	return &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+			return dialContext(ctx, network, address)
+		},
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   10,
+		IdleConnTimeout:       idleConnTimeout,
+		TLSHandshakeTimeout:   tlsHandshakeTimeout,
+		ExpectContinueTimeout: expectContinueTimeout,
+		TLSClientConfig:       tlsClientConfig(skipVerify),
+	}
+}
+
+// createNoProxyTransport 创建无代理的 HTTP Transport。
+func createNoProxyTransport(network string, skipVerify bool) *http.Transport {
+	return &http.Transport{
+		DisableKeepAlives: true,
+		DialContext: func(ctx context.Context, _, address string) (net.Conn, error) {
+			return dialContext(ctx, network, address)
+		},
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       idleConnTimeout,
+		TLSHandshakeTimeout:   tlsHandshakeTimeout,
+		ExpectContinueTimeout: expectContinueTimeout,
+		TLSClientConfig:       tlsClientConfig(skipVerify),
+	}
+}
+
+var (
+	transportMu          sync.RWMutex
+	defaultTransport     = createDefaultTransport(false)
+	noProxyTcp4Transport = createNoProxyTransport("tcp4", false)
+	noProxyTcp6Transport = createNoProxyTransport("tcp6", false)
+	strictTransport      = createDefaultTransport(false)
+)
+
+// ConfigureHTTPClients 配置业务 HTTP 客户端。应在启动任何业务请求前调用。
+func ConfigureHTTPClients(skipVerify bool) {
+	newDefault := createDefaultTransport(skipVerify)
+	newTCP4 := createNoProxyTransport("tcp4", skipVerify)
+	newTCP6 := createNoProxyTransport("tcp6", skipVerify)
+
+	transportMu.Lock()
+	oldDefault := defaultTransport
+	oldTCP4 := noProxyTcp4Transport
+	oldTCP6 := noProxyTcp6Transport
+	defaultTransport = newDefault
+	noProxyTcp4Transport = newTCP4
+	noProxyTcp6Transport = newTCP6
+	transportMu.Unlock()
+
+	oldDefault.CloseIdleConnections()
+	oldTCP4.CloseIdleConnections()
+	oldTCP6.CloseIdleConnections()
 }
 
 // CreateHTTPClient Create Default HTTP Client
 func CreateHTTPClient() *http.Client {
+	transportMu.RLock()
+	transport := defaultTransport
+	transportMu.RUnlock()
 	return &http.Client{
 		Timeout:   httpClientTimeout,
-		Transport: defaultTransport,
+		Transport: transport,
+	}
+}
+
+// CreateStrictHTTPClient 创建始终严格校验证书的 HTTP 客户端。
+func CreateStrictHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout:   httpClientTimeout,
+		Transport: strictTransport,
 	}
 }
 
@@ -556,32 +561,14 @@ func GetHTTPResponseOrg(resp *http.Response, err error) ([]byte, error) {
 	return body, err
 }
 
-// createNoProxyTransport 创建无代理的 HTTP Transport
-func createNoProxyTransport(network string) *http.Transport {
-	return &http.Transport{
-		DisableKeepAlives: true,
-		DialContext: func(ctx context.Context, _, address string) (net.Conn, error) {
-			return dialer.DialContext(ctx, network, address)
-		},
-		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       idleConnTimeout,
-		TLSHandshakeTimeout:   tlsHandshakeTimeout,
-		ExpectContinueTimeout: expectContinueTimeout,
-	}
-}
-
-var (
-	noProxyTcp4Transport = createNoProxyTransport("tcp4")
-	noProxyTcp6Transport = createNoProxyTransport("tcp6")
-)
-
 // CreateNoProxyHTTPClient Create NoProxy HTTP Client
 func CreateNoProxyHTTPClient(network string) *http.Client {
+	transportMu.RLock()
 	transport := noProxyTcp4Transport
 	if network == "tcp6" {
 		transport = noProxyTcp6Transport
 	}
+	transportMu.RUnlock()
 
 	return &http.Client{
 		Timeout:   httpClientTimeout,

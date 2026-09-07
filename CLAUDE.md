@@ -33,6 +33,7 @@ make run            # 构建并运行（默认监听 :9877）
 ./dnet -s install|uninstall|restart  # 系统服务管理（需 sudo）
 ./dnet -resetPassword <新密码>     # 重置 Web UI 密码
 ./dnet -noweb                      # 禁用 Web 服务，仅运行同步逻辑
+./dnet -skipVerify                 # 业务 HTTPS 请求跳过证书验证（自动更新不受影响）
 ./dnet -dns 8.8.8.8                # 指定自定义 DNS 服务器
 ./dnet -dcdnCacheTimes 5           # DCDN 强制更新计数器初始值（也可通过 DCDN_CACHE_TIMES 环境变量设置）
 ./dnet -ddnsCacheTimes 5           # DDNS 强制更新计数器初始值（也可通过 DDNS_CACHE_TIMES 环境变量设置）

@@ -65,54 +65,33 @@ func TestIpv6Reg(t *testing.T) {
 	}
 }
 
-// TestIsValidDomainName 测试域名验证
-func TestIsValidDomainName(t *testing.T) {
+// TestValidateDNSServer 测试 DNS 服务器地址验证
+func TestValidateDNSServer(t *testing.T) {
 	tests := []struct {
-		name     string
-		domain   string
-		expected bool
+		name      string
+		dns       string
+		wantError bool
 	}{
-		{"valid domain", "example.com", true},
-		{"subdomain", "sub.example.com", true},
-		{"with hyphen", "my-site.com", true},
-		{"empty string", "", false},
-		{"too long label", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com", false},
-		{"invalid char", "example$.com", false},
-		{"starts with dot", ".example.com", false},
-		{"ends with dot", "example.com.", false}, // 末尾点会导致空标签
+		{"valid IPv4", "8.8.8.8", false},
+		{"valid IPv4 with port", "8.8.8.8:53", false},
+		{"valid IPv6", "2001:4860:4860::8888", false},
+		{"valid bracketed IPv6", "[2001:4860:4860::8888]", false},
+		{"valid bracketed IPv6 with port", "[2001:4860:4860::8888]:5353", false},
+		{"valid UDP URL", "udp://8.8.8.8:53", false},
+		{"valid TCP URL", "tcp://8.8.8.8:53", false},
+		{"hostname", "dns.google.com", false},
+		{"URL hostname", "tcp://dns.google.com:53", false},
+		{"invalid port", "8.8.8.8:99999", true},
+		{"unsupported protocol", "https://8.8.8.8", true},
+		{"invalid format", "dns google", true},
+		{"empty string", "", true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := isValidDomainName(tt.domain)
-			if result != tt.expected {
-				t.Errorf("isValidDomainName(%s) = %v, expected %v", tt.domain, result, tt.expected)
-			}
-		})
-	}
-}
-
-// TestIsValidDNSServer 测试 DNS 服务器地址验证
-func TestIsValidDNSServer(t *testing.T) {
-	tests := []struct {
-		name     string
-		dns      string
-		expected bool
-	}{
-		{"valid IPv4", "8.8.8.8", true},
-		{"valid IPv4 with port", "8.8.8.8:53", true},
-		{"valid IPv6", "2001:4860:4860::8888", false}, // IPv6 地址需要用方括号括起来才能通过 SplitHostPort
-		{"valid domain", "dns.google.com", true},
-		{"invalid IP treated as domain", "256.1.1.1", true}, // ParseIP 失败后会当作域名检查
-		{"invalid format", "not-a-dns", true},               // 域名格式有效
-		{"empty string", "", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := isValidDNSServer(tt.dns)
-			if result != tt.expected {
-				t.Errorf("isValidDNSServer(%s) = %v, expected %v", tt.dns, result, tt.expected)
+			err := ValidateDNSServer(tt.dns)
+			if (err != nil) != tt.wantError {
+				t.Errorf("ValidateDNSServer(%q) error = %v, wantError %v", tt.dns, err, tt.wantError)
 			}
 		})
 	}
@@ -388,6 +367,55 @@ func TestCreateNoProxyHTTPClient(t *testing.T) {
 	}
 }
 
+// TestConfigureHTTPClients 验证业务客户端可显式跳过证书校验，严格客户端不受影响。
+func TestConfigureHTTPClients(t *testing.T) {
+	ConfigureHTTPClients(false)
+	t.Cleanup(func() { ConfigureHTTPClients(false) })
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	secureClient := CreateHTTPClient()
+	oldTransport := secureClient.Transport
+	if _, err := secureClient.Get(server.URL); err == nil {
+		t.Fatal("默认业务客户端应拒绝自签名证书")
+	}
+
+	ConfigureHTTPClients(true)
+	insecureClient := CreateHTTPClient()
+	if insecureClient.Transport == oldTransport {
+		t.Fatal("配置变更应创建新的 transport，而不是修改已使用实例")
+	}
+	transport := insecureClient.Transport.(*http.Transport)
+	if transport.TLSClientConfig == nil || !transport.TLSClientConfig.InsecureSkipVerify {
+		t.Fatal("业务客户端未启用 InsecureSkipVerify")
+	}
+
+	resp, err := insecureClient.Get(server.URL)
+	if err != nil {
+		t.Fatalf("跳过证书校验后请求失败: %v", err)
+	}
+	_ = resp.Body.Close()
+
+	noProxyClient := CreateNoProxyHTTPClient("tcp4")
+	resp, err = noProxyClient.Get(server.URL)
+	if err != nil {
+		t.Fatalf("无代理业务客户端未继承 skipVerify: %v", err)
+	}
+	_ = resp.Body.Close()
+
+	tcp6Transport := CreateNoProxyHTTPClient("tcp6").Transport.(*http.Transport)
+	if tcp6Transport.TLSClientConfig == nil || !tcp6Transport.TLSClientConfig.InsecureSkipVerify {
+		t.Fatal("tcp6 transport 未继承 skipVerify")
+	}
+
+	if _, err := CreateStrictHTTPClient().Get(server.URL); err == nil {
+		t.Fatal("严格客户端不应接受自签名证书")
+	}
+}
+
 // TestGetHTTPResponse 测试 HTTP 响应处理
 func TestGetHTTPResponse(t *testing.T) {
 	tests := []struct {
@@ -516,7 +544,7 @@ func TestCreateNoProxyTransport(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			transport := createNoProxyTransport(tt.network)
+			transport := createNoProxyTransport(tt.network, false)
 
 			if transport == nil {
 				t.Fatal("createNoProxyTransport() returned nil")

@@ -75,12 +75,16 @@ sudo ./dnet -s restart            # Mac/Linux
 | `-c`              | 自定义配置文件路径          | `-c /path/to/config.yaml` |
 | `-u`              | 升级当前 D-NET 版本        | `-u`                      |
 | `-noweb`          | 不启动 Web 服务            | `-noweb`                  |
-| `-skipVerify`     | 跳过 HTTPS 证书验证        | `-skipVerify`             |
+| `-skipVerify`     | 业务请求跳过 HTTPS 证书验证（默认关闭） | `-skipVerify`             |
 | `-dns`            | 自定义 DNS 服务器          | `-dns 8.8.8.8`            |
 | `-dcdnCacheTimes` | 每隔 N 次强制同步一次 CDN 记录 | `-dcdnCacheTimes 10`      |
 | `-ddnsCacheTimes` | 每隔 N 次强制同步一次 DNS 记录 | `-ddnsCacheTimes 10`      |
 | `-resetPassword`  | 重置密码                   | `-resetPassword newpass`  |
 
+> `-skipVerify` 仅影响云服务商 API、Webhook 和公网 IP 探测等业务 HTTPS 请求；自动更新始终严格验证证书。启用后无法验证服务端身份，存在中间人攻击风险，请仅在受控网络或必须使用自签名证书时临时使用。
+>
+> 正常运行时会在启动同步任务前检查 DNS 解析能力，最长等待 60 秒。Web 管理界面会优先启动；等待超时也不会阻止周期同步任务继续运行。
+>
 > 更多使用参数，请查看 [Wiki 文档 - D‐NET 使用指南](https://github.com/cxbdasheng/dnet/wiki/D%E2%80%90NET-%E4%BD%BF%E7%94%A8%E6%8C%87%E5%8D%97#%E5%91%BD%E4%BB%A4%E5%8F%82%E6%95%B0)。
 
 **使用示例：**

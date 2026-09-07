@@ -2,10 +2,31 @@ package bootstrap
 
 import (
 	"testing"
+	"time"
 
 	"github.com/cxbdasheng/dnet/config"
 	"github.com/cxbdasheng/dnet/ddns"
 )
+
+func TestTriggerWhenReadySkipsUntilRunnerReady(t *testing.T) {
+	runner := NewRunner(nil)
+	called := make(chan struct{}, 1)
+	runner.triggerWhenReady(func() { called <- struct{}{} })
+
+	select {
+	case <-called:
+		t.Fatal("readiness 前执行了同步")
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	runner.markReady()
+	runner.triggerWhenReady(func() { called <- struct{}{} })
+	select {
+	case <-called:
+	case <-time.After(time.Second):
+		t.Fatal("readiness 后未执行同步")
+	}
+}
 
 func TestProcessDDNSServices_ReusesCachesWhenGroupOrderChanges(t *testing.T) {
 	prevForceCompare := ddns.ForceCompareGlobal

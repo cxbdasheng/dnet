@@ -18,6 +18,8 @@ import (
 type Runner struct {
 	repo       config.Repository
 	mu         sync.Mutex
+	ready      chan struct{}
+	readyOnce  sync.Once
 	dcdnCaches []dcdn.Cache
 	ddnsCaches map[string]*ddns.Cache
 }
@@ -25,11 +27,17 @@ type Runner struct {
 func NewRunner(repo config.Repository) *Runner {
 	return &Runner{
 		repo:       repo,
+		ready:      make(chan struct{}),
 		ddnsCaches: make(map[string]*ddns.Cache),
 	}
 }
 
+func (r *Runner) markReady() {
+	r.readyOnce.Do(func() { close(r.ready) })
+}
+
 func (r *Runner) RunTimer(nextInterval func() time.Duration) {
+	r.markReady()
 	for {
 		r.RunOnce()
 		time.Sleep(nextInterval())
@@ -97,12 +105,21 @@ func (r *Runner) SyncDDNSOnce() {
 	r.processDDNSServices(&conf)
 }
 
+func (r *Runner) triggerWhenReady(sync func()) {
+	select {
+	case <-r.ready:
+		go sync()
+	default:
+		// 启动等待期间保存的配置会由 RunTimer 的首次同步读取，无需重复排队。
+	}
+}
+
 func (r *Runner) TriggerDCDNSyncAsync() {
-	go r.SyncDCDNOnce()
+	r.triggerWhenReady(r.SyncDCDNOnce)
 }
 
 func (r *Runner) TriggerDDNSSyncAsync() {
-	go r.SyncDDNSOnce()
+	r.triggerWhenReady(r.SyncDDNSOnce)
 }
 
 func (r *Runner) processDCDNServices(conf *config.Config) {

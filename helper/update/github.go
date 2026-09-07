@@ -33,7 +33,7 @@ func GetLatestRelease() (version *Version, downloadURL string, err error) {
 
 // getLatest 从 GitHub API 获取最新的 release 信息
 func getLatest(apiURL string) (*GitHubRelease, error) {
-	client := helper.CreateHTTPClient()
+	client := helper.CreateStrictHTTPClient()
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
 		return nil, err
