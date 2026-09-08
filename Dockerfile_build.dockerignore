@@ -1,0 +1,29 @@
+# Default-deny the local build context, then keep only Go build inputs.
+**
+!go.mod
+!go.sum
+!main.go
+!favicon.ico
+
+!bootstrap/
+!bootstrap/*.go
+!config/
+!config/*.go
+!dcdn/
+!dcdn/*.go
+!ddns/
+!ddns/*.go
+!helper/
+!helper/*.go
+!helper/update/
+!helper/update/*.go
+!signer/
+!signer/*.go
+!web/
+!web/*.go
+!web/*.html
+!static/
+!static/**
+
+# Tests are not needed to compile the production image.
+**/*_test.go

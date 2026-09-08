@@ -1,14 +1,13 @@
-FROM alpine:latest
+FROM alpine:3.23
 LABEL name="dnet" \
       description="D-NET - Dynamic Network Management System" \
       version="1.0" \
       maintainer="cxbdasheng" \
       url="https://github.com/cxbdasheng/dnet" \
       license="MIT"
-RUN apk add --no-cache curl grep
+RUN apk add --no-cache curl grep tzdata
 WORKDIR /app
 
-COPY zoneinfo /usr/share/zoneinfo
 COPY dnet /app/dnet
 RUN chmod +x /app/dnet
 ENV TZ=Asia/Shanghai \

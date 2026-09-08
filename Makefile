@@ -1,7 +1,7 @@
 .PHONY: all build build-linux build-darwin build-windows build-all \
-        docker docker-build docker-push docker-compose-up docker-compose-down \
+        docker docker-build docker-buildx docker-push \
         test test-race test-coverage \
-        clean clean-all install fmt lint help
+        clean clean-all install run fmt lint vet help deps version
 
 # ==================================================================================== #
 # 变量定义
@@ -10,8 +10,7 @@
 # 项目信息
 PROJECT_NAME=dnet
 BIN_NAME=dnet
-DOCKER_IMAGE=cxbdasheng/dnet
-DOCKER_REGISTRY=docker.io
+DOCKER_IMAGE=dnet
 
 # 版本信息（如果找不到 tag 则使用 HEAD commit）
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -23,11 +22,7 @@ BUILD_TIME=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 GO=go
 GOENV=CGO_ENABLED=0
 GOFLAGS=-trimpath
-LDFLAGS=-ldflags="-s -w \
-	-X 'main.version=$(VERSION)' \
-	-X 'main.buildTime=$(BUILD_TIME)' \
-	-X 'main.gitCommit=$(GIT_COMMIT)' \
-	-extldflags '-static'"
+LDFLAGS=-ldflags="-s -w -X 'main.version=$(VERSION)' -extldflags '-static'"
 
 # 目录配置
 DIR_SRC=.
@@ -37,7 +32,9 @@ DIR_BIN=.
 # Docker 配置
 DOCKER_ENV=DOCKER_BUILDKIT=1
 DOCKER=$(DOCKER_ENV) docker
-DOCKERFILE=Dockerfile
+DOCKERFILE_BUILD=Dockerfile_build
+DOCKER_PLATFORMS=linux/amd64,linux/arm64,linux/arm/v7,linux/riscv64
+DOCKER_OCI_ARCHIVE=$(DIR_DIST)/$(BIN_NAME)-$(VERSION).oci.tar
 
 # 平台配置
 PLATFORMS=linux/amd64 linux/arm64 linux/arm/v7 darwin/amd64 darwin/arm64 windows/amd64
@@ -108,32 +105,48 @@ run: build
 # Docker 任务
 # ==================================================================================== #
 
-## docker: 构建并推送 Docker 镜像（需要先 build）
-docker: docker-build docker-push
+## docker: 构建本地 Docker 镜像
 
-## docker-build: 构建 Docker 镜像
-docker-build: build
-	@echo "正在构建 Docker 镜像: $(DOCKER_IMAGE):$(VERSION)..."
-	@$(DOCKER) build -f $(DOCKERFILE) -t $(DOCKER_IMAGE):$(VERSION) -t $(DOCKER_IMAGE):latest .
-	@echo "Docker 镜像构建完成"
+docker: docker-build
 
-## docker-push: 推送 Docker 镜像到仓库
-docker-push:
-	@echo "正在推送 Docker 镜像..."
-	@$(DOCKER) push $(DOCKER_IMAGE):$(VERSION)
-	@$(DOCKER) push $(DOCKER_IMAGE):latest
-	@echo "Docker 镜像推送完成"
+## docker-build: 使用容器内 Go 工具链构建本地 Docker 镜像
+docker-build:
+	@echo "正在构建本地 Docker 镜像: $(DOCKER_IMAGE):$(VERSION)..."
+	@$(DOCKER) build \
+		--build-arg VERSION=$(VERSION) \
+		-f $(DOCKERFILE_BUILD) \
+		-t $(DOCKER_IMAGE):$(VERSION) .
+	@echo "Docker 镜像构建完成: $(DOCKER_IMAGE):$(VERSION)"
 
-## docker-buildx: 使用 buildx 构建多平台 Docker 镜像
-docker-buildx: build
-	@echo "正在构建多平台 Docker 镜像..."
+## docker-buildx: 构建四平台 OCI archive（不会推送）
+docker-buildx:
+	@platforms="$$($(DOCKER) buildx inspect --bootstrap 2>/dev/null | sed -n 's/^Platforms:[[:space:]]*//p' | tr ',' ' ')"; \
+	missing=""; \
+	for platform in $$(printf '%s' '$(DOCKER_PLATFORMS)' | tr ',' ' '); do \
+		case " $$platforms " in *" $$platform "*) ;; *) missing="$$missing $$platform" ;; esac; \
+	done; \
+	if [ -n "$$missing" ]; then \
+		echo "错误: 当前 Buildx builder 不支持平台:$$missing" >&2; \
+		echo "请启用 Docker Desktop 的 QEMU/binfmt 仿真，或选择支持这些平台的 Buildx builder 后重试。" >&2; \
+		exit 1; \
+	fi
+	@echo "正在构建多平台 OCI archive: $(DOCKER_OCI_ARCHIVE)..."
+	@mkdir -p $(DIR_DIST)
 	@$(DOCKER) buildx build \
-		--platform linux/amd64,linux/arm64,linux/arm/v7 \
-		-t $(DOCKER_IMAGE):$(VERSION) \
-		-t $(DOCKER_IMAGE):latest \
-		--push \
-		-f $(DOCKERFILE) .
-	@echo "多平台 Docker 镜像构建并推送完成"
+		--platform $(DOCKER_PLATFORMS) \
+		--build-arg VERSION=$(VERSION) \
+		--output type=oci,dest=$(DOCKER_OCI_ARCHIVE) \
+		-f $(DOCKERFILE_BUILD) .
+	@echo "多平台 OCI archive 构建完成: $(DOCKER_OCI_ARCHIVE)"
+
+## docker-push: 推送本地镜像（必须显式指定 PUSH_IMAGE）
+docker-push:
+	@test -n "$(PUSH_IMAGE)" || (echo "错误: 必须显式指定 PUSH_IMAGE，例如 make docker-push PUSH_IMAGE=example.com/user/dnet" >&2; exit 1)
+	@echo "正在推送 Docker 镜像: $(PUSH_IMAGE):$(VERSION)..."
+	@$(DOCKER) image inspect $(DOCKER_IMAGE):$(VERSION) >/dev/null
+	@$(DOCKER) tag $(DOCKER_IMAGE):$(VERSION) $(PUSH_IMAGE):$(VERSION)
+	@$(DOCKER) push $(PUSH_IMAGE):$(VERSION)
+	@echo "Docker 镜像推送完成: $(PUSH_IMAGE):$(VERSION)"
 
 
 # ==================================================================================== #
@@ -185,17 +198,17 @@ vet:
 # 清理任务
 # ==================================================================================== #
 
-## clean: 清理构建产物
+## clean: 清理当前目录的 dnet 二进制
 clean:
-	@echo "正在清理构建产物..."
+	@echo "正在清理 Go 缓存和 dnet 二进制..."
 	@$(GO) clean ./...
-	@rm -rf $(DIR_BIN)
+	@rm -f ./dnet
 	@echo "清理完成"
 
-## clean-all: 清理所有构建产物（包括 dist）
+## clean-all: 清理所有构建产物（包括固定的 ./dist）
 clean-all: clean
 	@echo "正在清理所有构建产物..."
-	@rm -rf $(DIR_DIST)
+	@rm -rf ./dist
 	@echo "清理完成"
 
 # ==================================================================================== #

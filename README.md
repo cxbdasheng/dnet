@@ -4,7 +4,7 @@
 一款轻量级动态网络管理工具，支持多平台的 CDN、DNS 和 内网穿透自动化管理与监控。
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Go Version](https://img.shields.io/badge/go-%3E%3D1.23.0-blue.svg)](https://golang.org/)
+[![Go Version](https://img.shields.io/badge/go-%3E%3D1.26.0-blue.svg)](https://go.dev/)
 [![Release](https://img.shields.io/github/v/release/cxbdasheng/dnet)](https://github.com/cxbdasheng/dnet/releases)
 [![Go Report Card](https://goreportcard.com/badge/github.com/cxbdasheng/dnet)](https://goreportcard.com/report/github.com/cxbdasheng/dnet)
 [![Docker Pulls](https://img.shields.io/docker/pulls/cxbdasheng/dnet)](https://hub.docker.com/r/cxbdasheng/dnet)
@@ -117,6 +117,15 @@ docker exec dnet ./dnet -resetPassword 123456 && docker restart dnet
 # 查看日志
 docker logs -f dnet
 ```
+
+**本地构建镜像：**
+```bash
+make docker          # 使用容器内 Go 工具链构建 dnet:<version>，不会推送
+make docker-buildx   # 将四平台 OCI archive 输出到 dist/
+```
+
+`make docker-buildx` 会先检查当前 Buildx builder 是否支持全部目标平台；若缺少 `linux/arm/v7` 等平台，请启用 Docker Desktop 的 QEMU/binfmt 仿真，或切换到兼容的 builder。推送镜像必须显式指定目标，例如 `make docker-push PUSH_IMAGE=example.com/user/dnet`。
+
 ### 方式三：从源码构建
 ```bash
 make build                              # 构建当前平台

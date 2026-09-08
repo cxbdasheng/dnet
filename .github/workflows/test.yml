@@ -1,31 +1,81 @@
-name: test.yml
+name: Test
+
 on:
   push:
   pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  native:
+    name: Native checks
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        goarch: [amd64, arm64, riscv64]
+    timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: 'go.mod'
+          go-version-file: go.mod
+
+      - name: Verify modules
+        run: go mod verify
 
       - name: Test
-        run: |
-          if [ "${{ matrix.goarch }}" = "amd64" ]; then
-            make build test
-          else
-            GOARCH=${{ matrix.goarch }} make build
-          fi
-      - name: Upload artifact
-        uses: actions/upload-artifact@v7
+        run: go test ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Race test
+        run: go test -race ./...
+
+  cross-build:
+    name: Cross-build snapshot
+    needs: native
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          name: dnet_${{ matrix.goarch }}
-          path: dnet
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Check GoReleaser configuration
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          version: v2.18.1
+          args: check
+
+      - name: Package snapshot
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          version: v2.18.1
+          args: release --snapshot --clean --skip=docker
+
+      - name: Verify release artifacts
+        run: python3 scripts/verify-release-artifacts.py dist
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dnet-snapshot-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7

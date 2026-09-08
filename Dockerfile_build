@@ -1,0 +1,43 @@
+# syntax=docker/dockerfile:1
+
+FROM --platform=$BUILDPLATFORM golang:1.26.0-alpine3.23 AS builder
+ARG TARGETOS
+ARG TARGETARCH
+ARG TARGETVARIANT
+ARG VERSION=dev
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN set -eux; \
+    if [ "$TARGETARCH" = "arm" ]; then \
+      case "$TARGETVARIANT" in \
+        v5) export GOARM=5 ;; \
+        v6) export GOARM=6 ;; \
+        v7) export GOARM=7 ;; \
+        *) echo "unsupported ARM variant: $TARGETVARIANT" >&2; exit 1 ;; \
+      esac; \
+    fi; \
+    CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" \
+      go build -trimpath -ldflags="-s -w -X main.version=$VERSION" -o /out/dnet .
+
+FROM alpine:3.23
+ARG VERSION=dev
+LABEL name="dnet" \
+      description="D-NET - Dynamic Network Management System" \
+      version="$VERSION" \
+      maintainer="cxbdasheng" \
+      url="https://github.com/cxbdasheng/dnet" \
+      license="MIT"
+RUN apk add --no-cache curl grep tzdata
+WORKDIR /app
+
+COPY --from=builder --chmod=0755 /out/dnet /app/dnet
+ENV TZ=Asia/Shanghai \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
+EXPOSE 9877
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:9877/ || exit 1
+ENTRYPOINT ["/app/dnet"]

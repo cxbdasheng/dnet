@@ -5,8 +5,6 @@ version: 2
 before:
   hooks:
     - go mod download
-    - go mod tidy
-    - sh -c 'test -d zoneinfo || cp -r /usr/share/zoneinfo zoneinfo'
 
 builds:
   - id: dnet
@@ -49,14 +47,15 @@ builds:
     ldflags:
       - -s -w
       - -X main.version={{.Version}}
-      - -X main.buildTime={{.Date}}
 
 archives:
   - id: dnet-archive
-    format: tar.gz
+    formats:
+      - tar.gz
     format_overrides:
       - goos: windows
-        format: zip
+        formats:
+          - zip
     name_template: >-
       {{ .ProjectName }}_
       {{- .Version }}_
@@ -72,6 +71,10 @@ archives:
 
 checksum:
   name_template: 'checksums.txt'
+  algorithm: sha256
+release:
+  prerelease: auto
+  make_latest: true
 snapshot:
   version_template: "{{ incpatch .Version }}-devel"
 changelog:
@@ -97,8 +100,6 @@ dockers:
       - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-amd64"
       - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-amd64"
     use: buildx
-    extra_files:
-      - zoneinfo
     build_flag_templates:
       - "--platform=linux/amd64"
       - "--label=org.opencontainers.image.created={{.Date}}"
@@ -110,8 +111,6 @@ dockers:
       - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-arm64"
       - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-arm64"
     use: buildx
-    extra_files:
-      - zoneinfo
     build_flag_templates:
       - "--platform=linux/arm64"
       - "--label=org.opencontainers.image.created={{.Date}}"
@@ -124,8 +123,6 @@ dockers:
       - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-armv7"
       - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-armv7"
     use: buildx
-    extra_files:
-      - zoneinfo
     build_flag_templates:
       - "--platform=linux/arm/v7"
       - "--label=org.opencontainers.image.created={{.Date}}"
@@ -139,8 +136,6 @@ dockers:
       - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-riscv64"
       - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-riscv64"
     use: buildx
-    extra_files:
-      - zoneinfo
     build_flag_templates:
       - "--platform=linux/riscv64"
       - "--label=org.opencontainers.image.created={{.Date}}"
@@ -158,6 +153,7 @@ docker_manifests:
       - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-riscv64"
 
   - name_template: "{{ .Env.DOCKER_USERNAME }}/dnet:latest"
+    skip_push: auto
     image_templates:
       - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-amd64"
       - "{{ .Env.DOCKER_USERNAME }}/dnet:{{ .Tag }}-arm64"
@@ -172,6 +168,7 @@ docker_manifests:
       - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-riscv64"
 
   - name_template: "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:latest"
+    skip_push: auto
     image_templates:
       - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-amd64"
       - "ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY }}:{{ .Tag }}-arm64"
