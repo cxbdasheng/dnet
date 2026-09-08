@@ -2,71 +2,67 @@ package update
 
 import (
 	"fmt"
-	"runtime"
 	"strings"
-
-	"github.com/cxbdasheng/dnet/helper"
 )
 
-// Asset 表示 GitHub Release 中的一个资源文件
+// Asset represents a downloadable GitHub release asset.
 type Asset struct {
 	Name string
 	URL  string
 }
 
-// findAsset 从 release 中查找适合当前系统架构的 asset
-func findAsset(rel *GitHubRelease) (asset *Asset, version *Version, found bool) {
+// Release is the complete, verified-input selection needed by the updater.
+type Release struct {
+	Version   *Version
+	Archive   Asset
+	Checksums Asset
+}
+
+func selectRelease(rel *GitHubRelease, target BuildTarget) (*Release, error) {
 	if rel == nil {
-		helper.Warn(helper.LogTypeSystem, "没有找到发布信息")
-		return nil, nil, false
+		return nil, fmt.Errorf("没有找到发布信息")
 	}
-	for _, arch := range generateAdditionalArch() {
-		if a, v, ok := findAssetFromRelease(rel, buildSuffixes(arch)); ok {
-			return a, v, true
-		}
+
+	version, err := NewVersion(rel.TagName)
+	if err != nil {
+		return nil, fmt.Errorf("无法解析语义化版本 %q: %w", rel.TagName, err)
 	}
-	return nil, nil, false
+	archiveName, err := target.archiveName(strings.TrimPrefix(rel.TagName, "v"))
+	if err != nil {
+		return nil, err
+	}
+
+	archive, err := findUniqueAsset(rel, archiveName)
+	if err != nil {
+		return nil, fmt.Errorf("选择更新归档失败: %w", err)
+	}
+	checksums, err := findUniqueAsset(rel, "checksums.txt")
+	if err != nil {
+		return nil, fmt.Errorf("选择校验文件失败: %w", err)
+	}
+
+	return &Release{Version: version, Archive: archive, Checksums: checksums}, nil
 }
 
-// findAssetFromRelease 从 release 的 assets 中查找匹配指定后缀的文件
-func findAssetFromRelease(rel *GitHubRelease, suffixes []string) (*Asset, *Version, bool) {
-	if rel == nil {
-		helper.Warn(helper.LogTypeSystem, "没有找到发布信息")
-		return nil, nil, false
-	}
-
-	for _, asset := range rel.Assets {
-		if matchesAssetSuffixes(asset.Name, suffixes) {
-			ver, err := NewVersion(rel.TagName)
-			if err != nil {
-				helper.Warn(helper.LogTypeSystem, "无法解析语义化版本: %s", rel.TagName)
-				return nil, nil, false
-			}
-			return &Asset{Name: asset.Name, URL: asset.BrowserDownloadURL}, ver, true
+func findUniqueAsset(rel *GitHubRelease, name string) (Asset, error) {
+	var match Asset
+	count := 0
+	for _, candidate := range rel.Assets {
+		if candidate.Name != name {
+			continue
 		}
+		count++
+		match = Asset{Name: candidate.Name, URL: candidate.BrowserDownloadURL}
 	}
-
-	helper.Warn(helper.LogTypeSystem, "在版本 %s 中未找到合适的文件", rel.TagName)
-	return nil, nil, false
-}
-
-// assetMatchSuffixes 检查 asset 名称是否匹配任一后缀
-func matchesAssetSuffixes(name string, suffixes []string) bool {
-	for _, suffix := range suffixes {
-		if strings.HasSuffix(name, suffix) {
-			return true
+	switch count {
+	case 0:
+		return Asset{}, fmt.Errorf("缺少资源 %q", name)
+	case 1:
+		if match.URL == "" {
+			return Asset{}, fmt.Errorf("资源 %q 缺少下载地址", name)
 		}
+		return match, nil
+	default:
+		return Asset{}, fmt.Errorf("资源 %q 重复出现 %d 次", name, count)
 	}
-	return false
-}
-
-// buildSuffixes 构建所有要与 asset 进行检查的候选后缀
-// TODO: 由于缺失获取 MIPS 架构 float 的方法，所以目前无法正确获取 MIPS 架构的后缀。
-func buildSuffixes(arch string) []string {
-	suffixes := make([]string, 0, 2)
-	for _, ext := range []string{".zip", ".tar.gz"} {
-		suffix := fmt.Sprintf("%s_%s%s", runtime.GOOS, arch, ext)
-		suffixes = append(suffixes, suffix)
-	}
-	return suffixes
 }

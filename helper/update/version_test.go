@@ -55,15 +55,35 @@ func TestNewVersion(t *testing.T) {
 		},
 		{
 			name:    "带预发布标识的版本",
-			version: "v1.2.3-alpha",
-			want:    &Version{major: 1, minor: 2, patch: 3},
+			version: "v1.2.3-alpha.1",
+			want:    &Version{major: 1, minor: 2, patch: 3, prerelease: []string{"alpha", "1"}},
 			wantErr: false,
 		},
 		{
 			name:    "带构建元数据的版本",
 			version: "v1.2.3+build123",
-			want:    &Version{major: 1, minor: 2, patch: 3},
+			want:    &Version{major: 1, minor: 2, patch: 3, metadata: "build123"},
 			wantErr: false,
+		},
+		{
+			name:    "预发布数字标识符有前导零",
+			version: "1.2.3-rc.01",
+			wantErr: true,
+		},
+		{
+			name:    "主版本号有前导零",
+			version: "01.2.3",
+			wantErr: true,
+		},
+		{
+			name:    "次版本号有前导零",
+			version: "1.02.3",
+			wantErr: true,
+		},
+		{
+			name:    "修订号有前导零",
+			version: "1.2.03",
+			wantErr: true,
 		},
 	}
 
@@ -74,10 +94,8 @@ func TestNewVersion(t *testing.T) {
 				t.Errorf("NewVersion() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !tt.wantErr {
-				if got.major != tt.want.major || got.minor != tt.want.minor || got.patch != tt.want.patch {
-					t.Errorf("NewVersion() = %v, want %v", got, tt.want)
-				}
+			if !tt.wantErr && got.String() != tt.want.String() {
+				t.Errorf("NewVersion() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -265,6 +283,30 @@ func TestVersion_Compare(t *testing.T) {
 			v1:   "1.0.1",
 			v2:   "1.0.2",
 			want: -1,
+		},
+		{
+			name: "预发布低于正式版",
+			v1:   "2.0.0-rc.1",
+			v2:   "2.0.0",
+			want: -1,
+		},
+		{
+			name: "数字预发布低于非数字预发布",
+			v1:   "1.0.0-1",
+			v2:   "1.0.0-alpha",
+			want: -1,
+		},
+		{
+			name: "预发布标识符逐段比较",
+			v1:   "1.0.0-beta.11",
+			v2:   "1.0.0-rc.1",
+			want: -1,
+		},
+		{
+			name: "构建元数据不影响优先级",
+			v1:   "1.0.0+build.1",
+			v2:   "1.0.0+build.2",
+			want: 0,
 		},
 	}
 

@@ -19,6 +19,8 @@ const semVerRegex string = `v?([0-9]+)(\.[0-9]+)?(\.[0-9]+)?` +
 // Version 表示单独的语义化版本。
 type Version struct {
 	major, minor, patch uint64
+	prerelease          []string
+	metadata            string
 }
 
 func init() {
@@ -52,6 +54,16 @@ func NewVersion(v string) (*Version, error) {
 		return nil, err
 	}
 
+	if m[5] != "" {
+		sv.prerelease = strings.Split(m[5], ".")
+		for _, identifier := range sv.prerelease {
+			if isNumericIdentifier(identifier) && len(identifier) > 1 && identifier[0] == '0' {
+				return nil, fmt.Errorf("预发布数字标识符 %q 不能包含前导零", identifier)
+			}
+		}
+	}
+	sv.metadata = m[8]
+
 	return sv, nil
 }
 
@@ -59,6 +71,9 @@ func NewVersion(v string) (*Version, error) {
 func parseVersionSegment(s, segmentName string) (uint64, error) {
 	if s == "" {
 		return 0, nil
+	}
+	if len(s) > 1 && s[0] == '0' {
+		return 0, fmt.Errorf("%s %q 不能包含前导零", segmentName, s)
 	}
 	val, err := strconv.ParseUint(s, 10, 64)
 	if err != nil {
@@ -86,7 +101,14 @@ func (v Version) Patch() uint64 {
 // 注意，如果原始版本包含前缀 v，则转换后的版本将不包含 v。
 // 根据规范，语义版本不包含前缀 v，而在实现上则是可选的。
 func (v Version) String() string {
-	return fmt.Sprintf("%d.%d.%d", v.major, v.minor, v.patch)
+	result := fmt.Sprintf("%d.%d.%d", v.major, v.minor, v.patch)
+	if len(v.prerelease) > 0 {
+		result += "-" + strings.Join(v.prerelease, ".")
+	}
+	if v.metadata != "" {
+		result += "+" + v.metadata
+	}
+	return result
 }
 
 // Equal 测试两个版本是否相等
@@ -114,9 +136,7 @@ func (v Version) LessThanOrEqual(o *Version) bool {
 	return v.compare(o) <= 0
 }
 
-// compare 比较当前版本与另一个版本。如果当前版本小于另一个版本则返回 -1；如果两个版本相等则返回 0；如果当前版本大于另一个版本，则返回 1。
-//
-// 版本比较是基于 X.Y.Z 格式进行的。
+// compare 按 SemVer 规则比较两个版本。构建元数据不影响优先级。
 func (v Version) compare(o *Version) int {
 	if d := compareSegment(v.major, o.major); d != 0 {
 		return d
@@ -127,8 +147,7 @@ func (v Version) compare(o *Version) int {
 	if d := compareSegment(v.patch, o.patch); d != 0 {
 		return d
 	}
-
-	return 0
+	return comparePrerelease(v.prerelease, o.prerelease)
 }
 
 func compareSegment(v, o uint64) int {
@@ -138,6 +157,66 @@ func compareSegment(v, o uint64) int {
 	if v > o {
 		return 1
 	}
-
 	return 0
+}
+
+func comparePrerelease(v, o []string) int {
+	if len(v) == 0 && len(o) == 0 {
+		return 0
+	}
+	if len(v) == 0 {
+		return 1
+	}
+	if len(o) == 0 {
+		return -1
+	}
+
+	for i := 0; i < len(v) && i < len(o); i++ {
+		if d := comparePrereleaseIdentifier(v[i], o[i]); d != 0 {
+			return d
+		}
+	}
+	if len(v) < len(o) {
+		return -1
+	}
+	if len(v) > len(o) {
+		return 1
+	}
+	return 0
+}
+
+func comparePrereleaseIdentifier(v, o string) int {
+	vNumeric, oNumeric := isNumericIdentifier(v), isNumericIdentifier(o)
+	if vNumeric && oNumeric {
+		if len(v) < len(o) {
+			return -1
+		}
+		if len(v) > len(o) {
+			return 1
+		}
+	} else if vNumeric {
+		return -1
+	} else if oNumeric {
+		return 1
+	}
+
+	if v < o {
+		return -1
+	}
+	if v > o {
+		return 1
+	}
+	return 0
+}
+
+func isNumericIdentifier(identifier string) bool {
+	if identifier == "" {
+		return false
+	}
+	for _, r := range identifier {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }

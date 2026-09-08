@@ -28,6 +28,14 @@ import (
 // 既没有新的可执行文件，并且旧的可执行文件无法移动回其原始位置。在这种情况下，
 // 应该通知用户这个坏消息，并要求他们手动恢复。
 func apply(update io.Reader, targetPath string) error {
+	return applyWithLimit(update, targetPath, maxExecutableSize)
+}
+
+func applyWithLimit(update io.Reader, targetPath string, limit int64) error {
+	if limit <= 0 {
+		return fmt.Errorf("可执行文件大小限制必须大于零")
+	}
+
 	// 获取原文件权限，以便保持一致
 	perm := os.FileMode(0755) // 默认权限
 	if info, err := os.Stat(targetPath); err == nil {
@@ -45,8 +53,8 @@ func apply(update io.Reader, targetPath string) error {
 		return fmt.Errorf("创建新文件失败: %w", err)
 	}
 
-	// 直接流式复制，避免将整个文件加载到内存
-	written, err := io.Copy(fp, update)
+	// 直接流式复制，避免将整个文件加载到内存。多读取一个字节以检测超限。
+	written, err := io.Copy(fp, io.LimitReader(update, limit+1))
 	closeErr := fp.Close()
 
 	if err != nil {
@@ -56,6 +64,10 @@ func apply(update io.Reader, targetPath string) error {
 	if closeErr != nil {
 		_ = os.Remove(newPath) // 尽力清理，忽略错误
 		return fmt.Errorf("关闭新文件失败: %w", closeErr)
+	}
+	if written > limit {
+		_ = os.Remove(newPath)
+		return fmt.Errorf("解压后的可执行文件超过 %d 字节限制", limit)
 	}
 
 	// 验证文件是否写入成功（非空）
@@ -75,6 +87,7 @@ func apply(update io.Reader, targetPath string) error {
 	// 将现有的可执行文件移到同一目录下的新文件中
 	err = os.Rename(targetPath, oldPath)
 	if err != nil {
+		_ = os.Remove(newPath)
 		return err
 	}
 
@@ -99,13 +112,32 @@ func apply(update io.Reader, targetPath string) error {
 	err = os.Remove(oldPath)
 	if err != nil {
 		if runtime.GOOS == "windows" {
-			// Windows 无法删除 .old 文件，因为进程仍在运行。删除会提示 "Access is denied"。
-			// 因此，启动外部进程来删除旧的二进制文件。
-			// 外部进程会等待一会以确保进程已退出。
-			//
-			// https://stackoverflow.com/a/73585620
-			_ = exec.Command("cmd.exe", "/c", "ping 127.0.0.1 -n 2 > NUL & del "+oldPath).Start()
-			return nil
+			// Windows 无法删除仍在运行的旧可执行文件。使用固定的
+			// PowerShell 脚本和环境变量传递路径，避免将路径拼接进 shell 命令。
+			powershellCleanup := exec.Command(
+				"powershell.exe",
+				"-NoProfile",
+				"-NonInteractive",
+				"-Command",
+				"Start-Sleep -Seconds 1; Remove-Item -LiteralPath $env:DNET_UPDATE_OLD_PATH -Force",
+			)
+			cleanupEnv := append(os.Environ(), "DNET_UPDATE_OLD_PATH="+oldPath)
+			powershellCleanup.Env = cleanupEnv
+			if startErr := powershellCleanup.Start(); startErr == nil {
+				return nil
+			} else {
+				cmdCleanup := exec.Command(
+					"cmd.exe",
+					"/d",
+					"/c",
+					"ping 127.0.0.1 -n 2 > NUL & del /f /q \"%DNET_UPDATE_OLD_PATH%\"",
+				)
+				cmdCleanup.Env = cleanupEnv
+				if fallbackErr := cmdCleanup.Start(); fallbackErr != nil {
+					return fmt.Errorf("更新已完成，但无法启动旧文件清理进程: PowerShell=%v, cmd.exe=%v", startErr, fallbackErr)
+				}
+				return nil
+			}
 		}
 
 		return err

@@ -54,15 +54,16 @@ func extractExecutable(src io.Reader, url, execName string) (io.Reader, error) {
 }
 
 func unzip(src io.Reader, cmd string) (io.Reader, error) {
-	// 解压 Zip 格式时需要文件大小。
-	// 因此我们需要先将 HTTP 响应读取到缓冲区中。
-	buf, err := io.ReadAll(src)
+	return unzipWithLimit(src, cmd, maxExecutableSize)
+}
+
+func unzipWithLimit(src io.Reader, cmd string, limit int64) (io.Reader, error) {
+	readerAt, size, err := zipReaderAt(src)
 	if err != nil {
 		return nil, fmt.Errorf("%w zip 文件: %v", errCannotDecompressFile, err)
 	}
 
-	r := bytes.NewReader(buf)
-	z, err := zip.NewReader(r, r.Size())
+	z, err := zip.NewReader(readerAt, size)
 	if err != nil {
 		return nil, fmt.Errorf("%w zip 文件: %s", errCannotDecompressFile, err)
 	}
@@ -70,6 +71,9 @@ func unzip(src io.Reader, cmd string) (io.Reader, error) {
 	for _, file := range z.File {
 		_, name := filepath.Split(file.Name)
 		if !file.FileInfo().IsDir() && isExecutableMatch(cmd, name) {
+			if limit <= 0 || file.UncompressedSize64 > uint64(limit) {
+				return nil, fmt.Errorf("解压后的可执行文件超过 %d 字节限制", limit)
+			}
 			return file.Open()
 		}
 	}
@@ -77,7 +81,37 @@ func unzip(src io.Reader, cmd string) (io.Reader, error) {
 	return nil, fmt.Errorf("在 zip 文件中%w：%q", errExecutableNotFoundInArchive, cmd)
 }
 
+func zipReaderAt(src io.Reader) (io.ReaderAt, int64, error) {
+	if readerAt, ok := src.(io.ReaderAt); ok {
+		if seeker, ok := src.(io.Seeker); ok {
+			current, err := seeker.Seek(0, io.SeekCurrent)
+			if err != nil {
+				return nil, 0, err
+			}
+			size, err := seeker.Seek(0, io.SeekEnd)
+			if err != nil {
+				return nil, 0, err
+			}
+			if _, err := seeker.Seek(current, io.SeekStart); err != nil {
+				return nil, 0, err
+			}
+			return readerAt, size, nil
+		}
+	}
+
+	buf, err := io.ReadAll(src)
+	if err != nil {
+		return nil, 0, err
+	}
+	reader := bytes.NewReader(buf)
+	return reader, reader.Size(), nil
+}
+
 func untar(src io.Reader, cmd string) (io.Reader, error) {
+	return untarWithLimit(src, cmd, maxExecutableSize)
+}
+
+func untarWithLimit(src io.Reader, cmd string, limit int64) (io.Reader, error) {
 	gz, err := gzip.NewReader(src)
 	if err != nil {
 		return nil, fmt.Errorf("%w tar.gz 文件: %s", errCannotDecompressFile, err)
@@ -95,6 +129,10 @@ func untar(src io.Reader, cmd string) (io.Reader, error) {
 		}
 		_, name := filepath.Split(h.Name)
 		if isExecutableMatch(cmd, name) {
+			if limit <= 0 || h.Size > limit {
+				_ = gz.Close()
+				return nil, fmt.Errorf("解压后的可执行文件超过 %d 字节限制", limit)
+			}
 			// 返回包装的 reader，确保 gzip.Reader 可以被关闭
 			return &gzipTarReader{
 				Reader:     t,

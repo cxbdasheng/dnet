@@ -25,21 +25,21 @@ func CheckAndUpdate(currentVersion string, autoRestart bool) error {
 	}
 
 	// 获取最新版本信息
-	latestVersion, downloadURL, err := GetLatestRelease()
+	latest, err := GetLatestReleaseSelection()
 	if err != nil {
 		return fmt.Errorf("获取最新版本失败: %w", err)
 	}
 
-	helper.Info(helper.LogTypeSystem, "最新版本: %s", latestVersion)
+	helper.Info(helper.LogTypeSystem, "最新版本: %s", latest.Version)
 
 	// 比较版本
-	if v.GreaterThanOrEqual(latestVersion) {
+	if v.GreaterThanOrEqual(latest.Version) {
 		helper.Info(helper.LogTypeSystem, "当前已是最新版本，无需更新")
 		return nil
 	}
 
 	// 显示版本变化
-	helper.Info(helper.LogTypeSystem, "发现新版本: %s -> %s", currentVersion, latestVersion.String())
+	helper.Info(helper.LogTypeSystem, "发现新版本: %s -> %s", currentVersion, latest.Version.String())
 
 	// 询问用户是否确认更新
 	if !confirmUpdate() {
@@ -53,15 +53,15 @@ func CheckAndUpdate(currentVersion string, autoRestart bool) error {
 		return fmt.Errorf("获取可执行文件路径失败: %w", err)
 	}
 
-	// 下载并替换可执行文件
+	// 下载、校验并替换可执行文件
 	helper.Info(helper.LogTypeSystem, "正在下载最新版本...")
-	if err := Update(downloadURL, exePath); err != nil {
+	if err := UpdateRelease(latest, exePath); err != nil {
 		helper.Error(helper.LogTypeSystem, "更新失败: %v", err)
-		helper.Info(helper.LogTypeSystem, "请尝试手动下载: %s", downloadURL)
+		helper.Info(helper.LogTypeSystem, "请尝试手动下载: %s", latest.Archive.URL)
 		return fmt.Errorf("更新失败: %w", err)
 	}
 
-	helper.Info(helper.LogTypeSystem, "✓ 更新成功! 版本 %s -> %s", currentVersion, latestVersion.String())
+	helper.Info(helper.LogTypeSystem, "✓ 更新成功! 版本 %s -> %s", currentVersion, latest.Version.String())
 
 	// 处理重启
 	if autoRestart {

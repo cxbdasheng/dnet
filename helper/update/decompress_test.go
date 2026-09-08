@@ -281,6 +281,30 @@ func TestUntar(t *testing.T) {
 	}
 }
 
+func TestUnzipWithLimitRejectsOversizedExecutable(t *testing.T) {
+	zipBuf, err := createTestZip(map[string]string{"dnet": "123456"})
+	if err != nil {
+		t.Fatalf("创建测试 ZIP 失败: %v", err)
+	}
+
+	reader, err := unzipWithLimit(zipBuf, "dnet", 5)
+	if err == nil || !strings.Contains(err.Error(), "超过 5 字节限制") {
+		t.Fatalf("unzipWithLimit() reader = %v, error = %v, want size limit error", reader, err)
+	}
+}
+
+func TestUntarWithLimitRejectsOversizedExecutable(t *testing.T) {
+	tarGzBuf, err := createTestTarGz(map[string]string{"dnet": "123456"})
+	if err != nil {
+		t.Fatalf("创建测试 TAR.GZ 失败: %v", err)
+	}
+
+	reader, err := untarWithLimit(tarGzBuf, "dnet", 5)
+	if err == nil || !strings.Contains(err.Error(), "超过 5 字节限制") {
+		t.Fatalf("untarWithLimit() reader = %v, error = %v, want size limit error", reader, err)
+	}
+}
+
 func TestExtractExecutable(t *testing.T) {
 	tests := []struct {
 		name     string
