@@ -3,6 +3,7 @@ package signer
 import (
 	"crypto/hmac"
 	"crypto/md5"
+	"crypto/rand"
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/base64"
@@ -10,7 +11,6 @@ import (
 	"hash"
 	"io"
 	"net/url"
-	"strconv"
 	"time"
 )
 
@@ -100,7 +100,7 @@ func specialUrlEncode(in <-chan *strToEnc, w io.Writer) {
 func AliyunSigner(accessKeyID, accessSecret string, params *url.Values, httpMethod string) {
 	// 公共参数（不包括 Version，由调用方设置）
 	params.Set("SignatureMethod", "HMAC-SHA1")
-	params.Set("SignatureNonce", strconv.FormatInt(time.Now().UnixNano(), 10))
+	params.Set("SignatureNonce", rand.Text())
 	params.Set("AccessKeyId", accessKeyID)
 	params.Set("SignatureVersion", "1.0")
 	params.Set("Timestamp", time.Now().UTC().Format("2006-01-02T15:04:05Z"))

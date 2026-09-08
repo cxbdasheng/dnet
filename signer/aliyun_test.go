@@ -302,21 +302,31 @@ func TestAliyunSigner(t *testing.T) {
 
 // TestAliyunSigner_UniqueNonce 测试每次调用生成唯一的 Nonce
 func TestAliyunSigner_UniqueNonce(t *testing.T) {
-	accessKeyID := "test-key"
-	accessSecret := "test-secret"
-
-	params1 := make(url.Values)
-	AliyunSigner(accessKeyID, accessSecret, &params1, http.MethodGet)
-
-	// 等待一纳秒确保时间不同
-	params2 := make(url.Values)
-	AliyunSigner(accessKeyID, accessSecret, &params2, http.MethodGet)
-
-	nonce1 := params1.Get("SignatureNonce")
-	nonce2 := params2.Get("SignatureNonce")
-
-	if nonce1 == nonce2 {
-		t.Error("两次调用应该生成不同的 Nonce")
+	const calls = 1000
+	seen := make(map[string]bool, calls)
+	check := func(nonce string) {
+		t.Helper()
+		if nonce == "" || seen[nonce] {
+			t.Fatalf("empty or duplicate nonce: %q", nonce)
+		}
+		seen[nonce] = true
+	}
+	for range calls {
+		params := make(url.Values)
+		AliyunSigner("test-key", "test-secret", &params, http.MethodGet)
+		check(params.Get("SignatureNonce"))
+	}
+	// Independent requests may be signed concurrently without waiting for a clock tick.
+	nonces := make(chan string, calls)
+	for range calls {
+		go func() {
+			params := make(url.Values)
+			AliyunSigner("test-key", "test-secret", &params, http.MethodGet)
+			nonces <- params.Get("SignatureNonce")
+		}()
+	}
+	for range calls {
+		check(<-nonces)
 	}
 }
 
