@@ -36,6 +36,10 @@ func TestUpdateWithClientReplacesOnlyVerifiedExecutable(t *testing.T) {
 	if err := os.WriteFile(targetPath, []byte("old executable"), 0o751); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
+	beforeInfo, err := os.Stat(targetPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 	release := &Release{
 		Version:   &Version{major: 1, minor: 2, patch: 3},
 		Archive:   Asset{Name: archiveName, URL: server.URL + "/" + archiveName},
@@ -56,8 +60,8 @@ func TestUpdateWithClientReplacesOnlyVerifiedExecutable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Stat() error = %v", err)
 	}
-	if info.Mode().Perm() != 0o751 {
-		t.Fatalf("updated mode = %o, want 751", info.Mode().Perm())
+	if info.Mode().Perm() != beforeInfo.Mode().Perm() {
+		t.Fatalf("updated mode = %o, want %o", info.Mode().Perm(), beforeInfo.Mode().Perm())
 	}
 }
 
@@ -213,6 +217,10 @@ func TestUpdateWithClientInvalidChecksumsDoNotReplaceExecutable(t *testing.T) {
 			if err := os.WriteFile(targetPath, []byte(oldExecutable), 0o751); err != nil {
 				t.Fatalf("WriteFile() error = %v", err)
 			}
+			beforeInfo, err := os.Stat(targetPath)
+			if err != nil {
+				t.Fatal(err)
+			}
 			release := &Release{
 				Archive:   Asset{Name: archiveName, URL: server.URL + "/" + archiveName},
 				Checksums: Asset{Name: "checksums.txt", URL: server.URL + "/checksums.txt"},
@@ -232,7 +240,7 @@ func TestUpdateWithClientInvalidChecksumsDoNotReplaceExecutable(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Stat() error = %v", err)
 			}
-			if info.Mode().Perm() != 0o751 {
+			if info.Mode().Perm() != beforeInfo.Mode().Perm() {
 				t.Fatalf("executable mode changed after checksum failure: %o", info.Mode().Perm())
 			}
 		})

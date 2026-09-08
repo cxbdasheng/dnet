@@ -17,7 +17,11 @@ func TestApplyWithLimitRejectsOversizedExecutable(t *testing.T) {
 		t.Fatalf("写入旧可执行文件失败: %v", err)
 	}
 
-	err := applyWithLimit(strings.NewReader("123456"), target, 5)
+	beforeInfo, err := os.Stat(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = applyWithLimit(strings.NewReader("123456"), target, 5)
 	if err == nil || !strings.Contains(err.Error(), "超过 5 字节限制") {
 		t.Fatalf("applyWithLimit() error = %v, want size limit error", err)
 	}
@@ -34,8 +38,8 @@ func TestApplyWithLimitRejectsOversizedExecutable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取旧可执行文件信息失败: %v", err)
 	}
-	if got := info.Mode().Perm(); got != oldPerm {
-		t.Fatalf("旧可执行文件权限 = %o, want %o", got, oldPerm)
+	if got := info.Mode().Perm(); got != beforeInfo.Mode().Perm() {
+		t.Fatalf("旧可执行文件权限 = %o, want %o", got, beforeInfo.Mode().Perm())
 	}
 
 	for _, suffix := range []string{".new", ".old"} {
