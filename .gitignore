@@ -45,6 +45,7 @@ zoneinfo
 
 # IDE 和编辑器
 .idea/
+.mcp.json
 /go_build_*
 out/
 .vscode/
