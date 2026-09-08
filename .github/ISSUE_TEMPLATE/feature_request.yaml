@@ -1,35 +1,64 @@
-name: Feature Request
-description: Feature request for D-NET
-labels: ['enhancement']
+name: 功能请求
+description: 为 D-NET 提出改进建议
+title: "[功能]: "
+labels:
+  - enhancement
 
 body:
   - type: markdown
     attributes:
-      value: |
-        This is only used to request new product features.
-  - type: textarea
+      value: 请说明需求和期望结果，而不只描述具体实现方式。
+
+  - type: checkboxes
+    id: search_confirmation
     attributes:
-      label: Description
-      description: A clear and concise description of what the feature is.
+      label: 已有功能请求
+      description: 提交前请搜索开放和已关闭的 Issue。
+      options:
+        - label: 我已搜索过涵盖此建议的现有功能请求。
+          required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 功能领域
+      options:
+        - DCDN
+        - DDNS
+        - Web UI
+        - 配置
+        - 通知和 Webhook
+        - 打包和部署
+        - 其他
     validations:
       required: true
 
   - type: textarea
+    id: problem
     attributes:
-      label: Problem
-      description: Describe the problem you are facing.
+      label: 要解决的问题
+      description: 此功能需要解决什么限制或使用场景？
+    validations:
+      required: true
 
   - type: textarea
+    id: proposal
     attributes:
-      label: Other Description
-      description: Any other information you would like to provide.
+      label: 建议方案
+      description: 请描述你希望实现的行为或结果。
+    validations:
+      required: true
 
-  - type: checkboxes
+  - type: textarea
+    id: alternatives
     attributes:
-      label: Checklist
-      description: Please check the following before submitting your feature request.
-      options:
-        - label: I am using the latest version and have confirmed that the feature is not yet implemented in the latest version
-          required: true
-        - label: I have searched for similar feature requests before submitting this one
-          required: true
+      label: 考虑过的替代方案
+      description: 请描述你考虑过的临时方案或其他做法。
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 补充信息
+      description: 可选。可提供示例、参考资料或其他有用背景。
