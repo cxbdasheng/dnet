@@ -182,7 +182,7 @@ func (s *Server) handleLoginPost(writer http.ResponseWriter, request *http.Reque
 
 	// 验证输入
 	loginReq.Username = strings.TrimSpace(loginReq.Username)
-	loginReq.Password = strings.TrimSpace(loginReq.Password)
+	// Password whitespace is significant, matching settings and password reset.
 
 	if loginReq.Username == "" || loginReq.Password == "" {
 		helper.ReturnError(writer, "用户名和密码不能为空")

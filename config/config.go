@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"slices"
 	"sync"
 	"time"
 
@@ -64,6 +65,19 @@ type Config struct {
 	Lang string
 }
 
+// clone returns an owned snapshot, including nested mutable slices.
+func (conf Config) clone() Config {
+	conf.DCDN = slices.Clone(conf.DCDN)
+	for i := range conf.DCDN {
+		conf.DCDN[i].Sources = slices.Clone(conf.DCDN[i].Sources)
+	}
+	conf.DDNS = slices.Clone(conf.DDNS)
+	for i := range conf.DDNS {
+		conf.DDNS[i].Records = slices.Clone(conf.DDNS[i].Records)
+	}
+	return conf
+}
+
 // ConfigCache 配置缓存结构
 type ConfigCache struct {
 	config   *Config
@@ -86,7 +100,7 @@ func GetConfigCached() (Config, error) {
 			if !stat.ModTime().After(globalCache.modTime) {
 				// 文件未改变，返回缓存
 				defer globalCache.mu.RUnlock()
-				return *globalCache.config, globalCache.err
+				return globalCache.config.clone(), globalCache.err
 			}
 		}
 	}
@@ -105,7 +119,7 @@ func (c *ConfigCache) loadConfig(configFilePath string) (Config, error) {
 	if c.config != nil && c.filePath == configFilePath {
 		if stat, err := os.Stat(configFilePath); err == nil {
 			if !stat.ModTime().After(c.modTime) {
-				return *c.config, c.err
+				return c.config.clone(), c.err
 			}
 		}
 	}
@@ -116,23 +130,23 @@ func (c *ConfigCache) loadConfig(configFilePath string) (Config, error) {
 	stat, err := os.Stat(configFilePath)
 	if err != nil {
 		c.err = err
-		return *c.config, err
+		return c.config.clone(), err
 	}
 	c.modTime = stat.ModTime()
 
 	data, err := os.ReadFile(configFilePath)
 	if err != nil {
 		c.err = err
-		return *c.config, err
+		return c.config.clone(), err
 	}
 
 	if err = yaml.Unmarshal(data, c.config); err != nil {
 		c.err = err
-		return *c.config, err
+		return c.config.clone(), err
 	}
 
 	c.err = nil
-	return *c.config, nil
+	return c.config.clone(), nil
 }
 
 // SaveConfig 保存配置
@@ -153,7 +167,8 @@ func (conf *Config) SaveConfig() error {
 	}
 
 	// 更新缓存
-	globalCache.config = conf
+	snapshot := conf.clone()
+	globalCache.config = &snapshot
 	globalCache.filePath = configFilePath
 	globalCache.err = nil
 	if stat, err := os.Stat(configFilePath); err == nil {

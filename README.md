@@ -281,5 +281,11 @@ go run main.go                          # 直接运行
   </details>
 
 > 详细 Webhook 配置参考 [Wiki 文档 - WebHook 配置指南](https://github.com/cxbdasheng/dnet/wiki/WebHook-%E9%85%8D%E7%BD%AE%E6%8C%87%E5%8D%97)。
+
+### 反向代理与客户端 IP
+默认仅使用连接来源地址判断客户端 IP，不信任客户端提供的 `X-Forwarded-For` 和 `X-Real-IP`。
+通过反向代理部署时，请设置环境变量 `DNET_TRUSTED_PROXIES`，以逗号分隔可信代理的 IP 或 CIDR，例如 `127.0.0.1,::1,10.0.0.2/32`。
+仅填写实际代理地址，不要将所有客户端网段加入可信列表。代理应覆盖 `X-Real-IP`，或在 `X-Forwarded-For` 末尾追加真实连接来源地址。
+程序从右向左检查转发链，取第一个不受信任的地址作为客户端 IP；可信代理缺少有效客户端信息时，无法通过“禁止公网访问”检查。
 ## 贡献与许可
 欢迎贡献代码或提出建议，详见 [贡献指南](CONTRIBUTING.md)。本项目采用 [MIT](LICENSE) 许可证。

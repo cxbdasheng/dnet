@@ -127,6 +127,7 @@ func TestIsLocalAddress(t *testing.T) {
 
 // TestGetClientIP 测试客户端 IP 获取
 func TestGetClientIP(t *testing.T) {
+	t.Setenv(TrustedProxiesENV, "192.168.1.1,192.168.1.2,10.0.0.1")
 	tests := []struct {
 		name          string
 		remoteAddr    string
@@ -660,5 +661,33 @@ func BenchmarkCreateNoProxyHTTPClient(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		CreateNoProxyHTTPClient("tcp4")
+	}
+}
+
+func TestClientIPTrustBoundary(t *testing.T) {
+	for _, tc := range []struct{ name, trusted, peer, forwarded, real, want string }{
+		{"default ignores headers", "", "203.0.113.1:80", "127.0.0.1", "127.0.0.1", "203.0.113.1"},
+		{"untrusted peer", "127.0.0.1", "203.0.113.1:80", "127.0.0.1", "", "203.0.113.1"},
+		{"spoofed prefix", "127.0.0.1", "127.0.0.1:80", "192.168.1.1, 203.0.113.1", "", "203.0.113.1"},
+		{"CIDR proxy chain", "10.0.0.0/24", "10.0.0.1:80", "203.0.113.1, 10.0.0.2", "", "203.0.113.1"},
+		{"IPv6 proxy", "::1", "[::1]:80", "2001:db8::1", "", "2001:db8::1"},
+		{"private client", "127.0.0.1", "127.0.0.1:80", "192.168.1.2", "", "192.168.1.2"},
+		{"real IP", "127.0.0.1", "127.0.0.1:80", "", "203.0.113.1", "203.0.113.1"},
+		{"invalid chain", "127.0.0.1", "127.0.0.1:80", "invalid", "127.0.0.1", ""},
+		{"missing metadata", "127.0.0.1", "127.0.0.1:80", "", "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(TrustedProxiesENV, tc.trusted)
+			r := &http.Request{RemoteAddr: tc.peer, Header: http.Header{}}
+			if tc.forwarded != "" {
+				r.Header.Set("X-Forwarded-For", tc.forwarded)
+			}
+			if tc.real != "" {
+				r.Header.Set("X-Real-IP", tc.real)
+			}
+			if got := GetClientIP(r); got != tc.want {
+				t.Fatalf("got %q, want %q", got, tc.want)
+			}
+		})
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"regexp"
 	"runtime"
@@ -189,38 +190,57 @@ func getAddrTypeConfig(addrType string) addrTypeConfig {
 	}
 }
 
-// GetClientIP 获取客户端真实IP地址
+// TrustedProxiesENV lists comma-separated proxy IPs or CIDRs. Empty trusts none.
+const TrustedProxiesENV = "DNET_TRUSTED_PROXIES"
+
+func isTrustedProxy(ip string) bool {
+	address := net.ParseIP(ip)
+	if address == nil {
+		return false
+	}
+	for _, entry := range strings.Split(os.Getenv(TrustedProxiesENV), ",") {
+		entry = strings.TrimSpace(entry)
+		if proxy := net.ParseIP(entry); proxy != nil && proxy.Equal(address) {
+			return true
+		}
+		if _, network, err := net.ParseCIDR(entry); err == nil && network.Contains(address) {
+			return true
+		}
+	}
+	return false
+}
+
+// GetClientIP trusts forwarding headers only from explicitly configured proxies.
 func GetClientIP(r *http.Request) string {
-	// 检查X-Forwarded-For头，获取最原始的客户端IP
-	xff := r.Header.Get("X-Forwarded-For")
-	if xff != "" {
-		ips := strings.Split(xff, ",")
-		for _, ip := range ips {
-			ip = strings.TrimSpace(ip)
-			if ip != "" && !IsLocalAddress(ip) {
-				return ip
+	peer := r.RemoteAddr
+	if host, _, err := net.SplitHostPort(peer); err == nil {
+		peer = host
+	}
+	if !isTrustedProxy(peer) {
+		return peer
+	}
+	if values := r.Header.Values("X-Forwarded-For"); len(values) > 0 {
+		hops := strings.Split(strings.Join(values, ","), ",")
+		// Walk from the nearest proxy; never accept a spoofed prefix before an
+		// untrusted hop. Malformed chains fail closed for WAN authorization.
+		for i := len(hops) - 1; i >= 0; i-- {
+			ip := net.ParseIP(strings.TrimSpace(hops[i]))
+			if ip == nil {
+				return ""
+			}
+			if !isTrustedProxy(ip.String()) || i == 0 {
+				return ip.String()
 			}
 		}
-		// 如果没有找到公网IP，返回第一个非空IP
-		if len(ips) > 0 && strings.TrimSpace(ips[0]) != "" {
-			return strings.TrimSpace(ips[0])
+	}
+	if value := r.Header.Get("X-Real-IP"); value != "" {
+		if ip := net.ParseIP(strings.TrimSpace(value)); ip != nil {
+			return ip.String()
 		}
+		return ""
 	}
-
-	// 检查X-Real-IP头
-	xri := r.Header.Get("X-Real-IP")
-	if xri != "" {
-		return xri
-	}
-
-	// 使用RemoteAddr，统一使用net.SplitHostPort处理
-	// 这个方法可以正确处理IPv4和IPv6地址(包括[::1]:8080这种格式)
-	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
-		return host
-	}
-
-	// 如果SplitHostPort失败，直接返回原始地址(可能是没有端口的情况)
-	return r.RemoteAddr
+	// A proxy without client metadata cannot establish private-client access.
+	return ""
 }
 
 // GetAddrFromUrl 从 URL 中获取地址
