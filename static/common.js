@@ -77,3 +77,29 @@ function validateLayuiForm(form, layer, $) {
     });
     return isValid;
 }
+// 记录编辑版本：只有成功保存的版本才能清除未保存状态。
+function createUnsavedChangesGuard($) {
+    let revision = 0;
+    let savedRevision = 0;
+    const markDirty = () => { revision++; };
+    window.addEventListener('beforeunload', function (event) {
+        if (revision !== savedRevision) {
+            event.preventDefault();
+            event.returnValue = '';
+        }
+    });
+    $(document).on('input change', '.layui-form input, .layui-form textarea, .layui-form select', function () {
+        if (this.name !== 'config' && !this.readOnly) markDirty();
+    });
+    // Layui 的自定义控件不会触发原生 change 事件。
+    $(document).on('click', '.layui-form-checkbox, .layui-form-switch, .layui-form-radio, .layui-form-select dd', function () {
+        const select = $(this).closest('.layui-form-select').prev('select');
+        if (select.attr('name') !== 'config') markDirty();
+    });
+    $(document).on('reset', '.layui-form', markDirty);
+    return {
+        markDirty,
+        version: () => revision,
+        markSaved: (version) => { savedRevision = version; }
+    };
+}

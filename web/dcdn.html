@@ -283,6 +283,7 @@
         var util = layui.util;
         var form = layui.form;
         var $ = layui.$;
+        const unsavedChanges = createUnsavedChangesGuard($);
         // 自定义验证规则
         form.verify({
             // 域名验证
@@ -579,6 +580,7 @@
                 });
             }
 
+            const submittedVersion = unsavedChanges.version();
             $.ajax({
                 type: 'POST',
                 url: '/dcdn',
@@ -587,6 +589,7 @@
                 success: function (response) {
                     var res = response
                     if (res.status){
+                        unsavedChanges.markSaved(submittedVersion);
                         // 检查是否开启了 DCDN
                         const isDCDNEnabled = $('input[name="dcdn_enable"]').is(':checked');
                         // 获取当前服务商
@@ -808,6 +811,7 @@
             });
             const $lastRow = $allRows.last();
             $lastRow.after($newRow);
+            unsavedChanges.markDirty();
 
             // 重新渲染表单
             form.render();
@@ -819,6 +823,7 @@
         $(document).on('click', '.btn-remove-source', function() {
             const $row = $(this).closest('.dnet-form-sources');
             $row.remove();
+            unsavedChanges.markDirty();
         });
 
         // 辅助函数：根据配置ID查找配置索引
@@ -871,6 +876,7 @@
             const newValue = (parseInt(configSelect.find('option:last').val()) || 0) + 1;
             const newOption = '<option value="' + newValue + '" selected>' + newValue + '</option>';
             configSelect.append(newOption);
+            unsavedChanges.markDirty();
 
             // 重新渲染表单（Layui 特有）
             form.render('select');
@@ -1161,6 +1167,7 @@
                     return false;
                 }
 
+                unsavedChanges.markDirty();
                 // 只更新选项的显示文本，保持value不变
                 $select.find('option[value="' + currentValue + '"]').text(value);
 
@@ -1202,6 +1209,7 @@
                     btn: ['确定', '取消']
                 }, function (index) {
                     // 确定删除
+                    unsavedChanges.markDirty();
                     // 删除 configData 中对应的数据
                     const configIndex = findConfigIndex(currentValue);
                     if (configIndex !== -1) {
@@ -1634,7 +1642,7 @@
                                 // 更新页面显示
                                 $('input[name="cname"]').val(newCname);
                                 // 更新 configData
-                                configData = newConfigData;
+                                // 仅更新 CNAME，保留正在编辑的本地配置。
                                 // 更新当前配置的 cname
                                 const localConfig = getConfigById(currentId);
                                 if (localConfig) {

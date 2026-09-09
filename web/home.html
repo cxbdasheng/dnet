@@ -53,8 +53,8 @@
             <!-- 头部区域（可配合layui 已有的水平导航） -->
             <div class="ws-header-menu">
                 <ul class="layui-nav layui-layout-left" lay-filter="nav-filter">
-                    <li class="layui-nav-item layui-hide-xs layui-this"><a href="javascript:;">DCDN</a></li>
-                    <li class="layui-nav-item layui-hide-xs"><a href="javascript:;">DDNS</a></li>
+                    <li class="layui-nav-item layui-hide-xs layui-this"><a href="javascript:;" title="动态 CDN 管理（Dynamic Content Delivery Network）">DCDN</a></li>
+                    <li class="layui-nav-item layui-hide-xs"><a href="javascript:;" title="动态 DNS 管理（Dynamic Domain Name System）">DDNS</a></li>
                 </ul>
             </div>
 
@@ -122,46 +122,28 @@
             }
         }
 
-        // 导航点击事件 - iframe 切换
+        // 由各页面的 beforeunload 统一触发浏览器原生提醒。
+        // 仅在页面实际加载后更新选中项，取消离开时保留当前导航。
+        var currentNavText = $defaultNav.text().trim();
+        function selectNav(text) {
+            $('.layui-nav[lay-filter="nav-filter"] .layui-nav-item').each(function () {
+                $(this).toggleClass('layui-this', $(this).text().trim() === text);
+            });
+        }
+        $('#content-frame').on('load', function () {
+            var pages = { '/dcdn': 'DCDN', '/ddns': 'DDNS' };
+            var loadedNav = pages[this.contentWindow.location.pathname];
+            if (loadedNav) {
+                currentNavText = loadedNav;
+                selectNav(currentNavText);
+            }
+        });
         element.on('nav(nav-filter)', function (elem) {
             var navText = $(elem).text().trim();
-            var $clickedItem = $(elem);
-            var $iframe = $('#content-frame');
-
-            if (navText === 'DCDN') {
-                // 切换到 DCDN 页面
-                $iframe.attr('src', '/dcdn');
-                // 更新导航选中状态
-                $('.layui-nav[lay-filter="nav-filter"] .layui-nav-item').removeClass('layui-this');
-                $clickedItem.addClass('layui-this');
-            } else if (navText === 'DDNS') {
-                // 切换到 DDNS 页面
-                $iframe.attr('src', 'ddns');
-                // 更新导航选中状态
-                $('.layui-nav[lay-filter="nav-filter"] .layui-nav-item').removeClass('layui-this');
-                $clickedItem.addClass('layui-this');
-                // // 阻止默认行为，先移除当前元素的选中状态
-                // $clickedItem.removeClass('layui-this');
-                //
-                // // 弹出提示框
-                // layer.alert('DDNS 功能正在开发中，敬请期待', {
-                //     icon: 0,
-                //     title: '功能提示',
-                //     closeBtn: 1
-                // }, function (index) {
-                //     // 关闭提示框后，保持 DCDN 选中
-                //     $('.layui-nav[lay-filter="nav-filter"] .layui-nav-item').removeClass('layui-this');
-                //     $('.layui-nav[lay-filter="nav-filter"] .layui-nav-item').eq(0).addClass('layui-this');
-                //     layer.close(index);
-                // });
-                //
-                // // 立即恢复 DCDN 选中状态
-                // setTimeout(function () {
-                //     $('.layui-nav[lay-filter="nav-filter"] .layui-nav-item').removeClass('layui-this');
-                //     $('.layui-nav[lay-filter="nav-filter"] .layui-nav-item').eq(0).addClass('layui-this');
-                // }, 10);
-                // return false;
-            }
+            var routes = { DCDN: '/dcdn', DDNS: '/ddns' };
+            selectNav(currentNavText);
+            if (!routes[navText] || navText === currentNavText) return;
+            $('#content-frame').attr('src', routes[navText]);
         });
 
         //头部事件

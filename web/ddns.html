@@ -390,6 +390,7 @@
         var util = layui.util;
         var form = layui.form;
         var $ = layui.$;
+        const unsavedChanges = createUnsavedChangesGuard($);
 
         // 选择下拉框的第一个选项（如果当前值为空）
         function selectFirstOption(selector) {
@@ -826,6 +827,7 @@
             // 转换为后端格式并提交
             var submitData = frontendToBackend(configData);
 
+            const submittedVersion = unsavedChanges.version();
             $.ajax({
                 type: 'POST',
                 url: '/ddns',
@@ -834,6 +836,7 @@
                 success: function (response) {
                     var res = response
                     if (res.status) {
+                        unsavedChanges.markSaved(submittedVersion);
                         layer.msg('配置保存成功', {
                             icon: 1,
                             time: 1000
@@ -1154,6 +1157,7 @@
             const newValue = (parseInt(configSelect.find('option:last').val()) || 0) + 1;
             const newOption = '<option value="' + newValue + '" selected>' + newValue + '</option>';
             configSelect.append(newOption);
+            unsavedChanges.markDirty();
 
             // 重新渲染表单（Layui 特有）
             form.render('select');
@@ -1199,6 +1203,7 @@
                     return false;
                 }
 
+                unsavedChanges.markDirty();
                 // 只更新选项的显示文本，保持value不变
                 $select.find('option[value="' + currentValue + '"]').text(value);
 
@@ -1240,6 +1245,7 @@
                     btn: ['确定', '取消']
                 }, function (index) {
                     // 确定删除
+                    unsavedChanges.markDirty();
                     // 删除 configData 中对应的数据
                     const configIndex = findConfigIndex(currentValue);
                     if (configIndex !== -1) {
