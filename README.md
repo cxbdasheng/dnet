@@ -1,7 +1,7 @@
 <div align="center">
 
 # D-NET 动态网络管理系统
-一款轻量级动态网络管理工具，支持多平台的 CDN、DNS 和 内网穿透自动化管理与监控。
+一款轻量级动态网络管理工具，支持多平台 CDN、DNS 自动更新，以及 TCP 端口转发。
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.26.0-blue.svg)](https://go.dev/)
@@ -19,12 +19,13 @@
 
 - **动态 CDN 管理 (DCDN)：** 根据 IP 变化自动更新 CDN 源站，支持阿里云（CDN、DCDN、ESA）、腾讯云（CDN、EdgeOne）、百度云（CDN、DRCDN）、Cloudflare、又拍云、自定义回调（Callback）
 - **动态 DNS 管理 (DDNS)：** 根据 IP 变化自动更新 DNS 解析，支持 **A / AAAA / CNAME / TXT** 记录，支持阿里云、腾讯云、百度云、Cloudflare、华为云、Dnspod、NameSilo、GoDaddy、自定义回调（Callback）
+- **TCP 端口转发 (DPF)：** IPv4 / IPv6 入口转发到指定 IP 或域名，支持来源白名单、连接数限制、超时设置和运行日志。
 - **内网穿透管理：** 从外网访问内网服务（V3 版本规划中）
 - **Webhook 通知：** 实时推送 IP 变更通知
 - **Web 管理界面：** 可视化配置和管理
 
 ### 界面
-![界面](https://raw.githubusercontent.com/cxbdasheng/dnet/refs/heads/main/dnet.png)
+![D-NET 管理界面：DPF 配置与运行状态](dnet.png)
 
 ## 快速开始
 
