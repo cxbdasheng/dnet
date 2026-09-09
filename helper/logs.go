@@ -36,6 +36,7 @@ const (
 	LogTypeSystem  LogType = "系统"
 	LogTypeDCDN    LogType = "DCDN"
 	LogTypeDDNS    LogType = "DDNS"
+	LogTypeDPF     LogType = "DPF"
 	LogTypeWebhook LogType = "Webhook"
 	LogTypeAuth    LogType = "认证"
 	LogTypeNetwork LogType = "网络"

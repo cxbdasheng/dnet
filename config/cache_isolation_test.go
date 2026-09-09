@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/cxbdasheng/dnet/forward"
 )
 
 func TestConfigCacheSnapshots(t *testing.T) {
@@ -49,4 +51,25 @@ func TestConfigCacheSnapshots(t *testing.T) {
 	}
 	mutate(&loaded)
 	assertSnapshot(cache.loadConfig(GetConfigFilePath()))
+}
+
+func TestForwardRulesCacheIsolation(t *testing.T) {
+	t.Setenv(PathENV, filepath.Join(t.TempDir(), "config.yaml"))
+	c := Config{ForwardRules: []forward.Rule{{ID: "one", AllowCIDRs: []string{"127.0.0.1"}}}}
+	if err := c.SaveConfig(); err != nil {
+		t.Fatal(err)
+	}
+	c.ForwardRules[0].AllowCIDRs[0] = "changed"
+	loaded, err := GetConfigCached()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.ForwardRules[0].AllowCIDRs[0] != "127.0.0.1" {
+		t.Fatal("save alias")
+	}
+	loaded.ForwardRules[0].AllowCIDRs[0] = "changed"
+	loaded, _ = GetConfigCached()
+	if loaded.ForwardRules[0].AllowCIDRs[0] != "127.0.0.1" {
+		t.Fatal("load alias")
+	}
 }

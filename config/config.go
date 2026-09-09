@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cxbdasheng/dnet/forward"
 	"github.com/cxbdasheng/dnet/helper"
 	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/yaml.v3"
@@ -61,12 +62,23 @@ type Config struct {
 	Webhook
 	DCDNConfig
 	DDNSConfig
+	ForwardEnabled bool           `json:"forward_enabled" yaml:"forward_enabled"`
+	ForwardRules   []forward.Rule `json:"forward_rules" yaml:"forward_rules,omitempty"`
 	// 语言
 	Lang string
 }
 
+// ActiveForwardRules preserves saved rules while the module is switched off.
+func (conf Config) ActiveForwardRules() []forward.Rule {
+	if !conf.ForwardEnabled {
+		return nil
+	}
+	return forward.Clone(conf.ForwardRules)
+}
+
 // clone returns an owned snapshot, including nested mutable slices.
 func (conf Config) clone() Config {
+	conf.ForwardRules = forward.Clone(conf.ForwardRules)
 	conf.DCDN = slices.Clone(conf.DCDN)
 	for i := range conf.DCDN {
 		conf.DCDN[i].Sources = slices.Clone(conf.DCDN[i].Sources)
