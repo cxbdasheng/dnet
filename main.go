@@ -10,16 +10,19 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/cxbdasheng/dnet/bootstrap"
 	"github.com/cxbdasheng/dnet/config"
 	"github.com/cxbdasheng/dnet/dcdn"
 	"github.com/cxbdasheng/dnet/ddns"
+	"github.com/cxbdasheng/dnet/forward"
 	"github.com/cxbdasheng/dnet/helper"
 	"github.com/cxbdasheng/dnet/helper/update"
 	"github.com/cxbdasheng/dnet/web"
@@ -74,6 +77,7 @@ var version = "DEV"
 var configRepo config.Repository
 var syncRunner *bootstrap.Runner
 var webServer *web.Server
+var forwardManager = forward.NewManager()
 
 func main() {
 	helper.InitLoggerWithConsole(helper.MaxSize, true)
@@ -124,6 +128,7 @@ func main() {
 	syncRunner = bootstrap.NewRunner(configRepo)
 	web.SetEmbeddedAssets(staticEmbeddedFiles, faviconEmbeddedFile)
 	webServer = web.NewServer(configRepo, syncRunner)
+	webServer.Forwarder = forwardManager
 
 	// 重置密码
 	if *newPassword != "" {
@@ -185,6 +190,14 @@ func runWebServer() error {
 	return http.Serve(l, mux)
 }
 func run() {
+	shutdown, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
+	defer forwardManager.Close()
+	if conf, err := configRepo.Load(); err == nil {
+		if err := forwardManager.Apply(conf.ActiveForwardRules(), nil); err != nil {
+			helper.Error(helper.LogTypeSystem, "启动端口转发失败: %v", err)
+		}
+	}
 	if !*noWebService {
 		go func() {
 			// 启动web服务
@@ -197,13 +210,17 @@ func run() {
 		}()
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(shutdown, time.Minute)
 	if err := helper.WaitInternet(ctx, *customDNS); err != nil {
 		helper.Warn(helper.LogTypeNetwork, "等待网络连接未成功，将继续启动同步任务并由后续周期重试: %v", err)
 	}
 	cancel()
 
-	syncRunner.RunTimer(intervalProvider())
+	if shutdown.Err() != nil {
+		return
+	}
+	go syncRunner.RunTimer(intervalProvider())
+	<-shutdown.Done()
 }
 
 // recordCLIOverrides 将 CLI 显式传入的调优参数写入环境变量，
@@ -259,6 +276,7 @@ func (p *program) run() {
 }
 
 func (p *program) Stop(s service.Service) error {
+	forwardManager.Close()
 	// Stop 应该快速返回
 	return nil
 }

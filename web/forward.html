@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1"
+    />
+    <title>DPF 配置 - 端口转发</title>
+    <link rel="stylesheet" href="/static/css/layui.css" />
+    <link rel="stylesheet" href="/static/css/common.css" />
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
+    <script src="/static/layui.js"></script>
+    <style>
+      body {
+        background: #f2f2f2;
+        margin: 0;
+        padding: 0 0 25px;
+        overflow-x: hidden;
+        min-height: 100vh;
+      }
+      .state {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 16px;
+        overflow-wrap: anywhere;
+        color: #666;
+      }
+      .state-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .state-badge {
+        border-radius: 4px;
+        padding: 0 8px;
+        background: #f2f2f2;
+        color: #666;
+      }
+      .state-running {
+        color: #16864b;
+        background: #edf8f1;
+      }
+      .state-warning {
+        color: #a65c00;
+        background: #fff7e6;
+      }
+      .state-error {
+        color: #c43b35;
+        background: #fff1f0;
+      }
+      .state-detail {
+        flex-basis: 100%;
+        white-space: pre-wrap;
+      }
+      #dirty {
+        color: #999;
+        margin-left: 12px;
+      }
+      html {
+        overflow-x: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layui-container" style="padding: 15px">
+      <form
+        class="layui-form"
+        lay-filter="forward-form"
+        onsubmit="return false"
+      >
+        <div class="layui-card">
+          <div class="layui-card-header">DPF 设置</div>
+          <div class="layui-card-body">
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="dpf_enable"
+                >是否开启：</label
+              >
+              <div class="layui-input-inline">
+                <input
+                  type="checkbox"
+                  id="dpf_enable"
+                  name="dpf_enable"
+                  lay-filter="dpf-enable"
+                  lay-skin="switch"
+                  lay-text="开启|关闭"
+                />
+              </div>
+              <div class="layui-form-mid layui-word-aux">
+                全局开关，关闭后 DPF
+                将停用，所有规则停止转发，配置保留。提交后生效。
+              </div>
+            </div>
+            <hr />
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="config">配置：</label>
+              <div class="layui-input-inline">
+                <select
+                  id="config"
+                  name="config"
+                  lay-filter="config-select-filter"
+                  aria-label="配置"
+                ></select>
+              </div>
+              <div class="layui-input-inline" style="width: 205px">
+                <button
+                  type="button"
+                  id="config-add"
+                  class="layui-btn"
+                  title="新增配置"
+                  aria-label="新增配置"
+                >
+                  <i class="layui-icon layui-icon-add-1"></i>
+                </button>
+                <button
+                  type="button"
+                  id="config-rename"
+                  class="layui-btn"
+                  title="重命名配置"
+                  aria-label="重命名配置"
+                >
+                  <i class="layui-icon layui-icon-edit"></i>
+                </button>
+                <button
+                  type="button"
+                  id="config-remove"
+                  class="layui-btn"
+                  title="删除配置"
+                  aria-label="删除配置"
+                >
+                  <i class="layui-icon layui-icon-delete"></i>
+                </button>
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <div class="layui-input-block">
+                <button
+                  type="submit"
+                  class="layui-btn save"
+                  lay-submit
+                  lay-filter="save"
+                >
+                  立即提交
+                </button>
+                <button type="button" class="layui-btn layui-btn-primary reset">
+                  重置</button
+                ><span id="dirty"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="rules" class="layui-card">
+          <div class="layui-card-header">转发设置</div>
+          <div class="layui-card-body">
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label">运行状态：</label>
+              <div class="layui-input-block">
+                <div class="state layui-form-mid">未应用</div>
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="network">监听协议：</label>
+              <div class="layui-input-block">
+                <select
+                  aria-label="监听协议"
+                  id="network"
+                  name="network"
+                  data-key="network"
+                  lay-filter="rule-network"
+                >
+                  <option value="tcp4">TCP / IPv4</option>
+                  <option value="tcp6">TCP / IPv6</option>
+                </select>
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="listen_address"
+                >监听 IP：</label
+              >
+              <div class="layui-input-block">
+                <input
+                  aria-label="监听 IP"
+                  class="layui-input"
+                  id="listen_address"
+                  name="listen_address"
+                  data-key="listen_address"
+                  placeholder="0.0.0.0 或 ::"
+                /><tip
+                  >填写本机监听 IP，IPv4 使用 0.0.0.0，IPv6 使用 ::
+                  表示监听对应地址族的全部接口。</tip
+                >
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="listen_port"
+                >监听端口：</label
+              >
+              <div class="layui-input-block">
+                <input
+                  aria-label="监听端口"
+                  class="layui-input"
+                  id="listen_port"
+                  name="listen_port"
+                  data-key="listen_port"
+                  type="number"
+                  min="1"
+                  max="65535"
+                /><tip
+                  >填写 1–65535
+                  的端口，确保入口可达并放行防火墙。地址重叠时请先停用旧配置并提交。</tip
+                >
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="target_host"
+                >目标 IP / 域名：</label
+              >
+              <div class="layui-input-block">
+                <input
+                  aria-label="目标 IP / 域名"
+                  class="layui-input"
+                  id="target_host"
+                  name="target_host"
+                  data-key="target_host"
+                  placeholder="192.168.1.10"
+                /><tip>填写需要转发到的内网 IP 或域名，例如 192.168.1.10。</tip>
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="target_port"
+                >目标端口：</label
+              >
+              <div class="layui-input-block">
+                <input
+                  aria-label="目标端口"
+                  class="layui-input"
+                  id="target_port"
+                  name="target_port"
+                  data-key="target_port"
+                  type="number"
+                  min="1"
+                  max="65535"
+                /><tip
+                  >填写目标服务端口，例如 HTTPS 使用 443。HTTPS
+                  原样透传，证书由目标服务提供。</tip
+                >
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="dial_timeout_sec"
+                >拨号超时（秒）：</label
+              >
+              <div class="layui-input-block">
+                <input
+                  aria-label="拨号超时（秒）"
+                  class="layui-input"
+                  id="dial_timeout_sec"
+                  name="dial_timeout_sec"
+                  data-key="dial_timeout_sec"
+                  type="number"
+                  min="1"
+                  max="300"
+                />
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="idle_timeout_sec"
+                >空闲超时（秒）：</label
+              >
+              <div class="layui-input-block">
+                <input
+                  aria-label="空闲超时（秒）"
+                  class="layui-input"
+                  id="idle_timeout_sec"
+                  name="idle_timeout_sec"
+                  data-key="idle_timeout_sec"
+                  type="number"
+                  min="0"
+                  max="86400"
+                /><tip>0 表示不限。</tip>
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="max_connections"
+                >最大连接数：</label
+              >
+              <div class="layui-input-block">
+                <input
+                  aria-label="最大连接数"
+                  class="layui-input"
+                  id="max_connections"
+                  name="max_connections"
+                  data-key="max_connections"
+                  type="number"
+                  min="1"
+                  max="10000"
+                />
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="allow_cidrs"
+                >来源白名单：</label
+              >
+              <div class="layui-input-block">
+                <input
+                  aria-label="来源白名单"
+                  class="layui-input"
+                  id="allow_cidrs"
+                  name="allow_cidrs"
+                  data-key="allow_cidrs"
+                  placeholder="192.168.1.0/24, 2001:db8::/32"
+                /><tip>IP / CIDR，以逗号分隔；留空允许所有来源。</tip>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="layui-row layui-form-item">
+          <div class="layui-input-block">
+            <button
+              type="submit"
+              class="layui-btn save"
+              lay-submit
+              lay-filter="save"
+            >
+              立即提交
+            </button>
+            <button type="button" class="layui-btn layui-btn-primary reset">
+              重置
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+    <script>
+      layui.use(["form", "layer"], function () {
+        const form = layui.form,
+          layer = layui.layer;
+        const list = document.querySelector("#rules"),
+          select = document.querySelector("#config");
+        let rules = [],
+          enabled = false,
+          selectedID = "",
+          saved = null,
+          live = null,
+          dirty = false,
+          busy = false,
+          loaded = false;
+        const clone = (value) => JSON.parse(JSON.stringify(value));
+        function newRule() {
+          const bytes = new Uint8Array(16);
+          crypto.getRandomValues(bytes);
+          let port = 8443;
+          while (rules.some((r) => r.listen_port === port) && port < 65535)
+            port++;
+          const sequence =
+            Math.max(0, ...rules.map((r) => r.sequence || 0)) + 1;
+          return {
+            id: Array.from(bytes, (x) => x.toString(16).padStart(2, "0")).join(
+              "",
+            ),
+            sequence,
+            name: String(sequence),
+            enabled: true,
+            network: "tcp4",
+            listen_address: "0.0.0.0",
+            listen_port: port,
+            target_host: "127.0.0.1",
+            target_port: 443,
+            dial_timeout_sec: 10,
+            idle_timeout_sec: 0,
+            max_connections: 100,
+            allow_cidrs: [],
+          };
+        }
+        function current() {
+          return rules.find((r) => r.id === selectedID);
+        }
+        function markDirty() {
+          dirty = true;
+          document.querySelector("#dirty").textContent = "有未提交的更改";
+        }
+        function error(e) {
+          layer.msg(e.message || String(e), { icon: 2, time: 2000 });
+        }
+        async function api(body) {
+          const response = await fetch("/api/forward", {
+            method: body ? "POST" : "GET",
+            headers: body ? { "Content-Type": "application/json" } : {},
+            body: body ? JSON.stringify(body) : undefined,
+          });
+          if (!response.ok) throw Error("请求失败：" + response.status);
+          let result;
+          try {
+            result = await response.json();
+          } catch {
+            throw Error("请检查登录状态并刷新页面");
+          }
+          if (!result.status) throw Error(result.msg);
+          return result.data;
+        }
+        function updateStatus() {
+          const node = list.querySelector(".state");
+          if (!node || !live) return;
+          const state = live.status.find((x) => x.id === selectedID),
+            rule = (live.rules || []).find((x) => x.id === selectedID);
+          node.replaceChildren();
+          function item(icon, text, className = "") {
+            const span = document.createElement("span");
+            span.className = `state-item ${className}`;
+            const symbol = document.createElement("i");
+            symbol.className = `layui-icon layui-icon-${icon}`;
+            symbol.setAttribute("aria-hidden", "true");
+            span.append(symbol, document.createTextNode(text));
+            node.append(span);
+          }
+          if (state) {
+            item(
+              state.listening ? "ok-circle" : "close-fill",
+              state.listening ? "监听中" : "监听异常",
+              `state-badge ${state.listening ? "state-running" : "state-error"}`,
+            );
+            item("link", `连接 ${state.connections}`);
+            item("upload", `上传 ${(state.upload / 1048576).toFixed(2)} MB`);
+            item(
+              "download-circle",
+              `下载 ${(state.download / 1048576).toFixed(2)} MB`,
+            );
+            if (state.last_error)
+              item(
+                "tips",
+                `最近错误：${state.last_error}`,
+                "state-detail state-error",
+              );
+          } else if (!rule) {
+            item("time", "尚未提交", "state-badge state-warning");
+          } else if (!live.enabled) {
+            item("pause", "DPF 已关闭", "state-badge");
+            item("tips", "配置已保留");
+          } else if (!rule.enabled) {
+            item("pause", "当前配置已停用", "state-badge");
+            item("tips", "提交后将由全局开关统一控制");
+          } else {
+            item("close-fill", "未运行", "state-badge state-error");
+            item("tips", "请检查监听地址后重新提交");
+          }
+        }
+
+        function targetName(rule) {
+          const host = rule.target_host.trim();
+          if (!host || !rule.target_port) return "";
+          const address =
+            host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+          return `${address}:${rule.target_port}`;
+        }
+        function hasAutoName(rule) {
+          return (
+            !rule.custom_name &&
+            (!rule.name ||
+              /^\d+$/.test(rule.name) ||
+              rule.name === targetName(rule) ||
+              rule.name === `${rule.sequence} - ${targetName(rule)}`)
+          );
+        }
+        function readField(input) {
+          const rule = current();
+          if (!rule) return;
+          input.setCustomValidity("");
+          const key = input.dataset.key;
+          rule[key] =
+            input.type === "checkbox"
+              ? input.checked
+              : input.type === "number"
+                ? input.value === ""
+                  ? NaN
+                  : Number(input.value)
+                : key === "allow_cidrs"
+                  ? input.value
+                      .split(",")
+                      .map((x) => x.trim())
+                      .filter(Boolean)
+                  : input.value;
+          markDirty();
+        }
+        function render() {
+          document.querySelector("#dpf_enable").checked = enabled;
+          select.replaceChildren();
+          for (const rule of rules) {
+            const option = new Option(rule.name, rule.id);
+            select.add(option);
+          }
+          if (!current()) selectedID = rules[0]?.id || "";
+          select.value = selectedID;
+          const rule = current();
+          if (rule) {
+            for (const input of list.querySelectorAll("[data-key]")) {
+              input.setCustomValidity("");
+              const key = input.dataset.key;
+              if (input.type === "checkbox") input.checked = rule[key];
+              else
+                input.value =
+                  key === "allow_cidrs"
+                    ? (rule[key] || []).join(", ")
+                    : rule[key];
+              if (input.type !== "checkbox" && key !== "allow_cidrs")
+                input.required = true;
+            }
+          }
+          document.querySelector("#dirty").textContent = dirty
+            ? "有未提交的更改"
+            : "";
+          updateStatus();
+          controls(busy || !loaded);
+        }
+        function controls(disabled) {
+          document
+            .querySelectorAll("button,input,select")
+            .forEach((x) => (x.disabled = disabled));
+          form.render();
+        }
+        function ipVersion(value) {
+          if (
+            /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(value) &&
+            value
+              .split(".")
+              .every(
+                (part) => String(Number(part)) === part && Number(part) <= 255,
+              )
+          )
+            return 4;
+          if (!value.includes(":") || !/^[0-9a-f:.]+$/i.test(value)) return 0;
+          try {
+            new URL(`http://[${value}]/`);
+            return 6;
+          } catch {
+            return 0;
+          }
+        }
+        function validHost(value) {
+          if (ipVersion(value)) return true;
+          if (!value || value.length > 253 || /^[0-9.]+$/.test(value))
+            return false;
+          return value
+            .replace(/\.$/, "")
+            .split(".")
+            .every((part) =>
+              /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(part),
+            );
+        }
+        function ruleError(rule) {
+          if (!["tcp4", "tcp6"].includes(rule.network))
+            return ["network", "请选择监听协议"];
+          if (
+            ipVersion(rule.listen_address) !== (rule.network === "tcp4" ? 4 : 6)
+          )
+            return [
+              "listen_address",
+              "请填写与监听协议匹配的 IPv4 / IPv6 地址",
+            ];
+          for (const [key, min, max, label] of [
+            ["listen_port", 1, 65535, "监听端口"],
+            ["target_port", 1, 65535, "目标端口"],
+            ["dial_timeout_sec", 1, 300, "拨号超时"],
+            ["idle_timeout_sec", 0, 86400, "空闲超时"],
+            ["max_connections", 1, 10000, "最大连接数"],
+          ]) {
+            if (
+              !Number.isInteger(rule[key]) ||
+              rule[key] < min ||
+              rule[key] > max
+            )
+              return [key, `${label}必须为 ${min}–${max} 的整数`];
+          }
+          if (!validHost(rule.target_host))
+            return [
+              "target_host",
+              "请填写有效 IP 或域名，不要包含协议、路径或端口",
+            ];
+          if (
+            rule.listen_address === rule.target_host &&
+            rule.listen_port === rule.target_port
+          )
+            return ["target_host", "目标不能与监听入口相同"];
+          for (const entry of rule.allow_cidrs || []) {
+            const parts = entry.split("/");
+            const version = ipVersion(parts[0]);
+            if (
+              !version ||
+              parts.length > 2 ||
+              (parts.length === 2 &&
+                (!/^\d+$/.test(parts[1]) ||
+                  Number(parts[1]) > (version === 4 ? 32 : 128)))
+            )
+              return ["allow_cidrs", `无效的白名单 IP / CIDR：${entry}`];
+          }
+          if (
+            rules.some(
+              (other) =>
+                other.id !== rule.id &&
+                other.network === rule.network &&
+                other.listen_address === rule.listen_address &&
+                other.listen_port === rule.listen_port,
+            )
+          )
+            return ["listen_port", "监听地址和端口与其他配置重复"];
+          return null;
+        }
+        function validCurrent() {
+          const issue = ruleError(current());
+          for (const input of list.querySelectorAll("input, select")) {
+            input.setCustomValidity(
+              issue && input.dataset.key === issue[0] ? issue[1] : "",
+            );
+            if (!input.reportValidity()) return false;
+          }
+          return !issue;
+        }
+        function restore(data) {
+          enabled = data.enabled;
+          rules = clone(data.rules || []);
+          // Preserve numbering independently of display names and internal IDs.
+          const used = new Set(
+            rules.map((rule) => rule.sequence).filter(Boolean),
+          );
+          for (const rule of rules) {
+            if (!rule.sequence) {
+              let sequence = /^\d+$/.test(rule.name) ? Number(rule.name) : 1;
+              while (used.has(sequence)) sequence++;
+              rule.sequence = sequence;
+              used.add(sequence);
+            }
+            if (hasAutoName(rule)) {
+              rule.name = targetName(rule)
+                ? `${rule.sequence} - ${targetName(rule)}`
+                : String(rule.sequence);
+            }
+          }
+          // Keep one editable draft, as the DCDN/DDNS configuration selector does.
+          if (!rules.length) rules.push(newRule());
+          if (!current()) selectedID = rules[0].id;
+          dirty = false;
+          render();
+        }
+        async function submit() {
+          if (busy || !loaded) return;
+          if (!validCurrent()) return;
+          const payload = rules;
+          const invalid = payload.find((rule) => ruleError(rule));
+          if (invalid) {
+            selectedID = invalid.id;
+            render();
+            validCurrent();
+            return;
+          }
+          busy = true;
+          controls(true);
+          try {
+            const data = await api({
+              enabled,
+              rules: payload.map((rule) => ({ ...rule, enabled: true })),
+            });
+            saved = clone(data);
+            live = data;
+            restore(data);
+            layer.msg("配置保存成功", { icon: 1, time: 1000 });
+          } catch (e) {
+            error(e);
+          } finally {
+            busy = false;
+            controls(false);
+          }
+        }
+        function reset() {
+          if (!saved || busy) return;
+          if (!dirty) {
+            restore(saved);
+            return;
+          }
+          layer.confirm(
+            "放弃所有未提交的更改，恢复到上次提交状态？",
+            { title: "重置配置" },
+            (index) => {
+              restore(saved);
+              layer.close(index);
+            },
+          );
+        }
+        // Bind the static form once; selecting a configuration only fills its values.
+        list.querySelectorAll("[data-key]").forEach((input) => {
+          input.addEventListener("input", () => readField(input));
+          if (["target_host", "target_port"].includes(input.dataset.key)) {
+            let autoName = false;
+            input.addEventListener("focus", () => {
+              autoName = current() ? hasAutoName(current()) : false;
+            });
+            input.addEventListener("blur", () => {
+              const rule = current();
+              if (!rule || !autoName || rule.custom_name) return;
+              const target = targetName(rule);
+              if (
+                rule.target_host.trim() &&
+                (!Number.isInteger(rule.target_port) ||
+                  rule.target_port < 1 ||
+                  rule.target_port > 65535)
+              )
+                return;
+              const name = target
+                ? `${rule.sequence} - ${target}`
+                : String(rule.sequence);
+              if (rule.name === name) return;
+              rule.name = name;
+              select.selectedOptions[0].textContent = name;
+              form.render("select");
+              markDirty();
+            });
+          }
+        });
+        document.querySelectorAll(".reset").forEach((button) => {
+          button.onclick = reset;
+        });
+        document.querySelector("#config-add").onclick = () => {
+          if (!loaded || busy || !validCurrent()) return;
+          if (rules.length >= 128) {
+            error(Error("最多支持 128 个配置"));
+            return;
+          }
+          const rule = newRule();
+          rules.push(rule);
+          selectedID = rule.id;
+          markDirty();
+          render();
+        };
+        document.querySelector("#config-rename").onclick = () => {
+          if (!loaded || busy || !current()) return;
+          const id = selectedID;
+          layer.prompt(
+            { title: "重命名配置", value: current().name, maxlength: 50 },
+            (value, index) => {
+              value = value.trim();
+              if (!value) {
+                layer.msg("配置名不能为空");
+                return;
+              }
+              const rule = rules.find((r) => r.id === id);
+              if (rule) {
+                rule.name = value;
+                rule.custom_name = true;
+                markDirty();
+                render();
+              }
+              layer.close(index);
+            },
+          );
+        };
+        document.querySelector("#config-remove").onclick = () => {
+          if (!loaded || busy) return;
+          if (rules.length <= 1) {
+            layer.msg("至少需要保留一个配置项，可关闭全局开关停用");
+            return;
+          }
+          const id = selectedID;
+          layer.confirm(
+            "确定删除当前配置？提交后生效，并断开其已有连接。",
+            { title: "删除配置" },
+            (index) => {
+              rules = rules.filter((r) => r.id !== id);
+              selectedID = rules[rules.length - 1].id;
+              markDirty();
+              render();
+              layer.close(index);
+            },
+          );
+        };
+        form.on("submit(save)", function () {
+          submit();
+          return false;
+        });
+        form.on("select(config-select-filter)", (data) => {
+          selectedID = data.value;
+          render();
+        });
+        form.on("switch(dpf-enable)", (data) => {
+          enabled = data.elem.checked;
+          markDirty();
+        });
+        form.on("select(rule-network)", (data) => readField(data.elem));
+        window.addEventListener("beforeunload", (e) => {
+          if (dirty) {
+            e.preventDefault();
+            e.returnValue = "";
+          }
+        });
+        controls(true);
+        api()
+          .then((data) => {
+            saved = clone(data);
+            live = data;
+            loaded = true;
+            restore(data);
+          })
+          .catch(error);
+        setInterval(async () => {
+          if (busy || !loaded || document.hidden) return;
+          try {
+            live = await api();
+            updateStatus();
+          } catch (e) {
+            error(e);
+          }
+        }, 5000);
+      });
+    </script>
+  </body>
+</html>

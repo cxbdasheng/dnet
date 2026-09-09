@@ -2,8 +2,10 @@ package web
 
 import (
 	"net/http"
+	"sync"
 
 	"github.com/cxbdasheng/dnet/config"
+	"github.com/cxbdasheng/dnet/forward"
 )
 
 type SyncService interface {
@@ -12,6 +14,8 @@ type SyncService interface {
 }
 
 type Server struct {
+	Forwarder  *forward.Manager
+	forwardMu  sync.Mutex
 	configRepo config.Repository
 	syncer     SyncService
 }
@@ -29,6 +33,8 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 
 	mux.HandleFunc("/", s.Auth(s.Home))
 	mux.HandleFunc("/dcdn", s.Auth(s.DCDN))
+	mux.HandleFunc("/forward", s.Auth(s.ForwardPage))
+	mux.HandleFunc("/api/forward", s.Auth(s.ForwardAPI))
 	mux.HandleFunc("/ddns", s.Auth(s.DDNS))
 	mux.HandleFunc("/api/dcdn/config", s.Auth(s.DCDNConfigAPI))
 	mux.HandleFunc("/api/dcdn/upyun/token", s.Auth(s.UpyunToken))

@@ -55,6 +55,7 @@
                 <ul class="layui-nav layui-layout-left" lay-filter="nav-filter">
                     <li class="layui-nav-item layui-hide-xs layui-this"><a href="javascript:;" title="动态 CDN 管理（Dynamic Content Delivery Network）">DCDN</a></li>
                     <li class="layui-nav-item layui-hide-xs"><a href="javascript:;" title="动态 DNS 管理（Dynamic Domain Name System）">DDNS</a></li>
+                    <li class="layui-nav-item layui-hide-xs"><a href="javascript:;" title="端口转发（D-NET Port Forwarding）">DPF</a></li>
                 </ul>
             </div>
 
@@ -131,7 +132,7 @@
             });
         }
         $('#content-frame').on('load', function () {
-            var pages = { '/dcdn': 'DCDN', '/ddns': 'DDNS' };
+            var pages = { '/dcdn': 'DCDN', '/ddns': 'DDNS', '/forward': 'DPF' };
             var loadedNav = pages[this.contentWindow.location.pathname];
             if (loadedNav) {
                 currentNavText = loadedNav;
@@ -140,7 +141,7 @@
         });
         element.on('nav(nav-filter)', function (elem) {
             var navText = $(elem).text().trim();
-            var routes = { DCDN: '/dcdn', DDNS: '/ddns' };
+            var routes = { DCDN: '/dcdn', DDNS: '/ddns', DPF: '/forward' };
             selectNav(currentNavText);
             if (!routes[navText] || navText === currentNavText) return;
             $('#content-frame').attr('src', routes[navText]);
