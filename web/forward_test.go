@@ -83,3 +83,24 @@ func TestForwardGlobalSwitchPreservesRules(t *testing.T) {
 		}
 	}
 }
+
+func TestForwardUDPConfiguration(t *testing.T) {
+	repo := &stubRepository{}
+	m := forward.NewManager()
+	defer m.Close()
+	server := NewServer(repo, nil)
+	server.Forwarder = m
+	for _, network := range []string{"udp4", "udp6"} {
+		host := "127.0.0.1"
+		if network == "udp6" {
+			host = "::1"
+		}
+		rule := forward.Rule{ID: "udp", Name: "1", Network: network, ListenAddress: host, ListenPort: 8443, TargetHost: "127.0.0.1", TargetPort: 53, DialTimeoutSec: 10, MaxConnections: 100}
+		body, _ := json.Marshal(map[string]any{"enabled": false, "rules": []forward.Rule{rule}})
+		w := httptest.NewRecorder()
+		server.ForwardAPI(w, httptest.NewRequest("POST", "/api/forward", strings.NewReader(string(body))))
+		if !decodeResult(t, w).Status || repo.conf.ForwardRules[0].Network != network {
+			t.Fatal("UDP configuration was not saved", w.Body.String())
+		}
+	}
+}

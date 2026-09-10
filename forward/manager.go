@@ -1,9 +1,8 @@
-// Package forward manages optional, application-level TCP forwarding listeners.
+// Package forward manages optional, application-level TCP and UDP forwarding listeners.
 package forward
 
 import (
 	"context"
-
 	"fmt"
 	"io"
 	"net"
@@ -78,11 +77,11 @@ func Validate(rules []Rule) error {
 			return fmt.Errorf("规则 ID 为空或重复")
 		}
 		ids[r.ID] = true
-		if r.Network != "tcp4" && r.Network != "tcp6" {
-			return fmt.Errorf("%s: 协议必须为 tcp4 或 tcp6", r.Name)
+		if r.Network != "tcp4" && r.Network != "tcp6" && r.Network != "udp4" && r.Network != "udp6" {
+			return fmt.Errorf("%s: 协议必须为 tcp4、tcp6、udp4 或 udp6", r.Name)
 		}
 		ip := net.ParseIP(r.ListenAddress)
-		if ip == nil || (r.Network == "tcp4") != (ip.To4() != nil) {
+		if ip == nil || (strings.HasSuffix(r.Network, "4")) != (ip.To4() != nil) {
 			return fmt.Errorf("%s: 监听 IP 与协议不匹配", r.Name)
 		}
 		if r.ListenPort < 1 || r.ListenPort > 65535 || r.TargetPort < 1 || r.TargetPort > 65535 {
@@ -152,7 +151,7 @@ func (m *Manager) Apply(rules []Rule, save func() error) (applyErr error) {
 	var created []*entry
 	rollback := func() {
 		for _, e := range created {
-			e.listener.Close()
+			e.closeSocket()
 			e.cancel()
 		}
 	}
@@ -164,13 +163,21 @@ func (m *Manager) Apply(rules []Rule, save func() error) (applyErr error) {
 			next[r.ID] = old
 			continue
 		}
-		l, err := net.Listen(r.Network, r.address())
+		var l net.Listener
+		var packet net.PacketConn
+		var err error
+		if strings.HasPrefix(r.Network, "udp") {
+			packet, err = net.ListenPacket(r.Network, r.address())
+		} else {
+			l, err = net.Listen(r.Network, r.address())
+		}
 		if err != nil {
 			rollback()
+			helper.RuleLog(helper.LogLevelERROR, r.ID, "[%s] 监听失败: %v", r.Name, err)
 			return fmt.Errorf("%s: 监听失败（地址重叠时请先停用旧规则）: %w", r.Name, err)
 		}
 		ctx, cancel := context.WithCancel(context.Background())
-		e := &entry{rule: r, listener: l, ctx: ctx, cancel: cancel, clients: map[net.Conn]bool{}, listening: true}
+		e := &entry{rule: r, listener: l, packet: packet, sessions: map[string]*udpSession{}, ctx: ctx, cancel: cancel, clients: map[net.Conn]bool{}, listening: true}
 		created = append(created, e)
 		next[r.ID] = e
 	}
@@ -184,7 +191,8 @@ func (m *Manager) Apply(rules []Rule, save func() error) (applyErr error) {
 		if e := next[r.ID]; e != nil {
 			e.mu.Lock()
 			if !slices.Equal(e.rule.AllowCIDRs, r.AllowCIDRs) || e.rule.TargetHost != r.TargetHost || e.rule.TargetPort != r.TargetPort || e.rule.MaxConnections != r.MaxConnections || e.rule.DialTimeoutSec != r.DialTimeoutSec || e.rule.IdleTimeoutSec != r.IdleTimeoutSec {
-				helper.Info(helper.LogTypeDPF, "[%s] 转发配置已更新 [监听=%s, 目标=%s]", r.Name, r.address(), net.JoinHostPort(r.TargetHost, strconv.Itoa(r.TargetPort)))
+				e.clearUDPSessions()
+				helper.RuleLog(helper.LogLevelINFO, r.ID, "[%s] 转发配置已更新 [监听=%s, 目标=%s]", r.Name, r.address(), net.JoinHostPort(r.TargetHost, strconv.Itoa(r.TargetPort)))
 			}
 			e.rule = r
 			e.mu.Unlock()
@@ -197,9 +205,13 @@ func (m *Manager) Apply(rules []Rule, save func() error) (applyErr error) {
 	}
 	m.entries = next
 	for _, e := range created {
-		helper.Info(helper.LogTypeDPF, "[%s] 开始监听 [协议=%s, 监听=%s, 目标=%s]", e.rule.Name, e.rule.Network, e.rule.address(), net.JoinHostPort(e.rule.TargetHost, strconv.Itoa(e.rule.TargetPort)))
+		helper.RuleLog(helper.LogLevelINFO, e.rule.ID, "[%s] 开始监听 [协议=%s, 监听=%s, 目标=%s]", e.rule.Name, e.rule.Network, e.rule.address(), net.JoinHostPort(e.rule.TargetHost, strconv.Itoa(e.rule.TargetPort)))
 		e.wg.Add(1)
-		go e.accept()
+		if e.packet != nil {
+			go e.receiveUDP()
+		} else {
+			go e.accept()
+		}
 	}
 	return nil
 }
@@ -209,7 +221,7 @@ func (m *Manager) Status() []Status {
 	out := make([]Status, 0, len(m.entries))
 	for id, e := range m.entries {
 		e.mu.Lock()
-		out = append(out, Status{id, e.listening, len(e.clients), e.upload.Load(), e.download.Load(), e.lastError})
+		out = append(out, Status{id, e.listening, len(e.clients) + len(e.sessions), e.upload.Load(), e.download.Load(), e.lastError})
 		e.mu.Unlock()
 	}
 	return out
@@ -232,6 +244,8 @@ type entry struct {
 	mu               sync.Mutex
 	rule             Rule
 	listener         net.Listener
+	packet           net.PacketConn
+	sessions         map[string]*udpSession
 	ctx              context.Context
 	cancel           context.CancelFunc
 	clients          map[net.Conn]bool
@@ -242,12 +256,22 @@ type entry struct {
 	lastErrorLog     time.Time
 }
 
+func (e *entry) closeSocket() {
+	if e.listener != nil {
+		e.listener.Close()
+	}
+	if e.packet != nil {
+		e.packet.Close()
+	}
+}
+
 func (e *entry) stop() {
 	e.cancel()
-	e.listener.Close()
+	e.closeSocket()
 	e.mu.Lock()
 	e.listening = false
-	helper.Info(helper.LogTypeDPF, "[%s] 停止监听 [监听=%s, 关闭连接数=%d]", e.rule.Name, e.rule.address(), len(e.clients))
+	e.clearUDPSessions()
+	helper.RuleLog(helper.LogLevelINFO, e.rule.ID, "[%s] 停止监听 [监听=%s, 关闭连接数=%d]", e.rule.Name, e.rule.address(), len(e.clients))
 	for c := range e.clients {
 		c.Close()
 	}
@@ -257,13 +281,14 @@ func (e *entry) fail(err error) {
 	e.mu.Lock()
 	e.lastError = err.Error()
 	name := e.rule.Name
+	id := e.rule.ID
 	emit := time.Since(e.lastErrorLog) >= 5*time.Second
 	if emit {
 		e.lastErrorLog = time.Now()
 	}
 	e.mu.Unlock()
 	if emit {
-		helper.Error(helper.LogTypeDPF, "[%s] 转发运行错误: %v", name, err)
+		helper.RuleLog(helper.LogLevelERROR, id, "[%s] 转发运行错误: %v", name, err)
 	}
 }
 func allowed(addr net.Addr, r Rule) bool {
@@ -303,7 +328,7 @@ func (e *entry) accept() {
 		if e.ctx.Err() != nil || len(e.clients) >= r.MaxConnections || !allowed(c.RemoteAddr(), r) {
 			e.mu.Unlock()
 			c.Close()
-			helper.Debug(helper.LogTypeDPF, "[%s] 拒绝连接 [来源=%s, 原因=规则停止、连接数限制或来源白名单]", r.Name, c.RemoteAddr())
+			helper.RuleLog(helper.LogLevelDEBUG, r.ID, "[%s] 拒绝连接 [来源=%s, 原因=规则停止、连接数限制或来源白名单]", r.Name, c.RemoteAddr())
 			continue
 		}
 		e.clients[c] = true
@@ -342,8 +367,8 @@ func (e *entry) relay(client net.Conn, r Rule) {
 		return
 	}
 	defer target.Close()
-	helper.Debug(helper.LogTypeDPF, "[%s] 连接已建立 [来源=%s, 目标=%s]", r.Name, client.RemoteAddr(), target.RemoteAddr())
-	defer helper.Debug(helper.LogTypeDPF, "[%s] 连接已关闭 [来源=%s]", r.Name, client.RemoteAddr())
+	helper.RuleLog(helper.LogLevelDEBUG, r.ID, "[%s] 连接已建立 [来源=%s, 目标=%s]", r.Name, client.RemoteAddr(), target.RemoteAddr())
+	defer helper.RuleLog(helper.LogLevelDEBUG, r.ID, "[%s] 连接已关闭 [来源=%s]", r.Name, client.RemoteAddr())
 	// Prevent obvious aliases/wildcard listeners from feeding themselves.
 	if target.RemoteAddr().String() == client.LocalAddr().String() {
 		e.fail(fmt.Errorf("目标指向转发入口"))

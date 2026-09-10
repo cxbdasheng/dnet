@@ -45,6 +45,7 @@ const (
 
 // LogEntry 日志条目
 type LogEntry struct {
+	RuleID    string   `json:"rule_id,omitempty"`
 	Timestamp string   `json:"timestamp"` // 时间戳
 	Level     LogLevel `json:"level"`     // 日志级别
 	Type      LogType  `json:"type"`      // 日志类型
@@ -103,6 +104,15 @@ func GetLogger() *Logger {
 
 // addLog 添加日志（内部方法）
 func (l *Logger) addLog(level LogLevel, logType LogType, format string, args ...interface{}) {
+	l.addRuleLog(level, logType, "", format, args...)
+}
+
+// RuleLog attaches a stable DPF rule ID so renamed or equally named rules stay distinct.
+func RuleLog(level LogLevel, ruleID, format string, args ...interface{}) {
+	GetLogger().addRuleLog(level, LogTypeDPF, ruleID, format, args...)
+}
+
+func (l *Logger) addRuleLog(level LogLevel, logType LogType, ruleID, format string, args ...interface{}) {
 	if !l.enabled {
 		return
 	}
@@ -119,6 +129,7 @@ func (l *Logger) addLog(level LogLevel, logType LogType, format string, args ...
 
 	// 创建日志条目
 	entry := LogEntry{
+		RuleID:    ruleID,
 		Timestamp: time.Now().Format("2006-01-02 15:04:05"),
 		Type:      logType,
 		Level:     level,
