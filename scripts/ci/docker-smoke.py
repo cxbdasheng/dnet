@@ -118,7 +118,12 @@ def main():
             wait_for(exchanges, "TCP and UDP replies")
             config = Path(root, ".dnet_config.yaml")
             assert config.is_file(), "Default config was not persisted to the mounted directory"
-            assert "echo-backend" in config.read_text(), "Forward rules not saved"
+            # On Linux the bind-mounted file belongs to container root (0600),
+            # so the host runner cannot read it. Check inside the container,
+            # without exposing credentials or weakening file permissions.
+            docker("exec", app, "grep", "-qF", "echo-backend", "/root/.dnet_config.yaml")
+            assert docker("exec", app, "stat", "-c", "%a", "/root/.dnet_config.yaml") == "600", \
+                "Config permissions must remain 0600"
             assert api("/api/forward/probe", rules[0])["supported"] is True
             assert api("/api/forward/probe", rules[1])["supported"] is False
             docker("restart", "--time", "5", app)
