@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/cxbdasheng/dnet/helper"
 )
@@ -32,9 +33,11 @@ func (s *Server) handleHomeGet(writer http.ResponseWriter, request *http.Request
 		return
 	}
 	err = tmpl.Execute(writer, struct {
-		Version string
+		Version     string
+		CurrentYear int
 	}{
-		Version: os.Getenv(VersionEnv),
+		Version:     os.Getenv(VersionEnv),
+		CurrentYear: time.Now().Year(),
 	})
 	if err != nil {
 		helper.Error(helper.LogTypeSystem, "渲染首页失败 [路径=%s]: %v", request.URL.Path, err)

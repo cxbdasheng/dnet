@@ -151,11 +151,13 @@ func (s *Server) handleLoginGet(writer http.ResponseWriter, _ *http.Request) {
 	conf, _ := s.configRepo.Load()
 
 	data := struct {
-		EmptyUser bool `json:"empty_user"`
-		Version   string
+		EmptyUser   bool `json:"empty_user"`
+		Version     string
+		CurrentYear int
 	}{
-		EmptyUser: conf.Username == "" || conf.Password == "",
-		Version:   os.Getenv(VersionEnv),
+		EmptyUser:   conf.Username == "" || conf.Password == "",
+		Version:     os.Getenv(VersionEnv),
+		CurrentYear: time.Now().Year(),
 	}
 
 	if err = tmpl.Execute(writer, data); err != nil {
