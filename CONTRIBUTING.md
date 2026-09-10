@@ -261,6 +261,8 @@ func TestConfigLoad(t *testing.T) {
 
 ## 发布流程
 
+自动化检查、发布门禁和本地 Docker 冒烟测试说明见 [GitHub 自动化流程](.github/WORKFLOWS.md)。
+
 项目维护者会定期发布新版本：
 
 1. 更新版本号
