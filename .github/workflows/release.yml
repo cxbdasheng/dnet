@@ -13,6 +13,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  quality:
+    uses: ./.github/workflows/quality.yml
+
+  security:
+    uses: ./.github/workflows/security.yml
+
+  docker:
+    uses: ./.github/workflows/docker-test.yml
+
   gate:
     name: Release gate
     runs-on: ubuntu-latest
@@ -59,7 +68,7 @@ jobs:
 
   release:
     name: Publish release
-    needs: gate
+    needs: [gate, quality, security, docker]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:

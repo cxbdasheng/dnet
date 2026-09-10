@@ -13,6 +13,8 @@
 !dcdn/*.go
 !ddns/
 !ddns/*.go
+!forward/
+!forward/*.go
 !helper/
 !helper/*.go
 !helper/update/

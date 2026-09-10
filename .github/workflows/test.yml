@@ -16,6 +16,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  quality:
+    uses: ./.github/workflows/quality.yml
+
+  security:
+    uses: ./.github/workflows/security.yml
+
+  docker:
+    uses: ./.github/workflows/docker-test.yml
+
   native:
     name: Native checks (${{ matrix.os }})
     strategy:

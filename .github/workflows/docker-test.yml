@@ -1,0 +1,48 @@
+name: Docker checks
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docker:
+    name: Docker (${{ matrix.dockerfile }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        dockerfile: [Dockerfile, Dockerfile_build]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - name: Build release Dockerfile input
+        if: matrix.dockerfile == 'Dockerfile'
+        env:
+          CGO_ENABLED: '0'
+          GOOS: linux
+          GOARCH: amd64
+        run: go build -trimpath -ldflags='-s -w -X main.version=ci' -o dnet .
+      - name: Build image without publishing
+        env:
+          DOCKERFILE: ${{ matrix.dockerfile }}
+        run: |
+          docker buildx build --load --platform linux/amd64 \
+            --build-arg VERSION=ci -f "$DOCKERFILE" -t dnet-smoke:ci .
+      - name: Build echo backend
+        env:
+          CGO_ENABLED: '0'
+          GOOS: linux
+          GOARCH: amd64
+        run: go build -o "$RUNNER_TEMP/smoke-backend" scripts/ci/echo-backend.go
+      - name: Test Web, persistence, TCP and UDP forwarding
+        run: python3 scripts/ci/docker-smoke.py dnet-smoke:ci "$RUNNER_TEMP/smoke-backend"
