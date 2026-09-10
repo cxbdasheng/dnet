@@ -1,64 +1,38 @@
-name: 功能请求
-description: 为 D-NET 提出改进建议
-title: "[功能]: "
+name: 功能建议
+description: 提出新功能或使用体验改进建议
+title: "[建议]: "
 labels:
   - enhancement
 
 body:
   - type: markdown
     attributes:
-      value: 请说明需求和期望结果，而不只描述具体实现方式。
-
-  - type: checkboxes
-    id: search_confirmation
-    attributes:
-      label: 已有功能请求
-      description: 提交前请搜索开放和已关闭的 Issue。
-      options:
-        - label: 我已搜索过涵盖此建议的现有功能请求。
-          required: true
-
-  - type: dropdown
-    id: area
-    attributes:
-      label: 功能领域
-      options:
-        - DCDN
-        - DDNS
-        - Web UI
-        - 配置
-        - 通知和 Webhook
-        - 打包和部署
-        - 其他
-    validations:
-      required: true
-
-  - type: textarea
-    id: problem
-    attributes:
-      label: 要解决的问题
-      description: 此功能需要解决什么限制或使用场景？
-    validations:
-      required: true
+      value: 提交前可先搜索是否已有类似建议。不需要提供技术方案，描述你的使用场景即可。
 
   - type: textarea
     id: proposal
     attributes:
-      label: 建议方案
-      description: 请描述你希望实现的行为或结果。
+      label: 你的建议
+      description: 想解决什么问题？希望 D-NET 提供什么功能或改善什么体验？
+      placeholder: 我在……场景下，需要……，目前……不太方便，希望可以……。
     validations:
       required: true
 
-  - type: textarea
-    id: alternatives
+  - type: dropdown
+    id: area
     attributes:
-      label: 考虑过的替代方案
-      description: 请描述你考虑过的临时方案或其他做法。
-    validations:
-      required: true
+      label: 相关功能（可选）
+      options:
+        - DCDN
+        - DDNS
+        - DPF（TCP / UDP 端口转发）
+        - Web 管理界面
+        - 通知 / Webhook
+        - 安装 / 更新 / 配置
+        - 其他 / 不确定
 
   - type: textarea
     id: context
     attributes:
-      label: 补充信息
-      description: 可选。可提供示例、参考资料或其他有用背景。
+      label: 补充信息（可选）
+      description: 可以附上截图、参考链接或你目前的做法，没有也可以直接提交。

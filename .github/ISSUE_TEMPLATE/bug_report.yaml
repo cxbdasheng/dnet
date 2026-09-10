@@ -1,142 +1,59 @@
-name: 缺陷报告
-description: 报告 D-NET 中可稳定复现的问题
-title: "[缺陷]: "
+name: 问题反馈
+description: 报告报错、异常或使用中遇到的问题
+title: "[问题]: "
 labels:
   - bug
 
 body:
   - type: markdown
     attributes:
-      value: 感谢你帮助改进 D-NET。请勿在本报告或日志中包含密钥、令牌等敏感信息。
-
-  - type: checkboxes
-    id: search_confirmation
-    attributes:
-      label: 已有 Issue
-      description: 提交前请搜索开放和已关闭的 Issue。
-      options:
-        - label: 我已搜索过描述此问题的现有 Issue。
-          required: true
+      value: 提交前可先搜索是否已有相同问题。日志和截图请隐藏密码、AccessKey、Token 等敏感信息。
 
   - type: input
     id: version
     attributes:
       label: D-NET 版本
-      description: 请填写 `dnet -v` 的输出或准确的容器镜像标签。
-      placeholder: v2.4.2
+      description: 可在页面底部或通过 dnet -v 查看；无法确认时填写“不确定”。
+      placeholder: v3.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: 运行环境
+      description: 填写系统或设备，以及运行方式；不清楚的部分可以省略。
+      placeholder: 如 Ubuntu + Docker / 飞牛 NAS + Docker / Windows + 直接运行
     validations:
       required: true
 
   - type: dropdown
     id: service
     attributes:
-      label: 受影响的服务
+      label: 相关功能（可选）
       options:
         - DCDN
         - DDNS
-        - Web UI
-        - 配置
-        - 更新或系统服务管理
-        - 其他
-    validations:
-      required: true
-
-  - type: dropdown
-    id: provider
-    attributes:
-      label: 服务商
-      description: 请选择受影响服务所配置的服务商。
-      options:
-        - 阿里云（DCDN 和 DDNS）
-        - 腾讯云（DCDN 和 DDNS）
-        - 百度智能云（DCDN 和 DDNS）
-        - Cloudflare（DCDN 和 DDNS）
-        - 又拍云（DCDN）
-        - 华为云（DDNS）
-        - DNSPod（DDNS）
-        - NameSilo（DDNS）
-        - GoDaddy（DDNS）
-        - 回调（DCDN 和 DDNS）
-        - 其他
-        - 不适用
-    validations:
-      required: true
-
-  - type: dropdown
-    id: operating_system
-    attributes:
-      label: 操作系统
-      options:
-        - Linux
-        - Android
-        - Windows
-        - macOS（Darwin）
-        - FreeBSD
-        - 其他
-    validations:
-      required: true
-
-  - type: dropdown
-    id: architecture
-    attributes:
-      label: 系统架构
-      options:
-        - i386
-        - x86_64（amd64）
-        - armv5
-        - armv6
-        - armv7
-        - arm64
-        - riscv64
-        - mips（hardfloat ABI）
-        - mips（softfloat ABI）
-        - mipsle（hardfloat ABI）
-        - mipsle（softfloat ABI）
-        - mips64（hardfloat ABI）
-        - mips64（softfloat ABI）
-        - mips64le（hardfloat ABI）
-        - mips64le（softfloat ABI）
-        - 其他
-    validations:
-      required: true
+        - DPF（TCP / UDP 端口转发）
+        - Web 管理界面
+        - 通知 / Webhook
+        - 安装 / 更新 / 配置
+        - 其他 / 不确定
 
   - type: textarea
     id: description
     attributes:
       label: 问题描述
-      description: 请清晰说明问题及其影响。
-    validations:
-      required: true
-
-  - type: textarea
-    id: reproduction_steps
-    attributes:
-      label: 复现步骤
-      description: 请提供能够稳定复现问题的最小步骤。
+      description: 说明做了什么、出现什么问题，以及希望得到什么结果。偶发问题也可以反馈。
       placeholder: |
-        1. 配置 ...
-        2. 运行 ...
-        3. 观察 ...
+        我在……时，出现了……，希望能够……。
+        如果能复现，请简单写下操作步骤。
+        涉及 DCDN / DDNS 时请注明服务商；涉及 DPF 时请注明 TCP / UDP 和 IPv4 / IPv6。
     validations:
       required: true
 
   - type: textarea
-    id: expected_behavior
+    id: context
     attributes:
-      label: 期望行为
-    validations:
-      required: true
-
-  - type: textarea
-    id: actual_behavior
-    attributes:
-      label: 实际行为
-    validations:
-      required: true
-
-  - type: textarea
-    id: logs
-    attributes:
-      label: 相关日志
-      description: 可选。请粘贴脱敏后的日志或错误输出；如涉及敏感信息，请移除凭据、令牌、域名和 IP 地址。
-      render: shell
+      label: 日志或截图（可选）
+      description: 粘贴报错附近的日志，或直接拖入截图。也可补充已尝试的解决方法。
