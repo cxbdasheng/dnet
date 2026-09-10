@@ -1,0 +1,30 @@
+.log-level-DEBUG {
+  color: #52c41a;
+}
+.log-level-INFO {
+  color: #1890ff;
+}
+.log-level-WARN {
+  color: #fa8c16;
+}
+.log-level-ERROR {
+  color: #f5222d;
+}
+.log-level-FATAL {
+  color: #cf1322;
+  font-weight: bold;
+}
+
+.log-table .log-empty {
+  text-align: center;
+  color: #999;
+}
+.log-table .log-total {
+  text-align: right;
+  padding: 10px;
+  color: #666;
+}
+.log-table td:last-child {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}

@@ -9,6 +9,7 @@
     <title>DPF 配置 - 端口转发</title>
     <link rel="stylesheet" href="/static/css/layui.css" />
     <link rel="stylesheet" href="/static/css/common.css" />
+    <link rel="stylesheet" href="/static/css/logs.css" />
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
     <script src="/static/layui.js"></script>
     <style>
@@ -157,6 +158,24 @@
               <label class="layui-form-label">运行状态：</label>
               <div class="layui-input-block">
                 <div class="state layui-form-mid">未应用</div>
+                <div style="clear: both; padding-top: 8px">
+                  <button
+                    type="button"
+                    class="layui-btn layui-btn-primary layui-btn-sm"
+                    id="probe-target"
+                  >
+                    <i class="layui-icon layui-icon-link"></i>测试目标
+                  </button>
+                  <!-- 暂时隐藏规则日志入口，恢复时同时启用下方事件处理。
+                  <button
+                    type="button"
+                    class="layui-btn layui-btn-primary layui-btn-sm"
+                    id="rule-logs"
+                  >
+                    <i class="layui-icon layui-icon-list"></i>规则日志
+                  </button>
+                  -->
+                </div>
               </div>
             </div>
             <div class="layui-row layui-form-item">
@@ -171,6 +190,8 @@
                 >
                   <option value="tcp4">TCP / IPv4</option>
                   <option value="tcp6">TCP / IPv6</option>
+                  <option value="udp4">UDP / IPv4</option>
+                  <option value="udp6">UDP / IPv6</option>
                 </select>
               </div>
             </div>
@@ -242,8 +263,8 @@
                   min="1"
                   max="65535"
                 /><tip
-                  >填写目标服务端口，例如 HTTPS 使用 443。HTTPS
-                  原样透传，证书由目标服务提供。</tip
+                  >填写目标服务端口，例如 TCP HTTPS 使用 443、UDP DNS 使用 53。
+                  TCP HTTPS 原样透传，证书由目标服务提供。</tip
                 >
               </div>
             </div>
@@ -278,7 +299,7 @@
                   type="number"
                   min="0"
                   max="86400"
-                /><tip>0 表示不限。</tip>
+                /><tip>TCP：0 表示不限；UDP：0 使用 60 秒会话超时。</tip>
               </div>
             </div>
             <div class="layui-row layui-form-item">
@@ -381,10 +402,12 @@
           document.querySelector("#dirty").textContent = "有未提交的更改";
         }
         function error(e) {
-          layer.msg(e.message || String(e), { icon: 2, time: 2000 });
+          const text = document.createElement("span");
+          text.textContent = e.message || String(e);
+          layer.msg(text.outerHTML, { icon: 2, time: 2000 });
         }
-        async function api(body) {
-          const response = await fetch("/api/forward", {
+        async function api(body, url = "/api/forward") {
+          const response = await fetch(url, {
             method: body ? "POST" : "GET",
             headers: body ? { "Content-Type": "application/json" } : {},
             body: body ? JSON.stringify(body) : undefined,
@@ -420,7 +443,10 @@
               state.listening ? "监听中" : "监听异常",
               `state-badge ${state.listening ? "state-running" : "state-error"}`,
             );
-            item("link", `连接 ${state.connections}`);
+            item(
+              "link",
+              `${rule?.network.startsWith("udp") ? "会话" : "连接"} ${state.connections}`,
+            );
             item("upload", `上传 ${(state.upload / 1048576).toFixed(2)} MB`);
             item(
               "download-circle",
@@ -493,6 +519,14 @@
           select.value = selectedID;
           const rule = current();
           if (rule) {
+            const label = rule.network.startsWith("udp")
+              ? "最大会话数"
+              : "最大连接数";
+            document.querySelector('label[for="max_connections"]').textContent =
+              label + "：";
+            document
+              .querySelector("#max_connections")
+              .setAttribute("aria-label", label);
             for (const input of list.querySelectorAll("[data-key]")) {
               input.setCustomValidity("");
               const key = input.dataset.key;
@@ -548,10 +582,11 @@
             );
         }
         function ruleError(rule) {
-          if (!["tcp4", "tcp6"].includes(rule.network))
+          if (!["tcp4", "tcp6", "udp4", "udp6"].includes(rule.network))
             return ["network", "请选择监听协议"];
           if (
-            ipVersion(rule.listen_address) !== (rule.network === "tcp4" ? 4 : 6)
+            ipVersion(rule.listen_address) !==
+            (rule.network.endsWith("4") ? 4 : 6)
           )
             return [
               "listen_address",
@@ -562,7 +597,12 @@
             ["target_port", 1, 65535, "目标端口"],
             ["dial_timeout_sec", 1, 300, "拨号超时"],
             ["idle_timeout_sec", 0, 86400, "空闲超时"],
-            ["max_connections", 1, 10000, "最大连接数"],
+            [
+              "max_connections",
+              1,
+              10000,
+              rule.network.startsWith("udp") ? "最大会话数" : "最大连接数",
+            ],
           ]) {
             if (
               !Number.isInteger(rule[key]) ||
@@ -685,6 +725,102 @@
             },
           );
         }
+        let probing = false;
+        document.querySelector("#probe-target").onclick = async () => {
+          if (!loaded || busy || probing || !validCurrent()) return;
+          probing = true;
+          const rule = clone(current());
+          const button = document.querySelector("#probe-target");
+          button.disabled = true;
+          try {
+            const result = await api(rule, "/api/forward/probe");
+            const message = result.supported
+              ? `TCP 连接成功，耗时 ${result.elapsed_ms} ms。仅确认端口可连接，不代表应用或证书正常。`
+              : "UDP 无握手，通用探测无法判断目标是否可用。请通过实际客户端请求，并查看会话、收发流量和系统日志。";
+            const content = document.createElement("p");
+            content.style.padding = "16px";
+            content.textContent = `${rule.name}：${message}`;
+            layer.open({
+              title: "目标测试结果",
+              content: content.outerHTML,
+              area: "420px",
+            });
+          } catch (e) {
+            error(e);
+          } finally {
+            probing = false;
+            button.disabled = busy || !loaded;
+          }
+        };
+        /* 暂停规则日志前端功能，保留实现便于恢复。
+        document.querySelector("#rule-logs").onclick = async () => {
+          if (!loaded || busy || !current()) return;
+          const rule = clone(current());
+          const container = document.createElement("div");
+          container.style.cssText =
+            "padding:15px;max-height:55vh;overflow:auto;background:#fff";
+          const heading = document.createElement("p");
+          heading.textContent = `配置：${rule.name}。日志与全局日志共享保留上限，重启或清空后不保留。`;
+          const refresh = document.createElement("button");
+          refresh.type = "button";
+          refresh.className = "layui-btn layui-btn-sm";
+          refresh.textContent = "刷新";
+          const table = document.createElement("table");
+          table.className = "layui-table log-table";
+          table.setAttribute("lay-skin", "line");
+          table.innerHTML =
+            '<colgroup><col width="190"><col><col width="80"><col></colgroup><thead><tr><th>时间</th><th>级别</th><th>类型</th><th>消息</th></tr></thead><tbody></tbody><tfoot><tr><td colspan="4" class="log-total">共 0 条日志</td></tr></tfoot>';
+          const entries = table.querySelector("tbody");
+          const total = table.querySelector(".log-total");
+          function showMessage(message) {
+            entries.replaceChildren();
+            const cell = entries.insertRow().insertCell();
+            cell.colSpan = 4;
+            cell.className = "log-empty";
+            cell.textContent = message;
+          }
+          showMessage("正在加载日志…");
+          container.append(heading, refresh, table);
+          async function reload() {
+            refresh.disabled = true;
+            try {
+              const logs = await api(
+                undefined,
+                `/api/forward/logs?id=${encodeURIComponent(rule.id)}`,
+              );
+              entries.replaceChildren();
+              total.textContent = `共 ${logs.length} 条日志`;
+              if (!logs.length) showMessage("暂无日志");
+              for (const log of logs) {
+                const row = entries.insertRow();
+                row.insertCell().textContent = log.timestamp;
+                const level = document.createElement("span");
+                level.className = `log-level-${log.level}`;
+                level.textContent = log.level;
+                row.insertCell().append(level);
+                row.insertCell().textContent = log.type;
+                row.insertCell().textContent = log.message;
+              }
+            } catch (e) {
+              showMessage(e.message || String(e));
+              total.textContent = "加载失败";
+            } finally {
+              refresh.disabled = false;
+            }
+          }
+          refresh.onclick = reload;
+          layer.open({
+            type: 1,
+            title: "规则日志",
+            area: ["90%", "70%"],
+            content: " ",
+            success: (layero) => {
+              layero.find(".layui-layer-content")[0].append(container);
+            },
+          });
+          await reload();
+        };
+        */
         // Bind the static form once; selecting a configuration only fills its values.
         list.querySelectorAll("[data-key]").forEach((input) => {
           input.addEventListener("input", () => readField(input));
@@ -783,7 +919,10 @@
           enabled = data.elem.checked;
           markDirty();
         });
-        form.on("select(rule-network)", (data) => readField(data.elem));
+        form.on("select(rule-network)", (data) => {
+          readField(data.elem);
+          render();
+        });
         window.addEventListener("beforeunload", (e) => {
           if (dirty) {
             e.preventDefault();
