@@ -43,6 +43,8 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/dcdn", s.Auth(s.DCDN))
 	mux.HandleFunc("/certificates", s.Auth(s.CertificatesPage))
 	mux.HandleFunc("/api/certificates", s.Auth(s.CertificatesAPI))
+	mux.HandleFunc("/webservice", s.Auth(s.WebServicePage))
+	mux.HandleFunc("/api/webservice", s.Auth(s.WebServiceAPI))
 	mux.HandleFunc("/forward", s.Auth(s.ForwardPage))
 	mux.HandleFunc("/api/forward", s.Auth(s.ForwardAPI))
 	mux.HandleFunc("/api/forward/probe", s.Auth(s.ForwardProbe))

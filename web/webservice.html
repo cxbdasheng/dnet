@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1"
+    />
+    <title>DWS 配置</title>
+    <link rel="stylesheet" href="/static/css/layui.css" />
+    <link rel="stylesheet" href="/static/css/common.css" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <script src="/static/layui.js"></script>
+    <style>
+      body {
+        background: #f2f2f2;
+        margin: 0;
+        padding-bottom: 25px;
+        min-height: 100vh;
+      }
+      html {
+        overflow-x: hidden;
+      }
+      #dirty {
+        margin-left: 12px;
+        color: #999;
+      }
+      #runtime {
+        overflow-wrap: anywhere;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layui-container" style="padding: 15px">
+      <form class="layui-form" onsubmit="return false">
+        <div class="layui-card">
+          <div class="layui-card-header">DWS 设置</div>
+          <div class="layui-card-body">
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="enabled">是否开启：</label>
+              <div class="layui-input-inline">
+                <input
+                  type="checkbox"
+                  id="enabled"
+                  lay-skin="switch"
+                  lay-text="开启|关闭"
+                  lay-filter="global-enable"
+                />
+              </div>
+              <div class="layui-form-mid layui-word-aux">
+                全局开关，提交后生效。关闭会停止全部 Web 服务，并断开已有连接。
+              </div>
+            </div>
+            <hr />
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="config">配置：</label>
+              <div class="layui-input-inline">
+                <select
+                  id="config"
+                  lay-filter="config-select"
+                  aria-label="配置"
+                ></select>
+              </div>
+              <div class="layui-input-inline" style="width: 205px">
+                <button
+                  type="button"
+                  class="layui-btn"
+                  id="add"
+                  aria-label="新增配置"
+                  title="新增配置"
+                >
+                  <i class="layui-icon layui-icon-add-1"></i>
+                </button>
+                <button
+                  type="button"
+                  class="layui-btn"
+                  id="rename"
+                  aria-label="重命名配置"
+                  title="重命名配置"
+                >
+                  <i class="layui-icon layui-icon-edit"></i>
+                </button>
+                <button
+                  type="button"
+                  class="layui-btn"
+                  id="remove"
+                  aria-label="删除配置"
+                  title="删除配置"
+                >
+                  <i class="layui-icon layui-icon-delete"></i>
+                </button>
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="type">服务类型：</label>
+              <div class="layui-input-block">
+                <select id="type" data-key="type" lay-filter="service-type">
+                  <option value="proxy">反向代理</option>
+                  <option value="jump">URL 跳转</option>
+                  <option value="redirect">重定向</option>
+                  <option value="speedtest">在线测速</option>
+                </select>
+                <tip id="type-help"></tip>
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="domain">访问域名：</label>
+              <div class="layui-input-block">
+                <input
+                  id="domain"
+                  data-key="domain"
+                  class="layui-input"
+                  placeholder="nas.example.com"
+                  required
+                /><tip
+                  >填写域名，不含协议、端口或路径。同一入口可配置多个不同域名，域名需解析到本机可达
+                  IP。</tip
+                >
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <div class="layui-input-block">
+                <button
+                  type="submit"
+                  class="layui-btn"
+                  lay-submit
+                  lay-filter="save"
+                >
+                  立即提交
+                </button>
+                <button type="button" class="layui-btn layui-btn-primary reset">
+                  重置</button
+                ><span id="dirty"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="layui-card">
+          <div class="layui-card-header">Web 服务设置</div>
+          <div class="layui-card-body">
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label">运行状态：</label>
+              <div class="layui-input-block">
+                <div class="layui-form-mid" id="runtime">正在加载…</div>
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="network">监听协议：</label>
+              <div class="layui-input-block">
+                <select id="network" data-key="network" lay-filter="network">
+                  <option value="tcp">TCP / IPv4 + IPv6</option>
+                  <option value="tcp4">TCP / IPv4</option>
+                  <option value="tcp6">TCP / IPv6</option>
+                </select>
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="listen_address"
+                >监听 IP：</label
+              >
+              <div class="layui-input-block">
+                <input
+                  id="listen_address"
+                  data-key="listen_address"
+                  class="layui-input"
+                  required
+                /><tip
+                  >IPv4 的 0.0.0.0、IPv6 的 :: 表示相应地址族的全部接口。双栈模式同时监听全部 IPv4 和 IPv6 接口。</tip
+                >
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="listen_port"
+                >监听端口：</label
+              >
+              <div class="layui-input-block">
+                <input
+                  id="listen_port"
+                  data-key="listen_port"
+                  class="layui-input"
+                  type="number"
+                  min="1"
+                  max="65535"
+                  required
+                /><tip
+                  >默认 18080，可自行修改。不能占用管理后台或其他程序端口。请放行防火墙；Docker bridge
+                  网络需映射该 TCP 端口。</tip
+                >
+              </div>
+            </div>
+            <div class="layui-row layui-form-item target-field">
+              <label class="layui-form-label" for="target">目标地址：</label>
+              <div class="layui-input-block">
+                <input
+                  id="target"
+                  data-key="target"
+                  class="layui-input"
+                  placeholder="http://127.0.0.1:3000"
+                  required
+                /><tip id="target-help"
+                  >完整 HTTP/HTTPS 地址，可带路径前缀。例如 /app 会将 /api
+                  转发为 /app/api。支持 WebSocket；HTTPS
+                  目标默认严格验证证书。</tip
+                >
+              </div>
+            </div>
+            <div class="layui-row layui-form-item redirect-field" hidden>
+              <label class="layui-form-label" for="redirect_code">状态码：</label>
+              <div class="layui-input-block">
+                <select id="redirect_code" data-key="redirect_code" lay-filter="redirect-code">
+                  <option value="302">302 临时重定向</option>
+                  <option value="301">301 永久重定向</option>
+                  <option value="307">307 临时重定向（保留请求方法）</option>
+                  <option value="308">308 永久重定向（保留请求方法）</option>
+                </select>
+              </div>
+            </div>
+            <div class="layui-row layui-form-item proxy-field">
+              <label class="layui-form-label" for="preserve_host"
+                >保留 Host：</label
+              >
+              <div class="layui-input-inline">
+                <input
+                  id="preserve_host"
+                  data-key="preserve_host"
+                  type="checkbox"
+                  lay-skin="switch"
+                  lay-text="开启|关闭"
+                  lay-filter="option"
+                />
+              </div>
+              <div class="layui-form-mid layui-word-aux">
+                默认使用目标地址的 Host；开启后向目标传递访问域名。
+              </div>
+            </div>
+            <div class="layui-row layui-form-item proxy-field">
+              <label class="layui-form-label" for="timeout_sec"
+                >响应头超时：</label
+              >
+              <div class="layui-input-block">
+                <input
+                  id="timeout_sec"
+                  data-key="timeout_sec"
+                  class="layui-input"
+                  type="number"
+                  min="1"
+                  max="300"
+                  required
+                /><tip
+                  >单位秒，限制等待目标响应头的时间，不限制下载总时长。</tip
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="layui-card">
+          <div class="layui-card-header">安全认证</div>
+          <div class="layui-card-body">
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="auth_enabled"
+                >启用认证：</label
+              >
+              <div class="layui-input-inline">
+                <input
+                  id="auth_enabled"
+                  data-key="auth_enabled"
+                  type="checkbox"
+                  lay-skin="switch"
+                  lay-text="开启|关闭"
+                  lay-filter="option"
+                />
+              </div>
+              <div class="layui-form-mid layui-word-aux">
+                可选的 BasicAuth
+                访问账号，与管理后台账号独立；未开启时使用目标服务自身认证。
+              </div>
+            </div>
+            <div class="layui-row layui-form-item auth-field">
+              <label class="layui-form-label" for="username">访问账号：</label>
+              <div class="layui-input-block">
+                <input
+                  id="username"
+                  data-key="username"
+                  class="layui-input"
+                  autocomplete="off"
+                />
+              </div>
+            </div>
+            <div class="layui-row layui-form-item auth-field">
+              <label class="layui-form-label" for="password">访问密码：</label>
+              <div class="layui-input-block">
+                <input
+                  id="password"
+                  data-key="password"
+                  type="password"
+                  class="layui-input"
+                  autocomplete="new-password"
+                /><tip
+                  >已有密码留空保留，填写新值则修改。建议配合
+                  HTTPS；启用后不会将该认证凭据传给目标。</tip
+                >
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="tls">启用 HTTPS：</label>
+              <div class="layui-input-inline">
+                <input
+                  id="tls"
+                  data-key="tls"
+                  type="checkbox"
+                  lay-skin="switch"
+                  lay-text="开启|关闭"
+                  lay-filter="option"
+                />
+              </div>
+              <div class="layui-form-mid layui-word-aux">
+                控制客户端到本服务的加密，与目标地址的 HTTP/HTTPS 独立。
+              </div>
+            </div>
+            <div class="layui-row layui-form-item tls-field">
+              <label class="layui-form-label" for="force_https">强制 HTTPS：</label>
+              <div class="layui-input-inline"><input id="force_https" data-key="force_https" type="checkbox" lay-skin="switch" lay-text="开启|关闭" lay-filter="option"></div>
+              <div class="layui-form-mid layui-word-aux">仅将当前域名的 HTTP 请求跳转到同端口 HTTPS，保留路径和查询参数。关闭时 HTTP 请求返回错误。</div>
+            </div>
+            <div class="layui-row layui-form-item tls-field">
+              <label class="layui-form-label" for="certificate_id">HTTPS 证书：</label>
+              <div class="layui-input-block">
+                <select id="certificate_id" data-key="certificate_id" lay-filter="certificate-select" lay-search><option value="">请选择 DSSL 证书</option></select>
+                <tip><span id="certificate-help">请选择 DSSL 模块已有证书。</span> <a href="/certificates" target="_blank" rel="noopener" style="color: #1e9fff">前往 DSSL 添加证书</a> · <a href="javascript:;" id="refresh-certificates" style="color: #1e9fff">刷新证书列表</a></tip>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="layui-row layui-form-item">
+          <div class="layui-input-block">
+            <button
+              type="submit"
+              class="layui-btn"
+              lay-submit
+              lay-filter="save"
+            >
+              立即提交</button
+            ><button type="button" class="layui-btn layui-btn-primary reset">
+              重置
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+    <script>
+      layui.use(["form", "layer"], function () {
+        const form = layui.form,
+          layer = layui.layer,
+          $ = (s) => document.querySelector(s),
+          clone = (x) => JSON.parse(JSON.stringify(x));
+        let certificateItems = [];
+        let rules = [],
+          enabled = false,
+          id = "",
+          saved = null,
+          status = [],
+          liveEnabled = false,
+          busy = false,
+          dirty = false;
+        function fresh() {
+          const bytes = new Uint8Array(16);
+          crypto.getRandomValues(bytes);
+          let name = 1;
+          while (rules.some((r) => r.name === String(name))) name++;
+          return {
+            id: Array.from(bytes, (x) => x.toString(16).padStart(2, "0")).join(""),
+            name: String(name),
+            domain: "",
+            type: "proxy",
+            redirect_code: 302,
+            network: "tcp",
+            listen_address: "::",
+            listen_port: 18080,
+            target: "http://127.0.0.1:3000",
+            preserve_host: false,
+            timeout_sec: 30,
+            tls: false,
+            force_https: false,
+            certificate_id: "",
+            certificate: "",
+            key: "",
+            auth_enabled: false,
+            username: "",
+            password: "",
+            has_password: false,
+          };
+        }
+        function current() {
+          return rules.find((r) => r.id === id);
+        }
+        function message(value, icon = 2) {
+          const span = document.createElement("span");
+          span.textContent = value;
+          layer.msg(span.outerHTML, { icon, time: 2000 });
+        }
+        function changed() {
+          dirty = true;
+          $("#dirty").textContent = "有未提交的更改";
+        }
+        async function api(body) {
+          const response = await fetch("/api/webservice", {
+            method: body ? "POST" : "GET",
+            headers: body ? { "Content-Type": "application/json" } : {},
+            body: body ? JSON.stringify(body) : undefined,
+          });
+          if (!response.ok) throw Error("请求失败：" + response.status);
+          const data = await response.json();
+          if (!data.status) throw Error(data.msg);
+          return data.data;
+        }
+        function controls() {
+          document
+            .querySelectorAll("input,select,button")
+            .forEach((el) => (el.disabled = busy || !saved));
+          form.render();
+        }
+        function options() {
+          if (current() && !current().tls) { current().force_https=false; $("#force_https").checked=false; }
+          const r = current();
+          const type = r?.type || "proxy";
+          document.querySelectorAll(".proxy-field").forEach(el => el.hidden = type !== "proxy");
+          document.querySelectorAll(".redirect-field").forEach(el => el.hidden = type !== "redirect");
+          document.querySelectorAll(".target-field").forEach(el => el.hidden = type === "speedtest");
+          $("#target").required = type !== "speedtest";
+          $("#timeout_sec").required = type === "proxy";
+          $("#type-help").textContent = {proxy: "由 DWS 转发请求并返回后端响应。", jump: "返回跳转页面，由浏览器前往目标网址。", redirect: "返回 HTTP 重定向状态码和目标地址，由客户端前往目标网址。", speedtest: "访问域名打开测速页，测量浏览器到 DWS 的延迟、下载和上传速度，会消耗网络流量。"}[type];
+          $("#target-help").textContent = type === "proxy" ? "完整 HTTP/HTTPS 地址，可带路径前缀，不含查询参数或片段。支持 WebSocket；HTTPS 目标严格验证证书。" : "完整 HTTP/HTTPS 目标网址，可带查询参数和片段。跳转到填写的地址，不追加原请求路径。";
+          $("#listen_address").readOnly = r?.network === "tcp";
+          document
+            .querySelectorAll(".tls-field")
+            .forEach((el) => (el.hidden = !r?.tls));
+          document
+            .querySelectorAll(".auth-field")
+            .forEach((el) => (el.hidden = !r?.auth_enabled));
+          const legacy = r?.tls && !r.certificate_id && r.certificate && r.key;
+          $("#certificate-help").textContent=legacy ? "当前使用旧版文件路径证书，可在 DSSL 导入后选择替换。" : certificateItems.length ? "证书需覆盖访问域名；同一监听入口使用相同证书。" : "暂无证书，请先前往 DSSL 添加证书，再刷新列表。";
+          $("#username").required = !!r?.auth_enabled;
+          $("#password").required = !!r?.auth_enabled && !r?.has_password;
+        }
+        function showStatus() {
+          const state = status.find((s) => s.id === id),
+            stored = saved?.rules?.some((r) => r.id === id);
+          $("#runtime").replaceChildren();
+          const icon = document.createElement("i");
+          icon.className =
+            "layui-icon " +
+            (state?.listening ? "layui-icon-ok-circle" : "layui-icon-pause");
+          icon.style.cssText =
+            "margin-right:8px;color:" + (state?.listening ? "#16b777" : "#999");
+          $("#runtime").append(
+            icon,
+            document.createTextNode(
+              state?.listening
+                ? "监听中"
+                : !stored
+                  ? "尚未提交"
+                  : liveEnabled
+                    ? "未运行，请查看系统日志"
+                    : "已关闭（配置已保留）",
+            ),
+          );
+        }
+        function render() {
+          const select = $("#config");
+          select.replaceChildren();
+          rules.forEach((r) =>
+            select.add(
+              new Option(r.name + (r.domain ? " - " + r.domain : ""), r.id),
+            ),
+          );
+          if (!current()) id = rules[0]?.id;
+          select.value = id;
+          $("#enabled").checked = enabled;
+          const r = current();
+          if (r)
+            document.querySelectorAll("[data-key]").forEach((el) => {
+              el.setCustomValidity("");
+              if (el.type === "checkbox") el.checked = !!r[el.dataset.key];
+              else el.value = r[el.dataset.key] ?? "";
+            });
+          $("#dirty").textContent = dirty ? "有未提交的更改" : "";
+          options();
+          showStatus();
+          controls();
+        }
+        function restore(data) {
+          liveEnabled = data.enabled;
+          rules = clone(data.rules || []).map(r => ({...r, type: r.type || "proxy", redirect_code: r.redirect_code || 302}));
+          enabled = data.enabled;
+          status = data.status || [];
+          if (!rules.length) rules.push(fresh());
+          dirty = false;
+          render();
+        }
+        function valid() {
+          options();
+          const missing=rules.find(r=>r.tls&&!r.certificate_id&&!(r.certificate&&r.key));
+          if(missing){message(missing.name+"：请先在 DSSL 添加证书，再选择 HTTPS 证书。");return false;}
+          for (const el of document.querySelectorAll("[data-key]")) {
+            if (el.closest("[hidden]")) continue;
+            if (!el.reportValidity()) return false;
+          }
+          return true;
+        }
+        function read(el) {
+          const r = current();
+          if (!r) return;
+          r[el.dataset.key] =
+            el.type === "checkbox"
+              ? el.checked
+              : el.type === "number"
+                ? el.value === ""
+                  ? null
+                  : Number(el.value)
+                : el.value;
+          changed();
+        }
+        document
+          .querySelectorAll("[data-key]")
+          .forEach((el) => el.addEventListener("input", () => read(el)));
+        form.on("switch(global-enable)", (data) => {
+          enabled = data.elem.checked;
+          changed();
+        });
+        form.on("switch(option)", (data) => {
+          read(data.elem);
+          options();
+          form.render();
+        });
+        form.on("select(certificate-select)",data=>{read(data.elem);if(data.value){current().certificate="";current().key="";}options();form.render();});
+        form.on("select(service-type)", (data) => {
+          read(data.elem);
+          options();
+          form.render();
+        });
+        form.on("select(redirect-code)", (data) => {
+          current().redirect_code = Number(data.value);
+          changed();
+        });
+        form.on("select(network)", (data) => {
+          read(data.elem);
+          const r = current();
+          r.listen_address = r.network === "tcp4" ? "0.0.0.0" : "::";
+          render();
+        });
+        form.on("select(config-select)", (data) => {
+          id = data.value;
+          render();
+        });
+        $("#domain").addEventListener("blur", () => {
+          const r = current(),
+            select = $("#config");
+          if (r && select.selectedOptions[0]) {
+            select.selectedOptions[0].textContent =
+              r.name + (r.domain ? " - " + r.domain : "");
+            form.render("select");
+          }
+        });
+        $("#add").onclick = () => {
+          if (busy || !saved || !valid()) return;
+          if (rules.length >= 128) {
+            message("最多支持 128 个配置");
+            return;
+          }
+          const r = fresh();
+          rules.push(r);
+          id = r.id;
+          changed();
+          render();
+        };
+        $("#rename").onclick = () => {
+          if (!current() || busy) return;
+          const r = current();
+          layer.prompt(
+            { title: "重命名配置", value: r.name, maxlength: 50 },
+            (name, index) => {
+              if (!name.trim()) return;
+              r.name = name.trim();
+              changed();
+              render();
+              layer.close(index);
+            },
+          );
+        };
+        $("#remove").onclick = () => {
+          if (busy || !current()) return;
+          if (rules.length === 1) {
+            message("至少保留一个配置，可关闭全局开关停用");
+            return;
+          }
+          const selected = id;
+          layer.confirm(
+            "确定删除当前配置？提交后生效。",
+            { title: "删除配置" },
+            (index) => {
+              rules = rules.filter((r) => r.id !== selected);
+              id = rules[0].id;
+              changed();
+              render();
+              layer.close(index);
+            },
+          );
+        };
+        document.querySelectorAll(".reset").forEach(
+          (button) =>
+            (button.onclick = () => {
+              if (!saved || busy) return;
+              if (!dirty) {
+                restore(saved);
+                return;
+              }
+              layer.confirm(
+                "放弃未提交修改，恢复到上次提交状态？",
+                { title: "重置配置" },
+                (index) => {
+                  restore(saved);
+                  layer.close(index);
+                },
+              );
+            }),
+        );
+        form.on("submit(save)", () => {
+          submit();
+          return false;
+        });
+        async function submit() {
+          if (!saved || busy || !valid()) return;
+          busy = true;
+          controls();
+          try {
+            const data = await api({ enabled, rules });
+            saved = clone(data);
+            restore(data);
+            message("配置保存成功", 1);
+          } catch (e) {
+            message(e.message || String(e));
+          } finally {
+            busy = false;
+            controls();
+          }
+        }
+        window.addEventListener("beforeunload", (e) => {
+          if (dirty) {
+            e.preventDefault();
+            e.returnValue = "";
+          }
+        });
+        controls();
+        async function loadCertificates(){
+          const response=await fetch("/api/certificates");
+          if(!response.ok)throw Error("证书列表加载失败，请重试");
+          const result=await response.json();
+          if(!result.status)throw Error(result.msg||"证书列表加载失败");
+          certificateItems=result.data||[];
+        }
+        function certificateOptions(dataRules=rules){
+          const select=$("#certificate_id"),value=current()?.certificate_id||"";
+          select.replaceChildren(new Option(certificateItems.length?"请选择 DSSL 证书":"暂无证书，请前往 DSSL 添加",""));
+          const states={valid:"有效",expiring:"即将到期",expired:"已过期",invalid:"无效",pending:"尚未生效",not_issued:"尚未签发"};
+          for(const c of certificateItems){
+            const domains=(c.covered_domains?.length?c.covered_domains:c.domains||[]).join(", ");
+            select.add(new Option(c.name+(domains?" · "+domains:"")+" · "+(states[c.state]||c.state),c.id));
+          }
+          for(const r of dataRules)if(r.certificate_id&&!Array.from(select.options).some(o=>o.value===r.certificate_id))select.add(new Option("证书已失效或被移除，请重新选择",r.certificate_id));
+          select.value=value;
+        }
+        $("#refresh-certificates").onclick=async()=>{
+          try{await loadCertificates();certificateOptions();options();form.render("select");}catch(e){message(e.message);}
+        };
+        Promise.all([api(),loadCertificates()])
+          .then(([data]) => {
+            certificateOptions(data.rules||[]);
+            saved = clone(data);
+            restore(data);
+          })
+          .catch((e) => message(e.message || String(e)));
+        setInterval(async () => {
+          if (!saved || busy || document.hidden) return;
+          try {
+            const data = await api();
+            status = data.status || [];
+            liveEnabled = data.enabled;
+            showStatus();
+          } catch {}
+        }, 5000);
+      });
+    </script>
+  </body>
+</html>

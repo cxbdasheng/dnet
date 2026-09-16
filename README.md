@@ -1,7 +1,7 @@
 <div align="center">
 
 # D-NET 动态网络管理系统
-一款轻量级动态网络管理工具，支持多平台 CDN、DNS 自动更新，以及 TCP / UDP 端口转发。
+一款轻量级动态网络管理工具，支持多平台 CDN、DNS 自动更新，以及 TCP / UDP 端口转发和 HTTP / HTTPS 反向代理。
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.26.6-blue.svg)](https://go.dev/)
@@ -20,6 +20,7 @@
 - **动态 CDN 管理 (DCDN)：** 根据 IP 变化自动更新 CDN 源站，支持阿里云（CDN、DCDN、ESA）、腾讯云（CDN、EdgeOne）、百度云（CDN、DRCDN）、Cloudflare、又拍云、自定义回调（Callback）
 - **动态 DNS 管理 (DDNS)：** 根据 IP 变化自动更新 DNS 解析，支持 **A / AAAA / CNAME / TXT** 记录，支持阿里云、腾讯云、百度云、Cloudflare、华为云、Dnspod、NameSilo、GoDaddy、自定义回调（Callback）
 - **TCP / UDP 端口转发 (DPF)：** IPv4 / IPv6 入口转发到指定 IP 或域名，支持来源白名单、连接 / 会话数限制、超时设置和运行日志。UDP 使用独立客户端会话，空闲超时为 0 时按 60 秒回收。支持 TCP 目标连通性测试。
+- **Web 服务 (DWS)：** 支持反向代理、URL 跳转、HTTP 重定向和在线测速，支持 IPv4 / IPv6 双栈监听、多域名共用端口、WebSocket、HTTPS 入口和访问认证。详见 [使用指南](https://github.com/cxbdasheng/dnet/wiki/DWS-使用指南)。
 - **DSSL 证书管理：** 独立管理上传证书、本地证书文件及 ACME 自动申请和续期，支持 Let's Encrypt、HTTP 和 Cloudflare / 阿里云 / 腾讯云 DNSPod DNS，DWS 可直接引用。详见 [使用指南](https://github.com/cxbdasheng/dnet/wiki/DSSL-使用指南)。
 - **Webhook 通知：** 实时推送 IP 变更通知
 - **Web 管理界面：** 可视化配置和管理
