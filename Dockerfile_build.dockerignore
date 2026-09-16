@@ -7,6 +7,8 @@
 
 !bootstrap/
 !bootstrap/*.go
+!certificates/
+!certificates/*.go
 !config/
 !config/*.go
 !dcdn/
@@ -24,6 +26,12 @@
 !web/
 !web/*.go
 !web/*.html
+!webservice/
+!webservice/*.go
+!webservice/*.html
+!webservice/favicon.ico
+!webservice/librespeed/
+!webservice/librespeed/**
 !static/
 !static/**
 
