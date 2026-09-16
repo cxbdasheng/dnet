@@ -1,7 +1,7 @@
 <div align="center">
 
 # D-NET 动态网络管理系统
-一款轻量级动态网络管理工具，支持多平台 CDN、DNS 自动更新，以及 TCP / UDP 端口转发和 HTTP / HTTPS 反向代理。
+一款轻量轻量级网络管理工具，支持 DDNS、动态 CDN、端口转发、反向代理、在线测速与自动证书管理。
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.26.6-blue.svg)](https://go.dev/)
