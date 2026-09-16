@@ -19,7 +19,7 @@
 
 - **动态 CDN 管理 (DCDN)：** 根据 IP 变化自动更新 CDN 源站，支持阿里云（CDN、DCDN、ESA）、腾讯云（CDN、EdgeOne）、百度云（CDN、DRCDN）、Cloudflare、又拍云、自定义回调（Callback）
 - **动态 DNS 管理 (DDNS)：** 根据 IP 变化自动更新 DNS 解析，支持 **A / AAAA / CNAME / TXT** 记录，支持阿里云、腾讯云、百度云、Cloudflare、华为云、Dnspod、NameSilo、GoDaddy、自定义回调（Callback）
-- **TCP / UDP 端口转发 (DPF)：** IPv4 / IPv6 入口转发到指定 IP 或域名，支持来源白名单、连接 / 会话数限制、超时设置和运行日志。UDP 使用独立客户端会话，空闲超时为 0 时按 60 秒回收。支持 TCP 目标连通性测试。
+- **端口转发 (DPF)：** IPv4 / IPv6 入口转发到指定 IP 或域名，支持来源白名单、连接 / 会话数限制、超时设置和运行日志，支持 TCP/UDP 协议。
 - **Web 服务 (DWS)：** 支持反向代理、URL 跳转、HTTP 重定向和在线测速，支持 IPv4 / IPv6 双栈监听、多域名共用端口、WebSocket、HTTPS 入口和访问认证。
 - **SSL 证书管理（DSSL）：** 独立管理上传证书、本地证书文件及 ACME 自动申请和续期，支持 Let's Encrypt、HTTP 和 Cloudflare / 阿里云 / 腾讯云 DNSPod DNS。
 - **Webhook 通知：** 实时推送 IP 变更通知
