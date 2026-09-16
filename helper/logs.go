@@ -33,14 +33,15 @@ var MaxSize = 100
 type LogType string
 
 const (
-	LogTypeSystem  LogType = "系统"
-	LogTypeDCDN    LogType = "DCDN"
-	LogTypeDDNS    LogType = "DDNS"
-	LogTypeDPF     LogType = "DPF"
-	LogTypeWebhook LogType = "Webhook"
-	LogTypeAuth    LogType = "认证"
-	LogTypeNetwork LogType = "网络"
-	LogTypeConfig  LogType = "配置"
+	LogTypeSystem     LogType = "系统"
+	LogTypeDCDN       LogType = "DCDN"
+	LogTypeDDNS       LogType = "DDNS"
+	LogTypeDPF        LogType = "DPF"
+	LogTypeWebService LogType = "DWS"
+	LogTypeWebhook    LogType = "Webhook"
+	LogTypeAuth       LogType = "认证"
+	LogTypeNetwork    LogType = "网络"
+	LogTypeConfig     LogType = "配置"
 )
 
 // LogEntry 日志条目

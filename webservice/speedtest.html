@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>D-NET 在线测速</title><link rel="icon" href="?dws_test=favicon" type="image/x-icon">
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f6fa;color:#18263b;font:16px system-ui,sans-serif;padding:8vh 20px}main{max-width:850px;margin:auto;background:white;padding:40px;border-radius:20px;border:1px solid #e0e7ef}small{color:#386cc8;letter-spacing:2px}h1{font-size:32px;margin:12px 0}p{line-height:1.7;color:#617087}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:32px 0}.metric{background:#f5f8fc;padding:24px 16px;border-radius:12px}.metric strong{display:block;font-size:32px;margin-top:12px}.metric span{font-size:14px;color:#617087}button{font:inherit;border:0;border-radius:8px;padding:12px 24px;background:#2563eb;color:white;cursor:pointer}button:disabled{opacity:.5;cursor:default}#stop{background:#64748b;margin-left:8px}#status{min-height:28px} @media(max-width:600px){main{padding:24px}.metrics{grid-template-columns:1fr}.metric strong{display:inline-block;margin:0 12px}}
+</style></head>
+<body><main><small>D-NET WEB SERVICE</small><h1>D-NET 在线测速</h1><p>测量当前浏览器到此 DWS 服务的 HTTP 往返延迟及上下行速度。结果受服务器、代理和当前网络影响，不代表运营商线路的最高带宽。</p>
+<div class="metrics"><div class="metric">延迟<strong id="latency">—</strong><span>ms</span></div><div class="metric">抖动<strong id="jitter">—</strong><span>ms</span></div><div class="metric">下载<strong id="download">—</strong><span>Mbps</span></div><div class="metric">上传<strong id="upload">—</strong><span>Mbps</span></div></div>
+<button id="start">开始测速</button><button id="stop" disabled>停止</button><p id="status" role="status" aria-live="polite">点击开始后将进行多连接测速，约需 20–30 秒，高速网络可能消耗较多流量。</p>
+<p><a href="https://github.com/cxbdasheng/dnet" target="_blank" rel="noopener">D-NET 开源项目</a> · <small>Powered by LibreSpeed</small> · <a href="https://github.com/librespeed/speedtest" target="_blank" rel="noopener">源代码</a> · <a href="?dws_test=license">许可证</a></p>
+</main><script src="speedtest.js"></script><script>
+const $=id=>document.getElementById(id);
+let active=null;
+const endpoint=(action,token='')=>location.origin+location.pathname+'?dws_test='+action+(token?'&session='+encodeURIComponent(token):'');
+function release(token) {
+ if(token)fetch(endpoint('stop',token),{method:'POST',keepalive:true,cache:'no-store'}).catch(()=>{});
+}
+function finish(run,message) {
+ if(active!==run)return;
+ active=null;
+ clearTimeout(run.timer);
+ if(run.test){
+  run.test.onupdate=null;run.test.onend=null;
+  clearInterval(run.test.updater);
+  if(run.test.worker){run.test.worker.onmessage=null;run.test.worker.onerror=null;run.test.worker.onmessageerror=null;run.test.worker.terminate();}
+ }
+ release(run.token);
+ $('start').disabled=false;$('stop').disabled=true;$('status').textContent=message;
+}
+$('stop').onclick=()=>{if(active)finish(active,'测速已停止，已显示的数值为部分结果。');};
+window.addEventListener('pagehide',()=>{if(active)finish(active,'测速已停止。');});
+$('start').onclick=async()=>{
+ if(active)return;
+ const run={test:null,token:'',timer:null,last:null};active=run;
+ $('start').disabled=true;$('stop').disabled=false;
+ $('status').textContent='正在申请测速名额…';
+ for(const id of ['latency','jitter','download','upload'])$(id).textContent='—';
+ run.timer=setTimeout(()=>finish(run,'测速超时，请检查网络后重试。'),60000);
+ try {
+ const response=await fetch(endpoint('start'),{method:'POST',cache:'no-store',signal:AbortSignal.timeout(10000)});
+ if(!response.ok)throw Error(response.status===429?'测速名额已满，或当前 IP 已有测速任务，请稍后重试。':'申请测速失败：HTTP '+response.status);
+ const data=await response.json();
+ if(!data.session)throw Error('服务器未返回测速会话。');
+ if(active!==run){release(data.session);return;}
+ run.token=data.session;
+ const test=run.test=new Speedtest();
+ const settings={test_order:'P_D_U',url_dl:endpoint('garbage',run.token),url_ul:endpoint('empty',run.token),url_ping:endpoint('empty',run.token),telemetry_level:0,getIp_ispInfo:false,time_dl_max:10,time_ul_max:10,garbagePhp_chunkSize:16,xhr_ul_blob_megabytes:8,xhr_dlMultistream:6,xhr_ulMultistream:3,xhr_ignoreErrors:0,overheadCompensationFactor:1};
+ for(const [key,value] of Object.entries(settings))test.setParameter(key,value);
+ test.onupdate=data=>{
+ if(active!==run)return;
+ run.last=data;
+ for(const [id,key] of Object.entries({latency:'pingStatus',jitter:'jitterStatus',download:'dlStatus',upload:'ulStatus'}))$(id).textContent=data[key]==='Fail'?'失败':data[key]||'—';
+ if(data.testState<4)$('status').textContent={0:'正在准备测速…',1:'正在测量下载速度…',2:'正在测量延迟和抖动…',3:'正在测量上传速度…'}[data.testState]||'正在测速…';
+ };
+ test.onend=aborted=>{
+ const failed=!run.last||[run.last.dlStatus,run.last.ulStatus,run.last.pingStatus].some(v=>v==='Fail'||!v);
+ finish(run,aborted?'测速已停止，已显示的数值为部分结果。':failed?'测速失败，请检查连接或服务日志。':'测速完成。上下行速度以当前浏览器为视角。');
+ };
+ test.start();
+ test.worker.onerror=event=>{event.preventDefault();finish(run,'测速引擎加载或运行失败，请刷新页面后重试。');};
+ test.worker.onmessageerror=()=>finish(run,'测速引擎通信失败，请刷新页面后重试。');
+ }catch(error){finish(run,'测速无法启动：'+(error.message||String(error)));}
+};
+</script></body></html>
