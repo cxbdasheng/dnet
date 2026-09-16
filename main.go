@@ -26,6 +26,7 @@ import (
 	"github.com/cxbdasheng/dnet/helper"
 	"github.com/cxbdasheng/dnet/helper/update"
 	"github.com/cxbdasheng/dnet/web"
+	"github.com/cxbdasheng/dnet/webservice"
 	"github.com/kardianos/service"
 )
 
@@ -78,6 +79,7 @@ var configRepo config.Repository
 var syncRunner *bootstrap.Runner
 var webServer *web.Server
 var forwardManager = forward.NewManager()
+var webServiceManager = webservice.NewManager()
 
 func main() {
 	helper.InitLoggerWithConsole(helper.MaxSize, true)
@@ -129,6 +131,7 @@ func main() {
 	web.SetEmbeddedAssets(staticEmbeddedFiles, faviconEmbeddedFile)
 	webServer = web.NewServer(configRepo, syncRunner)
 	webServer.Forwarder = forwardManager
+	webServer.WebServices = webServiceManager
 
 	// 重置密码
 	if *newPassword != "" {
@@ -193,7 +196,14 @@ func run() {
 	shutdown, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
 	defer forwardManager.Close()
+	defer webServiceManager.Close()
+	go webServer.RunCertificateMaintenance(shutdown)
 	if conf, err := configRepo.Load(); err == nil {
+		if conf.WebServiceEnabled {
+			if err := webServiceManager.ApplyCertificates(conf.WebServiceRules, conf.Certificates, nil); err != nil {
+				helper.Error(helper.LogTypeWebService, "启动失败: %v", err)
+			}
+		}
 		if err := forwardManager.Apply(conf.ActiveForwardRules(), nil); err != nil {
 			helper.Error(helper.LogTypeSystem, "启动端口转发失败: %v", err)
 		}
@@ -276,6 +286,7 @@ func (p *program) run() {
 }
 
 func (p *program) Stop(s service.Service) error {
+	webServiceManager.Close()
 	forwardManager.Close()
 	// Stop 应该快速返回
 	return nil

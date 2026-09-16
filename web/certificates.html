@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>D-NET DSSL 证书管理</title>
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="stylesheet" href="/static/css/layui.css" />
+    <link rel="stylesheet" href="/static/css/common.css" />
+    <script src="/static/layui.js"></script>
+    <style>
+      body {
+        background: #f2f2f2;
+        margin: 0;
+        padding-bottom: 25px;
+        min-height: 100vh;
+      }
+      html {
+        overflow-x: hidden;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .certificate-intro {
+        color: #999;
+        margin-bottom: 15px;
+        line-height: 1.6;
+      }
+      .certificate-toolbar {
+        margin-bottom: 15px;
+      }
+      #message {
+        white-space: pre-wrap;
+        color: #b45309;
+        overflow-wrap: anywhere;
+      }
+      #message:not(:empty) {
+        margin-bottom: 15px;
+      }
+      .table-wrap {
+        overflow-x: auto;
+      }
+      .layui-table {
+        margin: 0;
+      }
+      .layui-table td {
+        overflow-wrap: anywhere;
+      }
+      .certificate-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        min-width: 120px;
+      }
+      .certificate-actions .layui-btn {
+        margin: 0;
+      }
+      #form .layui-form-item > .layui-input-block > tip {
+        line-height: 1.6;
+      }
+      .certificate-file-name {
+        margin-left: 10px;
+        color: #999;
+        overflow-wrap: anywhere;
+      }
+      #form .certificate-consent {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 38px;
+      }
+      #form .certificate-consent input {
+        display: inline-block;
+      }
+      #form a {
+        color: #01aaed;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layui-container" style="padding: 15px">
+      <div class="layui-card">
+        <div class="layui-card-header">DSSL 证书管理</div>
+        <div class="layui-card-body">
+          <p class="certificate-intro">
+            集中管理证书，支持上传、本地路径和 ACME 自动申请续期。
+          </p>
+          <div class="certificate-toolbar">
+            <button type="button" class="layui-btn" id="new">添加证书</button
+            ><button
+              type="button"
+              class="layui-btn layui-btn-primary"
+              id="refresh"
+            >
+              刷新
+            </button>
+          </div>
+          <p id="message" role="status"></p>
+          <div class="table-wrap">
+            <table class="layui-table">
+              <thead>
+                <tr>
+                  <th>名称 / 来源</th>
+                  <th>覆盖域名</th>
+                  <th>状态 / 到期时间</th>
+                  <th>引用模块</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="rows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="layui-card" id="editor" hidden>
+        <div class="layui-card-header" id="editor-title">添加证书</div>
+        <form class="layui-card-body layui-form" id="form">
+          <div class="layui-row layui-form-item">
+            <label class="layui-form-label" for="name">证书名称：</label>
+            <div class="layui-input-block">
+              <input class="layui-input" id="name" required maxlength="100" />
+            </div>
+          </div>
+          <div class="layui-row layui-form-item">
+            <label class="layui-form-label" for="source">证书来源：</label>
+            <div class="layui-input-block">
+              <select lay-filter="certificate-option" id="source">
+                <option value="upload">上传证书</option>
+                <option value="path">本地文件路径</option>
+                <option value="acme">ACME 自动证书</option>
+              </select>
+            </div>
+          </div>
+          <div data-source="upload">
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="cert-file">证书文件：</label>
+              <div class="layui-input-block">
+                <button
+                  class="layui-btn layui-btn-primary"
+                  id="cert-file"
+                  type="button"
+                >
+                  <i
+                    class="layui-icon layui-icon-upload"
+                    aria-hidden="true"
+                  ></i>
+                  选择证书文件</button
+                ><span
+                  class="certificate-file-name"
+                  id="cert-file-name"
+                  role="status"
+                  >未选择文件</span
+                >
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="cert-pem"
+                >证书链内容：</label
+              >
+              <div class="layui-input-block">
+                <textarea
+                  class="layui-textarea"
+                  id="cert-pem"
+                  spellcheck="false"
+                ></textarea>
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="key-file">私钥文件：</label>
+              <div class="layui-input-block">
+                <button
+                  class="layui-btn layui-btn-primary"
+                  id="key-file"
+                  type="button"
+                >
+                  <i
+                    class="layui-icon layui-icon-upload"
+                    aria-hidden="true"
+                  ></i>
+                  选择私钥文件</button
+                ><span
+                  class="certificate-file-name"
+                  id="key-file-name"
+                  role="status"
+                  >未选择文件</span
+                >
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="key-pem">私钥内容：</label>
+              <div class="layui-input-block">
+                <textarea
+                  class="layui-textarea"
+                  id="key-pem"
+                  spellcheck="false"
+                  autocomplete="off"
+                ></textarea
+                ><tip
+                  >编辑时留空保留原证书或私钥。私钥不会通过列表接口返回，配置备份应妥善保存。</tip
+                >
+              </div>
+            </div>
+          </div>
+          <div data-source="path" hidden>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="cert-path">证书路径：</label>
+              <div class="layui-input-block">
+                <input
+                  class="layui-input"
+                  id="cert-path"
+                  placeholder="/etc/dnet/fullchain.pem"
+                />
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="key-path">私钥路径：</label>
+              <div class="layui-input-block">
+                <input
+                  class="layui-input"
+                  id="key-path"
+                  placeholder="/etc/dnet/privkey.pem"
+                /><tip
+                  >填写 dnet 所在机器上的路径；Docker 使用容器内路径。每 5
+                  分钟检查文件变化并重新加载。</tip
+                >
+              </div>
+            </div>
+          </div>
+          <div data-source="acme" hidden>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="email">联系邮箱：</label>
+              <div class="layui-input-block">
+                <input class="layui-input" id="email" type="email" />
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="domains">申请域名：</label>
+              <div class="layui-input-block">
+                <textarea
+                  class="layui-textarea"
+                  id="domains"
+                  placeholder="example.com&#10;*.example.com"
+                ></textarea>
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="ca">证书颁发机构：</label>
+              <div class="layui-input-block">
+                <select lay-filter="certificate-option" id="ca">
+                  <option
+                    value="https://acme-v02.api.letsencrypt.org/directory"
+                  >
+                    Let's Encrypt 正式环境
+                  </option>
+                  <option
+                    value="https://acme-staging-v02.api.letsencrypt.org/directory"
+                  >
+                    Let's Encrypt 测试环境（浏览器不信任）
+                  </option>
+                  <option value="https://acme.zerossl.com/v2/DV90">
+                    ZeroSSL
+                  </option>
+                </select>
+              </div>
+            </div>
+            <div id="eab-switch-field" class="layui-row layui-form-item" hidden>
+              <label class="layui-form-label" for="eab-enabled"
+                >EAB 认证：</label
+              >
+              <div class="layui-input-inline">
+                <input
+                  id="eab-enabled"
+                  type="checkbox"
+                  checked
+                  lay-skin="switch"
+                  lay-text="开启|关闭"
+                  lay-filter="eab-toggle"
+                />
+              </div>
+              <div class="layui-form-mid layui-word-aux">
+                首次注册 ZeroSSL 账户需开启；关闭后仅复用已注册账户。
+              </div>
+            </div>
+            <div id="eab-fields" hidden>
+              <div class="layui-row layui-form-item">
+                <label class="layui-form-label" for="eab-id"
+                  >EAB Key ID：</label
+                >
+                <div class="layui-input-block">
+                  <input class="layui-input" id="eab-id" autocomplete="off" />
+                </div>
+              </div>
+              <div class="layui-row layui-form-item">
+                <label class="layui-form-label" for="eab-key"
+                  >EAB HMAC Key：</label
+                >
+                <div class="layui-input-block">
+                  <input
+                    class="layui-input"
+                    id="eab-key"
+                    type="password"
+                    autocomplete="new-password"
+                  /><tip
+                    >在 ZeroSSL 控制台获取 ACME EAB 凭据，不是 API Access
+                    Key。编辑时留空保留已保存密钥。</tip
+                  >
+                </div>
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="challenge"
+                >域名验证方式：</label
+              >
+              <div class="layui-input-block">
+                <select lay-filter="certificate-option" id="challenge">
+                  <option value="http">HTTP</option>
+                  <option value="tls-alpn">TLS-ALPN (TCP 443)</option>
+                  <option value="cloudflare">
+                    Cloudflare DNS（支持通配符）
+                  </option>
+                  <option value="aliyun">阿里云 DNS（支持通配符）</option>
+                  <option value="tencent">
+                    腾讯云 DNSPod DNS（支持通配符）
+                  </option>
+                </select>
+              </div>
+            </div>
+            <div id="http-fields">
+              <div class="layui-row layui-form-item">
+                <label class="layui-form-label" for="listen"
+                  >验证监听地址：</label
+                >
+                <div class="layui-input-block">
+                  <input class="layui-input" id="listen" value=":18081" /><tip
+                    >证书机构必须通过公网 TCP 80 访问验证服务。请将外部 80
+                    映射到此端口，或通过现有 Web 服务器转发
+                    /.well-known/acme-challenge/
+                    路径。该监听仅在申请期间启动，不能占用现有 DWS 端口。HTTP
+                    验证不支持通配符域名。</tip
+                  >
+                </div>
+              </div>
+            </div>
+            <div id="dns-fields" hidden>
+              <div
+                class="layui-row layui-form-item"
+                id="access-key-field"
+                hidden
+              >
+                <label class="layui-form-label" for="access-key"
+                  >密钥 ID：</label
+                >
+                <div class="layui-input-block">
+                  <input
+                    class="layui-input"
+                    id="access-key"
+                    autocomplete="off"
+                  />
+                </div>
+              </div>
+              <div class="layui-row layui-form-item">
+                <label class="layui-form-label" for="token">API Token：</label>
+                <div class="layui-input-block">
+                  <input
+                    class="layui-input"
+                    id="token"
+                    type="password"
+                    autocomplete="new-password"
+                  /><tip
+                    >凭据需具备所选区域的 DNS
+                    记录创建和删除权限。阿里云、腾讯云填写与 DDNS
+                    相同类型的云账户密钥即可，主域名默认自动确定。Cloudflare
+                    需同时授权 Zone Read（区域读取）和 DNS Edit（DNS
+                    编辑），区域由程序自动查询。编辑时密钥留空保留原值，切换厂商需重新填写。</tip
+                  >
+                </div>
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="renew-days"
+                >提前续期天数：</label
+              >
+              <div class="layui-input-block">
+                <input
+                  class="layui-input"
+                  id="renew-days"
+                  type="number"
+                  min="1"
+                  max="60"
+                  value="30"
+                /><tip
+                  >短期证书的提前量最多为有效期的三分之一。失败后自动重试间隔至少
+                  6 小时。</tip
+                >
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <label class="layui-form-label" for="auto"
+                >自动申请及续期：</label
+              >
+              <div class="layui-input-block">
+                <input
+                  id="auto"
+                  type="checkbox"
+                  lay-skin="switch"
+                  lay-text="开启|关闭"
+                />
+              </div>
+            </div>
+            <div class="layui-row layui-form-item">
+              <div class="layui-input-block">
+                <label class="certificate-consent"
+                  ><input id="terms" type="checkbox" lay-ignore /><span
+                    >我已阅读并同意
+                    <a
+                      id="ca-terms"
+                      href="https://letsencrypt.org/repository/"
+                      target="_blank"
+                      rel="noopener"
+                      >Let's Encrypt 服务条款</a
+                    ></span
+                  ></label
+                >
+              </div>
+            </div>
+          </div>
+          <div class="layui-row layui-form-item">
+            <div class="layui-input-block">
+              <button class="layui-btn" type="submit">保存证书</button
+              ><button
+                class="layui-btn layui-btn-primary"
+                type="button"
+                id="cancel"
+              >
+                取消</button
+              ><br /><tip
+                >更新被引用的证书后会重新加载
+                DWS。正在被引用的证书不能删除。</tip
+              >
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      let items = [],
+        editing = "",
+        busy = false;
+      const httpHelp = document.querySelector("#http-fields tip").textContent;
+      const tlsHelp =
+        "将公网 TCP 443 直接映射到此监听端口（默认本机 18081），须透传 TLS 和 acme-tls/1 ALPN。不能使用普通 HTTP 反向代理或 Cloudflare 代理，不能占用现有 DWS 监听端口。不需要已有证书，不支持通配符。自动续期时也需要保持端口映射。";
+      const states = {
+        valid: "有效",
+        expiring: "即将到期",
+        expired: "已过期",
+        pending: "尚未生效",
+        invalid: "无效",
+        not_issued: "尚未签发",
+      };
+      async function api(body) {
+        const r = await fetch("/api/certificates", {
+          method: body ? "POST" : "GET",
+          headers: body ? { "Content-Type": "application/json" } : {},
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        if (!r.ok) throw Error("请求失败：HTTP " + r.status);
+        const data = await r.json();
+        if (!data.status) throw Error(data.msg);
+        return data.data;
+      }
+      function visibility() {
+        const zero = $("ca").value === "https://acme.zerossl.com/v2/DV90";
+        $("eab-switch-field").hidden = !zero;
+        $("eab-fields").hidden = !zero || !$("eab-enabled").checked;
+        $("ca-terms").textContent = zero
+          ? "ZeroSSL 服务条款"
+          : "Let's Encrypt 服务条款";
+        $("ca-terms").href = zero
+          ? "https://zerossl.com/terms/"
+          : "https://letsencrypt.org/repository/";
+        document.querySelectorAll("[data-source]").forEach((el) => {
+          el.hidden = el.dataset.source !== $("source").value;
+          el.querySelectorAll("input,select,textarea").forEach(
+            (input) => (input.disabled = el.hidden),
+          );
+        });
+        const network = ["http", "tls-alpn"].includes($("challenge").value);
+        $("http-fields").hidden = !network;
+        $("dns-fields").hidden = network;
+        document.querySelector("#http-fields tip").textContent =
+          $("challenge").value === "tls-alpn" ? tlsHelp : httpHelp;
+        const cloud = $("challenge").value === "cloudflare";
+        $("access-key-field").hidden = cloud || network;
+        const tencent = $("challenge").value === "tencent";
+        document.querySelector("label[for=access-key]").textContent = tencent
+          ? "SecretId："
+          : "AccessKey ID：";
+        $("access-key").placeholder = tencent
+          ? "请输入 SecretId"
+          : "请输入 AccessKey ID";
+        document.querySelector("label[for=token]").textContent = cloud
+          ? "API Token："
+          : tencent
+            ? "SecretKey："
+            : "AccessKey Secret：";
+        layui.form.render();
+      }
+      function edit(c = {}) {
+        editing = c.id || "";
+        $("form").reset();
+        for (const id of ["cert-file", "key-file"])
+          $(id + "-name").textContent = "未选择文件";
+        $("editor-title").textContent = editing ? "编辑证书" : "添加证书";
+        for (const [id, key] of Object.entries({
+          name: "name",
+          source: "source",
+          "cert-path": "cert_path",
+          "key-path": "key_path",
+          email: "email",
+          ca: "ca",
+          "eab-id": "eab_key_id",
+          challenge: "challenge",
+          listen: "listen",
+          "access-key": "access_key",
+          "renew-days": "renew_days",
+        }))
+          if (c[key] !== undefined && c[key] !== "") $(id).value = c[key];
+        $("domains").value = (c.domains || []).join("\n");
+        $("eab-enabled").checked = !c.eab_disabled;
+        $("auto").checked = !!c.auto_renew;
+        $("terms").checked = !!c.accept_terms;
+        $("eab-key").placeholder = c.has_eab_key ? "已保存，留空保持不变" : "";
+        $("token").placeholder = c.has_token ? "已保存，留空保持不变" : "";
+        $("editor").hidden = false;
+        visibility();
+      }
+      async function load() {
+        items = await api();
+        $("rows").replaceChildren();
+        for (const c of items) {
+          const tr = document.createElement("tr");
+          for (const text of [
+            c.name +
+              " / " +
+              { upload: "上传", path: "路径", acme: "ACME" }[c.source],
+            (c.covered_domains?.length
+              ? c.covered_domains
+              : c.domains || []
+            ).join(", "),
+            (c.running ? "申请中" : states[c.state] || c.state) +
+              (c.not_after && !c.not_after.startsWith("0001")
+                ? " / " + new Date(c.not_after).toLocaleDateString()
+                : ""),
+            (c.used_by || []).map((n) => "DWS: " + n).join(", ") || "未引用",
+          ]) {
+            const td = document.createElement("td");
+            td.textContent = text;
+            tr.append(td);
+          }
+          const td = document.createElement("td");
+          const actions = document.createElement("div");
+          actions.className = "certificate-actions";
+          td.append(actions);
+          for (const [label, fn] of [
+            ["编辑", () => edit(c)],
+            ...(c.source === "acme"
+              ? [["申请 / 续期", () => act("issue", c)]]
+              : []),
+            [
+              "删除",
+              () => {
+                if (confirm("确定删除证书“" + c.name + "”？")) act("delete", c);
+              },
+            ],
+          ]) {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.className = "layui-btn layui-btn-sm";
+            b.textContent = label;
+            b.disabled = c.running;
+            b.onclick = fn;
+            actions.append(b);
+          }
+          tr.append(td);
+          $("rows").append(tr);
+          if (c.error || c.last_error) {
+            const row = document.createElement("tr"),
+              cell = document.createElement("td");
+            cell.colSpan = 5;
+            cell.textContent = c.error || c.last_error;
+            cell.style.color = "#b45309";
+            row.append(cell);
+            $("rows").append(row);
+          }
+        }
+      }
+      async function act(action, c) {
+        try {
+          await api({ action, certificate: { id: c.id } });
+          $("message").textContent =
+            action === "issue" ? "申请任务已启动，请刷新查看状态。" : "已删除";
+          await load();
+        } catch (e) {
+          $("message").textContent = e.message;
+        }
+      }
+      $("new").onclick = () => edit();
+      $("refresh").onclick = () =>
+        load().catch((e) => ($("message").textContent = e.message));
+      $("cancel").onclick = () => {
+        $("editor").hidden = true;
+        $("form").reset();
+      };
+      $("source").onchange = visibility;
+      $("challenge").onchange = visibility;
+      $("form").onsubmit = async (event) => {
+        event.preventDefault();
+        if (busy) return;
+        busy = true;
+        try {
+          const certificate = {
+            id: editing,
+            name: $("name").value,
+            source: $("source").value,
+            cert_path: $("cert-path").value,
+            key_path: $("key-path").value,
+            email: $("email").value,
+            domains: $("domains")
+              .value.split(/[\s,]+/)
+              .filter(Boolean),
+            ca: $("ca").value,
+            eab_key_id: $("eab-id").value.trim(),
+            eab_disabled: !$("eab-enabled").checked,
+            challenge: $("challenge").value,
+            listen: $("listen").value,
+            access_key: $("access-key").value.trim(),
+            renew_days: Number($("renew-days").value),
+            auto_renew: $("auto").checked,
+            accept_terms: $("terms").checked,
+          };
+          await api({
+            action: "save",
+            certificate,
+            cert_pem: $("cert-pem").value,
+            key_pem: $("key-pem").value,
+            api_token: $("token").value,
+            eab_hmac_key: $("eab-enabled").checked ? $("eab-key").value : "",
+          });
+          $("form").reset();
+          $("editor").hidden = true;
+          $("message").textContent =
+            "证书已保存。ACME 证书可点击“申请 / 续期”，或等待自动任务。";
+          await load();
+        } catch (e) {
+          $("message").textContent = e.message;
+        } finally {
+          busy = false;
+        }
+      };
+      layui.use(["form", "upload"], () => {
+        layui.form.on("switch(eab-toggle)", visibility);
+        layui.form.on("select(certificate-option)", (data) => {
+          if (data.elem.id === "ca") $("terms").checked = false;
+          visibility();
+        });
+        for (const [id, field, exts] of [
+          ["cert-file", "cert-pem", "pem|crt"],
+          ["key-file", "key-pem", "key|pem"],
+        ]) {
+          layui.upload.render({
+            elem: "#" + id,
+            auto: false,
+            accept: "file",
+            exts,
+            acceptMime: exts
+              .split("|")
+              .map((ext) => "." + ext)
+              .join(","),
+            size: 1024,
+            multiple: false,
+            choose(obj) {
+              const files = obj.pushFile();
+              for (const [index, file] of Object.entries(files)) {
+                delete files[index];
+                if (file.size > 1048576) {
+                  $("message").textContent = "文件不能超过 1 MiB";
+                  continue;
+                }
+                file
+                  .text()
+                  .then((text) => {
+                    $(field).value = text;
+                    $(id + "-name").textContent = file.name;
+                  })
+                  .catch(() => {
+                    $("message").textContent = "文件读取失败，请重新选择。";
+                  });
+              }
+            },
+          });
+        }
+      });
+      load().catch((e) => ($("message").textContent = e.message));
+      setInterval(() => {
+        if ($("editor").hidden && !busy) load().catch(() => {});
+      }, 10000);
+    </script>
+  </body>
+</html>

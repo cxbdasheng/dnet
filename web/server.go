@@ -1,11 +1,14 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"sync"
 
+	"github.com/cxbdasheng/dnet/certificates"
 	"github.com/cxbdasheng/dnet/config"
 	"github.com/cxbdasheng/dnet/forward"
+	"github.com/cxbdasheng/dnet/webservice"
 )
 
 type SyncService interface {
@@ -14,10 +17,15 @@ type SyncService interface {
 }
 
 type Server struct {
-	Forwarder  *forward.Manager
-	forwardMu  sync.Mutex
-	configRepo config.Repository
-	syncer     SyncService
+	certificateIssuer  func(context.Context, certificates.Certificate) (certificates.Certificate, error)
+	certificateJobs    map[string]bool
+	certificateContext context.Context
+	WebServices        *webservice.Manager
+	webServiceMu       sync.Mutex
+	Forwarder          *forward.Manager
+	forwardMu          sync.Mutex
+	configRepo         config.Repository
+	syncer             SyncService
 }
 
 func NewServer(configRepo config.Repository, syncer SyncService) *Server {
@@ -33,6 +41,8 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 
 	mux.HandleFunc("/", s.Auth(s.Home))
 	mux.HandleFunc("/dcdn", s.Auth(s.DCDN))
+	mux.HandleFunc("/certificates", s.Auth(s.CertificatesPage))
+	mux.HandleFunc("/api/certificates", s.Auth(s.CertificatesAPI))
 	mux.HandleFunc("/forward", s.Auth(s.ForwardPage))
 	mux.HandleFunc("/api/forward", s.Auth(s.ForwardAPI))
 	mux.HandleFunc("/api/forward/probe", s.Auth(s.ForwardProbe))

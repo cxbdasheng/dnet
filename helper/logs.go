@@ -38,6 +38,7 @@ const (
 	LogTypeDDNS       LogType = "DDNS"
 	LogTypeDPF        LogType = "DPF"
 	LogTypeWebService LogType = "DWS"
+	LogTypeSSL        LogType = "DSSL"
 	LogTypeWebhook    LogType = "Webhook"
 	LogTypeAuth       LogType = "认证"
 	LogTypeNetwork    LogType = "网络"

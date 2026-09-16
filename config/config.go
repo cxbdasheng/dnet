@@ -6,12 +6,15 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 	"time"
 
+	"github.com/cxbdasheng/dnet/certificates"
 	"github.com/cxbdasheng/dnet/forward"
 	"github.com/cxbdasheng/dnet/helper"
+	"github.com/cxbdasheng/dnet/webservice"
 	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/yaml.v3"
 )
@@ -57,6 +60,9 @@ func GetConfigFilePath() string {
 }
 
 type Config struct {
+	Certificates      []certificates.Certificate `json:"certificates" yaml:"certificates,omitempty"`
+	WebServiceEnabled bool                       `json:"web_service_enabled" yaml:"web_service_enabled"`
+	WebServiceRules   []webservice.Rule          `json:"web_service_rules" yaml:"web_service_rules,omitempty"`
 	Settings
 	User
 	Webhook
@@ -78,6 +84,8 @@ func (conf Config) ActiveForwardRules() []forward.Rule {
 
 // clone returns an owned snapshot, including nested mutable slices.
 func (conf Config) clone() Config {
+	conf.WebServiceRules = slices.Clone(conf.WebServiceRules)
+	conf.Certificates = certificates.Clone(conf.Certificates)
 	conf.ForwardRules = forward.Clone(conf.ForwardRules)
 	conf.DCDN = slices.Clone(conf.DCDN)
 	for i := range conf.DCDN {
@@ -173,7 +181,7 @@ func (conf *Config) SaveConfig() error {
 	}
 
 	configFilePath := GetConfigFilePath()
-	if err = os.WriteFile(configFilePath, data, 0600); err != nil {
+	if err = savePrivateConfig(configFilePath, data); err != nil {
 		helper.Error(helper.LogTypeConfig, "写入配置文件失败: %v", err)
 		return err
 	}
@@ -295,4 +303,26 @@ func isLegacySHA256Hash(stored string) bool {
 func legacyHashPassword(password string) string {
 	hash := sha256.Sum256([]byte(password))
 	return fmt.Sprintf("%x", hash)
+}
+
+// Write complete private-key-bearing configuration before replacing the previous file.
+func savePrivateConfig(path string, data []byte) error {
+	file, err := os.CreateTemp(filepath.Dir(path), ".dnet-config-*")
+	if err != nil {
+		return err
+	}
+	name := file.Name()
+	defer os.Remove(name)
+	if _, err = file.Write(data); err != nil {
+		file.Close()
+		return err
+	}
+	if err = file.Sync(); err != nil {
+		file.Close()
+		return err
+	}
+	if err = file.Close(); err != nil {
+		return err
+	}
+	return os.Rename(name, path)
 }
