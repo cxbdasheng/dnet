@@ -1,10 +1,12 @@
 package config
 
 import (
+	"bytes"
 	"github.com/cxbdasheng/dnet/certificates"
 	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -25,12 +27,26 @@ func TestCertificateConfigCloneAndPrivateWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	os.WriteFile(path, []byte("old"), 0644)
+	if err := os.WriteFile(path, []byte("old"), 0644); err != nil {
+		t.Fatal(err)
+	}
 	if err = savePrivateConfig(path, b); err != nil {
 		t.Fatal(err)
 	}
-	info, _ := os.Stat(path)
-	if info.Mode().Perm() != 0600 {
+	written, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(written, b) {
+		t.Fatal("replacement config content mismatch")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Windows reports DOS read-only attributes as mode bits, not POSIX permissions.
+	// Keep content/replacement checks on every platform and enforce 0600 on Unix.
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0600 {
 		t.Fatal("config permissions", info.Mode())
 	}
 }
