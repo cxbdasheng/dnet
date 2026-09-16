@@ -44,5 +44,5 @@ jobs:
           GOOS: linux
           GOARCH: amd64
         run: go build -o "$RUNNER_TEMP/smoke-backend" scripts/ci/echo-backend.go
-      - name: Test Web, persistence, TCP and UDP forwarding
+      - name: Test Web, DWS/DSSL, persistence, TCP and UDP forwarding
         run: python3 scripts/ci/docker-smoke.py dnet-smoke:ci "$RUNNER_TEMP/smoke-backend"

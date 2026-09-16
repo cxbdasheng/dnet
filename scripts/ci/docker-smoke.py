@@ -59,6 +59,27 @@ def main():
         mappings = json.loads(docker("inspect", app))[0]["NetworkSettings"]["Ports"]
         return int(mappings[port][0]["HostPort"])
 
+    def web_services():
+        for path, marker in (("/webservice", b"certificate_id"), ("/certificates", b"eab-enabled")):
+            with opener.open(f"http://127.0.0.1:{web_port}{path}", timeout=3) as response:
+                assert response.status == 200 and marker in response.read(), path
+        assert api("/api/certificates") in (None, []), "Unexpected certificates in fresh config"
+        service_port = published("19002/tcp")
+        for path, content_type, marker in (
+            ("/", "text/html", b"D-NET"),
+            ("/speedtest.js", "application/javascript", b"Speedtest"),
+            ("/speedtest_worker.js", "application/javascript", b"LibreSpeed - Worker"),
+            ("/?dws_test=favicon", "image/x-icon", b"\x00\x00\x01\x00"),
+            ("/?dws_test=license", "text/plain", b"GNU"),
+        ):
+            request = urllib.request.Request(
+                f"http://127.0.0.1:{service_port}{path}", headers={"Host": "speed.example.com"}
+            )
+            with opener.open(request, timeout=3) as response:
+                assert response.status == 200, path
+                assert response.headers.get_content_type() == content_type, path
+                assert marker in response.read(), f"Missing embedded asset: {path}"
+
     def exchanges():
         payload = b"dnet-tcp-smoke\x00" * 128
         with socket.create_connection(("127.0.0.1", published("19000/tcp")), 3) as conn:
@@ -94,7 +115,7 @@ def main():
                    "--entrypoint", "/smoke-backend", image)
             docker("run", "-d", "--name", app, "--network", network,
                    "-p", "127.0.0.1::9877/tcp", "-p", "127.0.0.1::19000/tcp",
-                   "-p", "127.0.0.1::19000/udp", "--mount",
+                   "-p", "127.0.0.1::19000/udp", "-p", "127.0.0.1::19002/tcp", "--mount",
                    f"type=bind,src={root},dst=/root", image)
             web_port = published("9877/tcp")
 
@@ -116,6 +137,11 @@ def main():
             ]
             api("/api/forward", {"enabled": True, "rules": rules})
             wait_for(exchanges, "TCP and UDP replies")
+            web_rules = [{"id": "speed", "name": "speed", "type": "speedtest",
+                          "domain": "speed.example.com", "network": "tcp4",
+                          "listen_address": "0.0.0.0", "listen_port": 19002}]
+            api("/api/webservice", {"enabled": True, "rules": web_rules})
+            wait_for(web_services, "DWS/DSSL pages and embedded speedtest assets")
             config = Path(root, ".dnet_config.yaml")
             assert config.is_file(), "Default config was not persisted to the mounted directory"
             # On Linux the bind-mounted file belongs to container root (0600),
@@ -134,10 +160,12 @@ def main():
             assert restored["enabled"] is True
             assert restored["rules"] == rules, "Saved rules changed after restart"
             wait_for(exchanges, "persisted TCP and UDP rules")
+            assert api("/api/webservice")["enabled"] is True
+            wait_for(web_services, "DWS/DSSL after restart")
             health = docker("inspect", "--format", "{{.Config.Healthcheck.Test}}", app)
             assert "curl" in health, "Image healthcheck is missing"
             docker("exec", app, "curl", "-fsS", "http://localhost:9877/")
-            print("PASS: Web, mounted config, restart, TCP, UDP and probe semantics")
+            print("PASS: Web, DWS/DSSL assets, mounted config, restart, TCP, UDP and probes")
             # Remove containers before deleting their bind-mounted directory.
             docker("rm", "-f", app, backend)
     except Exception:

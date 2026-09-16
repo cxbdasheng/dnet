@@ -25,6 +25,8 @@ jobs:
         run: |
           go mod tidy -diff
           go mod verify
+      - name: Test DWS speedtest lifecycle
+        run: node --test scripts/test-dws-speedtest.cjs
       - name: Install actionlint
         run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
       - name: Check workflows and shell scripts
