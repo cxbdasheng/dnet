@@ -30,6 +30,8 @@ const (
 	ProviderDnspod     = "dnspod"     // DNSPod DNS
 	ProviderNameSilo   = "namesilo"   // NameSilo DNS
 	ProviderGoDaddy    = "godaddy"    // GoDaddy DNS
+	ProviderDNSLA      = "dnsla"      // DNSLA DNS
+	ProviderPorkbun    = "porkbun"    // Porkbun DNS
 	ProviderCallback   = "callback"   // 自定义回调（HTTP GET/POST）
 	ProviderMock       = "mock"       // 模拟测试（不发起真实请求）
 )

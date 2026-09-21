@@ -222,6 +222,10 @@ func (r *Runner) processDDNSServices(conf *config.Config) {
 			dnsSelected = &ddns.NameSilo{}
 		case ddns.ProviderGoDaddy:
 			dnsSelected = &ddns.GoDaddy{}
+		case ddns.ProviderDNSLA:
+			dnsSelected = &ddns.DNSLA{}
+		case ddns.ProviderPorkbun:
+			dnsSelected = &ddns.Porkbun{}
 		case ddns.ProviderCallback:
 			dnsSelected = &ddns.Callback{}
 		case ddns.ProviderMock:
