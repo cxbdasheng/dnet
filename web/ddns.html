@@ -647,6 +647,7 @@
         function updateFormBasedOnProvider(providerId) {
             if (!DNS_PROVIDERS[providerId]) return;
             const provider = DNS_PROVIDERS[providerId];
+            updateProviderRecordTypes(providerId);
             // 更新 AccessKey 字段
             updateFormField('access-key-label', 'access_key', provider.idLabel, 'access_key');
             updateFormField('access-secret-label', 'access_secret', provider.secretLabel, 'access_secret');
@@ -658,6 +659,17 @@
                 $serviceHelpContainer.html('<a href="">创建 AccessKey</a>');
             }
             form.render('select');
+        }
+
+        function updateProviderRecordTypes(providerId) {
+            const supported = DNS_PROVIDERS[providerId]?.recordTypes || ['A', 'AAAA', 'CNAME', 'TXT'];
+            $('input[name="type"]').each(function() {
+                const disabled = !supported.includes(this.value);
+                $(this).prop('disabled', disabled);
+                if (disabled) $(this).prop('checked', false);
+            });
+            form.render('checkbox');
+            updateRecordTypeFields(getSelectedRecordTypes());
         }
 
         // 表单字段显示/隐藏辅助函数
@@ -1077,8 +1089,9 @@
             });
 
             // 重新渲染表单并更新显示
+            updateProviderRecordTypes(config.service || firstDNSProvider);
             form.render();
-            updateRecordTypeFields(typesToLoad.length > 0 ? typesToLoad : ['AAAA']);
+            updateRecordTypeFields(getSelectedRecordTypes());
         }
 
         // 使用默认配置初始化表单字段

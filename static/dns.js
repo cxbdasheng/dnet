@@ -47,6 +47,20 @@ const DNS_PROVIDERS = {
         secretLabel: "API Secret：",
         idHelpHtml: "<a target='_blank' href='https://developer.godaddy.com/keys'>创建 GoDaddy API 密钥</a>",
     },
+    dnsla: {
+        name: "DNSLA",
+        idLabel: "API ID：",
+        secretLabel: "API Secret：",
+        recordTypes: ["A", "AAAA", "CNAME", "TXT"],
+        idHelpHtml: "<a target='_blank' href='https://www.dns.la/docs/ApiDoc'>DNSLA API 配置说明</a>",
+    },
+    porkbun: {
+        name: "Porkbun",
+        idLabel: "API Key：",
+        secretLabel: "Secret API Key：",
+        recordTypes: ["A", "AAAA", "CNAME", "TXT"],
+        idHelpHtml: "<a target='_blank' href='https://porkbun.com/account/api'>创建 API 密钥</a> · 请为目标域名开启 API 访问",
+    },
     callback: {
         name: "Callback",
         idLabel: "Callback URL：",
