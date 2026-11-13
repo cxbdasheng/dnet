@@ -13,8 +13,12 @@ import (
 	"time"
 )
 
-func dnsProvider(kind string) bool {
-	return kind == "cloudflare" || kind == "aliyun" || kind == "tencent"
+func IsDNSProvider(kind string) bool {
+	switch kind {
+	case "cloudflare", "aliyun", "tencent", "dnspod", "porkbun", "namesilo":
+		return true
+	}
+	return false
 }
 
 func presentDNS(ctx context.Context, c Certificate, name, value string) (func(), error) {
@@ -25,7 +29,7 @@ func presentDNS(ctx context.Context, c Certificate, name, value string) (func(),
 }
 
 func presentCloudDNS(ctx context.Context, c Certificate, name, value string, client *http.Client) (func(), error) {
-	if c.Challenge != "aliyun" && c.Challenge != "tencent" {
+	if !IsDNSProvider(c.Challenge) || c.Challenge == "cloudflare" {
 		return nil, fmt.Errorf("不支持的 DNS 服务商")
 	}
 	if c.ZoneID == "" {
@@ -54,6 +58,10 @@ func presentCloudDNS(ctx context.Context, c Certificate, name, value string, cli
 }
 
 func cloudDNSRequest(ctx context.Context, c Certificate, rr, value, id string, client *http.Client) (string, error) {
+	switch c.Challenge {
+	case "dnspod", "porkbun", "namesilo":
+		return additionalDNSRequest(ctx, c, rr, value, id, client)
+	}
 	var req *http.Request
 	var err error
 	if c.Challenge == "aliyun" {

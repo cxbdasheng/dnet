@@ -53,7 +53,7 @@ func ValidateACME(c Certificate) error {
 		}
 		seen[d] = true
 		name := strings.TrimPrefix(d, "*.")
-		if name != d && !dnsProvider(c.Challenge) {
+		if name != d && !IsDNSProvider(c.Challenge) {
 			return fmt.Errorf("通配符证书需要 DNS 验证")
 		}
 		if net.ParseIP(name) != nil || !strings.Contains(name, ".") || len(name) > 253 {
@@ -75,9 +75,9 @@ func ValidateACME(c Certificate) error {
 		if _, err := net.ResolveTCPAddr("tcp", c.Listen); err != nil || c.Listen == "" {
 			return fmt.Errorf("HTTP 验证监听地址无效")
 		}
-	case "aliyun", "tencent":
-		if c.AccessKey == "" || c.APIToken == "" {
-			return fmt.Errorf("请填写 DNS 服务商的密钥 ID 和密钥")
+	case "aliyun", "tencent", "dnspod", "porkbun", "namesilo":
+		if (c.Challenge != "namesilo" && c.AccessKey == "") || c.APIToken == "" {
+			return fmt.Errorf("请填写所选 DNS 服务商的凭据")
 		}
 		if c.ZoneID != "" && (strings.ContainsAny(c.ZoneID, " /:*\\") || !strings.Contains(c.ZoneID, ".")) {
 			return fmt.Errorf("请填写 DNS 托管区域域名，例如 example.com")
@@ -199,7 +199,7 @@ func issue(ctx context.Context, c Certificate, httpClient *http.Client) (Certifi
 		if c.Challenge == "tls-alpn" {
 			kind = "tls-alpn-01"
 		}
-		if dnsProvider(c.Challenge) {
+		if IsDNSProvider(c.Challenge) {
 			kind = "dns-01"
 		}
 		var chosen *acme.Challenge

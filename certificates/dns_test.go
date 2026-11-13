@@ -101,3 +101,47 @@ func TestDNSAutomaticZone(t *testing.T) {
 		}
 	}
 }
+
+func TestAdditionalDNSCreateAndCleanup(t *testing.T) {
+	for _, kind := range []string{"porkbun", "dnspod", "namesilo"} {
+		t.Run(kind, func(t *testing.T) {
+			calls := 0
+			client := &http.Client{Transport: dnsTransport(func(r *http.Request) (*http.Response, error) {
+				calls++
+				var host, value, id, result string
+				switch kind {
+				case "porkbun":
+					var data map[string]string
+					if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+						t.Fatal(err)
+					}
+					host, value = data["name"], data["content"]
+					id = strings.TrimPrefix(r.URL.Path, "/api/json/v3/dns/delete/example.com/")
+					result = `{"status":"SUCCESS","id":123}`
+				case "dnspod":
+					host, value, id = r.FormValue("sub_domain"), r.FormValue("value"), r.FormValue("record_id")
+					result = `{"status":{"code":"1"},"record":{"id":"123"}}`
+				case "namesilo":
+					q := r.URL.Query()
+					host, value, id = q.Get("rrhost"), q.Get("rrvalue"), q.Get("rrid")
+					result = `<namesilo><reply><code>300</code><record_id>123</record_id></reply></namesilo>`
+				}
+				if calls == 1 && (host != "_acme-challenge.sub" || value != "proof") {
+					t.Fatal("incorrect challenge")
+				}
+				if calls == 2 && id != "123" {
+					t.Fatal("incorrect cleanup record")
+				}
+				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(result))}, nil
+			})}
+			cleanup, err := presentCloudDNS(context.Background(), Certificate{Challenge: kind}, "_acme-challenge.sub.example.com", "proof", client)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cleanup()
+			if calls != 2 {
+				t.Fatal(calls)
+			}
+		})
+	}
+}

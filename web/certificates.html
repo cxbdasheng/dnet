@@ -322,6 +322,9 @@
                   <option value="tencent">
                     腾讯云 DNSPod DNS（支持通配符）
                   </option>
+                  <option value="dnspod">DNSPod（传统 API）（支持通配符）</option>
+                  <option value="porkbun">Porkbun（支持通配符）</option>
+                  <option value="namesilo">NameSilo（支持通配符）</option>
                 </select>
               </div>
             </div>
@@ -490,20 +493,19 @@
         $("dns-fields").hidden = network;
         document.querySelector("#http-fields tip").textContent =
           $("challenge").value === "tls-alpn" ? tlsHelp : httpHelp;
-        const cloud = $("challenge").value === "cloudflare";
-        $("access-key-field").hidden = cloud || network;
-        const tencent = $("challenge").value === "tencent";
-        document.querySelector("label[for=access-key]").textContent = tencent
-          ? "SecretId："
-          : "AccessKey ID：";
-        $("access-key").placeholder = tencent
-          ? "请输入 SecretId"
-          : "请输入 AccessKey ID";
-        document.querySelector("label[for=token]").textContent = cloud
-          ? "API Token："
-          : tencent
-            ? "SecretKey："
-            : "AccessKey Secret：";
+        const credentials = {
+          aliyun: ["AccessKey ID", "AccessKey Secret"],
+          tencent: ["SecretId", "SecretKey"],
+          dnspod: ["Token ID", "Token"],
+          porkbun: ["API Key", "Secret API Key"],
+          namesilo: ["", "API Key"],
+          cloudflare: ["", "API Token"],
+        };
+        const [key, secret] = credentials[$("challenge").value] || ["", ""];
+        $("access-key-field").hidden = !key;
+        document.querySelector("label[for=access-key]").textContent = key + "：";
+        $("access-key").placeholder = "请输入 " + key;
+        document.querySelector("label[for=token]").textContent = secret + "：";
         layui.form.render();
       }
       function edit(c = {}) {

@@ -110,7 +110,7 @@ func (s *Server) CertificatesAPI(w http.ResponseWriter, r *http.Request) {
 				helper.ReturnError(w, "证书不存在")
 				return
 			}
-			if c.Challenge == "aliyun" || c.Challenge == "tencent" || c.Challenge == "cloudflare" {
+			if certificates.IsDNSProvider(c.Challenge) {
 				c.ZoneID = ""
 			}
 			c.CertPEM = old.CertPEM
